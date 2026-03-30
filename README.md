@@ -4,6 +4,8 @@
 [![npm version](https://img.shields.io/npm/v/palmier)](https://www.npmjs.com/package/palmier)
 [![license](https://img.shields.io/npm/l/palmier)](https://github.com/caihongxu/palmier/blob/master/LICENSE)
 
+**Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
+
 A Node.js CLI that runs on your machine as a persistent daemon. It manages tasks, communicates with the Palmier app via NATS and/or direct HTTP, and executes tasks on schedule or demand using CLI tools.
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
