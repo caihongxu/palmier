@@ -1,6 +1,8 @@
 # Palmier
 
-![CI](https://github.com/caihongxu/palmier/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/caihongxu/palmier/actions/workflows/ci.yml/badge.svg)](https://github.com/caihongxu/palmier/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/palmier)](https://www.npmjs.com/package/palmier)
+[![license](https://img.shields.io/npm/l/palmier)](https://github.com/caihongxu/palmier/blob/master/LICENSE)
 
 A Node.js CLI that runs on your machine as a persistent daemon. It manages tasks, communicates with the Palmier app via NATS and/or direct HTTP, and executes tasks on schedule or demand using CLI tools.
 
