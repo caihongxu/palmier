@@ -10,6 +10,7 @@ import { CONFIG_DIR } from "../config.js";
 const TASK_PREFIX = "\\Palmier\\PalmierTask-";
 const DAEMON_TASK_NAME = "PalmierDaemon";
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
+const DAEMON_VBS_FILE = path.join(CONFIG_DIR, "daemon.vbs");
 
 /**
  * Build the /tr value for schtasks: a single string with quoted paths
@@ -76,7 +77,12 @@ function schtasksTaskName(taskId: string): string {
 export class WindowsPlatform implements PlatformService {
   installDaemon(config: HostConfig): void {
     const script = process.argv[1] || "palmier";
-    const regValue = `"${process.execPath}" "${script}" serve`;
+
+    // Write a VBS launcher that starts the daemon with no visible console window
+    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath.replace(/\\/g, "\\\\")}"" ""${script.replace(/\\/g, "\\\\")}"" serve", 0, False`;
+    fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
+
+    const regValue = `"${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe" "${DAEMON_VBS_FILE}"`;
 
     try {
       execFileSync("reg", [
