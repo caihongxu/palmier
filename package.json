@@ -1,0 +1,36 @@
+{
+  "name": "palmier",
+  "version": "0.2.7",
+  "description": "Palmier host CLI - provisions, executes tasks, and serves NATS RPC",
+  "license": "Apache-2.0",
+  "author": "Hongxu Cai",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "palmier": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc && node -e \"require('fs').cpSync('src/commands/plan-generation.md','dist/commands/plan-generation.md')\"",
+    "prepare": "npm run build",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "commander": "^13.1.0",
+    "cross-spawn": "^7.0.6",
+    "dotenv": "^16.4.7",
+    "nats": "^2.29.1",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
