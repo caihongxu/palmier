@@ -10,7 +10,7 @@ import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
 import { validateSession } from "./session-store.js";
 import { publishHostEvent } from "./events.js";
-import { getUpdateAvailable, performUpdate } from "./update-checker.js";
+import { currentVersion, getLatestVersion, performUpdate } from "./update-checker.js";
 import type { HostConfig, ParsedTask, RpcMessage } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -122,7 +122,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         return {
           tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
-          update_available: getUpdateAvailable(),
+          version: currentVersion,
+          latest_version: getLatestVersion(),
         };
       }
 

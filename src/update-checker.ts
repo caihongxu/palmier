@@ -6,28 +6,14 @@ import { getPlatform } from "./platform/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf-8")) as { version: string };
-const currentVersion = pkg.version;
+export const currentVersion = pkg.version;
 
 let latestVersion: string | null = null;
 let lastCheckTime = 0;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Compare two semver strings (major.minor.patch).
- * Returns true if b is newer than a.
- */
-function isNewer(a: string, b: string): boolean {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pb[i] ?? 0) > (pa[i] ?? 0)) return true;
-    if ((pb[i] ?? 0) < (pa[i] ?? 0)) return false;
-  }
-  return false;
-}
-
-/**
- * Check the npm registry for a newer version of palmier.
+ * Check the npm registry for the latest version of palmier.
  */
 export async function checkForUpdate(): Promise<void> {
   const now = Date.now();
@@ -40,11 +26,9 @@ export async function checkForUpdate(): Promise<void> {
     });
     if (!res.ok) return;
     const data = (await res.json()) as { version?: string };
-    if (data.version && isNewer(currentVersion, data.version)) {
+    if (data.version) {
       latestVersion = data.version;
-      console.log(`[update] New version available: ${data.version} (current: ${currentVersion})`);
-    } else {
-      latestVersion = null;
+      console.log(`[update] Latest version: ${data.version} (current: ${currentVersion})`);
     }
   } catch {
     // Network errors are expected (offline, etc.)
@@ -52,9 +36,9 @@ export async function checkForUpdate(): Promise<void> {
 }
 
 /**
- * Get the available update version, or null if up to date.
+ * Get the latest version from npm, or null if not yet checked.
  */
-export function getUpdateAvailable(): string | null {
+export function getLatestVersion(): string | null {
   return latestVersion;
 }
 
