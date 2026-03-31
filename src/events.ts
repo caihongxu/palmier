@@ -1,20 +1,7 @@
-import * as fs from "fs";
-import * as path from "path";
 import { StringCodec, type NatsConnection } from "nats";
-import { CONFIG_DIR } from "./config.js";
+import { getLanPort } from "./lan-lock.js";
 
 const sc = StringCodec();
-const LAN_LOCKFILE = path.join(CONFIG_DIR, "lan.json");
-
-/**
- * Read the LAN lockfile to determine if `palmier lan` is running.
- */
-function getLanPort(): number | null {
-  try {
-    const raw = fs.readFileSync(LAN_LOCKFILE, "utf-8");
-    return (JSON.parse(raw) as { port: number }).port;
-  } catch { return null; }
-}
 
 /**
  * Broadcast an event to connected clients via NATS and HTTP SSE (if LAN server is running).

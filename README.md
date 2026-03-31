@@ -132,6 +132,15 @@ palmier restart
 - **Real-time updates** — task status changes (started, finished, failed) are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (LAN mode).
 - **MCP server** (`palmier mcpserver`) exposes platform tools (e.g., `send-push-notification`) to AI agents like Claude Code over stdio.
 
+## NATS Subjects
+
+| Subject | Direction | Description |
+|---|---|---|
+| `host.<hostId>.rpc.<method>` | Client → Host | RPC request/reply (e.g., `task.list`, `task.create`) |
+| `host-event.<hostId>.<taskId>` | Host → Client | Real-time task events (`running-state`, `confirm-request`, `permission-request`, `input-request`) |
+| `host.<hostId>.push.send` | Host → Server | Request server to deliver a push notification |
+| `pair.<code>` | Client → Host | OTP pairing request/reply |
+
 ## Project Structure
 
 ```
@@ -144,16 +153,19 @@ src/
   spawn-command.ts    # Shared helper for spawning CLI tools
   task.ts             # Task file management
   types.ts            # Shared type definitions
+  pairing.ts          # OTP code generation and expiry constant
+  lan-lock.ts         # LAN lockfile path and port reader
+  events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
   agents/
     agent.ts          # AgentTool interface, registry, and agent detection
     claude.ts         # Claude Code agent implementation
     gemini.ts         # Gemini CLI agent implementation
     codex.ts          # Codex CLI agent implementation
     openclaw.ts       # OpenClaw agent implementation
-  events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
   commands/
     init.ts           # Interactive setup wizard (auto-pair)
     pair.ts           # OTP code generation and pairing handler
+    lan.ts            # On-demand LAN server
     sessions.ts       # Session token management CLI (list, revoke, revoke-all)
     info.ts           # Print host connection info
     agents.ts         # Re-detect installed agent CLIs

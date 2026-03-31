@@ -2,10 +2,7 @@ import type { ParsedTask, RequiredPermission } from "../types.js";
 import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { AGENT_INSTRUCTIONS } from "./shared-prompt.js";
-
-// execSync's shell option takes a string (shell path), not boolean.
-// On Windows we need a shell so .cmd shims resolve correctly.
-const SHELL = process.platform === "win32" ? "cmd.exe" : undefined;
+import { SHELL } from "../platform/index.js";
 
 export class ClaudeAgent implements AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine {

@@ -1,22 +1,11 @@
-import * as fs from "fs";
-import * as path from "path";
 import * as http from "node:http";
 import { StringCodec } from "nats";
-import { loadConfig, CONFIG_DIR } from "../config.js";
+import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addSession } from "../session-store.js";
+import { generatePairingCode, PAIRING_EXPIRY_MS } from "../pairing.js";
+import { getLanPort } from "../lan-lock.js";
 import type { HostConfig } from "../types.js";
-
-const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
-const CODE_LENGTH = 6;
-const EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const LAN_LOCKFILE = path.join(CONFIG_DIR, "lan.json");
-
-function generateCode(): string {
-  const bytes = new Uint8Array(CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
-}
 
 function buildPairResponse(config: HostConfig, label?: string) {
   const session = addSession(label);
@@ -30,7 +19,7 @@ function buildPairResponse(config: HostConfig, label?: string) {
  * POST to the running LAN server and long-poll until paired or expired.
  */
 function lanPairRegister(port: number, code: string): Promise<boolean> {
-  const body = JSON.stringify({ code, expiryMs: EXPIRY_MS });
+  const body = JSON.stringify({ code, expiryMs: PAIRING_EXPIRY_MS });
 
   return new Promise((resolve) => {
     const req = http.request(
@@ -40,7 +29,7 @@ function lanPairRegister(port: number, code: string): Promise<boolean> {
         path: "/internal/pair-register",
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        timeout: EXPIRY_MS + 5000,
+        timeout: PAIRING_EXPIRY_MS + 5000,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -63,22 +52,12 @@ function lanPairRegister(port: number, code: string): Promise<boolean> {
 }
 
 /**
- * Read the LAN lockfile to check if `palmier lan` is running.
- */
-function getLanPort(): number | null {
-  try {
-    const raw = fs.readFileSync(LAN_LOCKFILE, "utf-8");
-    return (JSON.parse(raw) as { port: number }).port;
-  } catch { return null; }
-}
-
-/**
  * Generate an OTP code and wait for a PWA client to pair.
  * Listens on NATS always, and also on the LAN server if `palmier lan` is running.
  */
 export async function pairCommand(): Promise<void> {
   const config = loadConfig();
-  const code = generateCode();
+  const code = generatePairingCode();
 
   let paired = false;
 
@@ -140,7 +119,7 @@ export async function pairCommand(): Promise<void> {
   const start = Date.now();
   await new Promise<void>((resolve) => {
     const interval = setInterval(() => {
-      if (paired || Date.now() - start >= EXPIRY_MS) {
+      if (paired || Date.now() - start >= PAIRING_EXPIRY_MS) {
         clearInterval(interval);
         resolve();
       }

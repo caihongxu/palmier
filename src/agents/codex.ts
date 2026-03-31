@@ -2,13 +2,10 @@ import type { ParsedTask, RequiredPermission } from "../types.js";
 import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { AGENT_INSTRUCTIONS } from "./shared-prompt.js";
-
-// On Windows we need a shell so .cmd shims resolve correctly.
-const SHELL = process.platform === "win32" ? "cmd.exe" : undefined;
+import { SHELL } from "../platform/index.js";
 
 export class CodexAgent implements AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine {
-    // TODO: fill in
     return {
       command: "codex",
       args: ["exec", "--skip-git-repo-check", prompt],
@@ -17,8 +14,7 @@ export class CodexAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, retryPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
     const prompt = AGENT_INSTRUCTIONS + "\n\n" + (retryPrompt ?? (task.body || task.frontmatter.user_prompt));
-    // TODO: Update sandbox to workspace-write once https://github.com/openai/codex/issues/12572
-    // is fixed.
+    // Using danger-full-access until workspace-write is fixed: https://github.com/openai/codex/issues/12572
     const args = ["exec", "--full-auto", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];

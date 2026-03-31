@@ -67,7 +67,6 @@ export async function initCommand(): Promise<void> {
     const config: HostConfig = {
       hostId: registerResponse.hostId,
       projectRoot: process.cwd(),
-      nats: true,
       natsUrl: registerResponse.natsUrl,
       natsWsUrl: registerResponse.natsWsUrl,
       natsToken: registerResponse.natsToken,

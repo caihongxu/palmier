@@ -2,13 +2,10 @@ import type { ParsedTask, RequiredPermission } from "../types.js";
 import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { AGENT_INSTRUCTIONS } from "./shared-prompt.js";
-
-// On Windows we need a shell so .cmd shims resolve correctly.
-const SHELL = process.platform === "win32" ? "cmd.exe" : undefined;
+import { SHELL } from "../platform/index.js";
 
 export class GeminiAgent implements AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine {
-    // TODO: fill in
     return {
       command: "gemini",
       args: ["--approval-mode", "auto_edit", "--prompt", prompt],

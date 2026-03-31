@@ -29,7 +29,6 @@ export function loadConfig(): HostConfig {
     throw new Error("Invalid host config: missing natsUrl or natsToken");
   }
 
-  config.nats = true;
   return config;
 }
 

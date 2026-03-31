@@ -264,18 +264,15 @@ async function runCommandTriggeredMode(
     env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id },
   });
 
-  // Stats
   let linesProcessed = 0;
   let invocationsSucceeded = 0;
   let invocationsFailed = 0;
 
-  // Bounded queue for incoming lines
   const lineQueue: string[] = [];
   let processing = false;
   let commandExited = false;
   let resolveWhenDone: (() => void) | undefined;
 
-  // Rolling log of per-line agent outputs
   const logPath = path.join(ctx.taskDir, "command-output.log");
   function appendLog(line: string, agentOutput: string, outcome: string) {
     const entry = `[${new Date().toISOString()}] (${outcome}) input: ${line}\n${agentOutput}\n---\n`;
@@ -333,10 +330,9 @@ async function runCommandTriggeredMode(
     }
   }
 
-  // Read stdout line by line
   const rl = readline.createInterface({ input: child.stdout! });
   rl.on("line", (line: string) => {
-    if (!line.trim()) return; // skip empty lines
+    if (!line.trim()) return;
     if (lineQueue.length >= MAX_QUEUE_SIZE) {
       console.warn(`[command-triggered] Queue full, dropping oldest line.`);
       lineQueue.shift();
@@ -348,7 +344,6 @@ async function runCommandTriggeredMode(
     });
   });
 
-  // Log stderr
   child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
 
   // Wait for command to exit
@@ -383,9 +378,7 @@ async function runCommandTriggeredMode(
     `Agent invocations failed: ${invocationsFailed}`,
   ].join("\n");
 
-  // Command-triggered tasks run until the command exits — any exit is a normal finish.
-  const outcome: TaskRunningState = "finished";
-  return { outcome, endTime, output: summary };
+  return { outcome: "finished", endTime, output: summary };
 }
 
 async function publishTaskEvent(
@@ -422,6 +415,22 @@ async function publishConfirmResolved(
   });
 }
 
+/**
+ * Watch status.json until user_input is populated by an RPC call, then resolve.
+ * All interactive request flows (confirmation, permission, user input) share this.
+ */
+function waitForUserInput(taskDir: string): Promise<string[]> {
+  const statusPath = path.join(taskDir, "status.json");
+  return new Promise<string[]>((resolve) => {
+    const watcher = fs.watch(statusPath, () => {
+      const status = readTaskStatus(taskDir);
+      if (!status || !status.user_input?.length) return;
+      watcher.close();
+      resolve(status.user_input);
+    });
+  });
+}
+
 async function requestPermission(
   nc: NatsConnection | undefined,
   config: HostConfig,
@@ -429,32 +438,23 @@ async function requestPermission(
   taskDir: string,
   requiredPermissions: RequiredPermission[],
 ): Promise<"granted" | "granted_all" | "aborted"> {
-  const taskId = task.frontmatter.id;
-  const statusPath = path.join(taskDir, "status.json");
-
   const currentStatus = readTaskStatus(taskDir)!;
   writeTaskStatus(taskDir, { ...currentStatus, pending_permission: requiredPermissions });
 
-  await publishHostEvent(nc, config.hostId, taskId, {
+  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
     event_type: "permission-request",
     host_id: config.hostId,
     required_permissions: requiredPermissions,
     name: task.frontmatter.name,
   });
 
-  return new Promise<"granted" | "granted_all" | "aborted">((resolve) => {
-    const watcher = fs.watch(statusPath, () => {
-      const status = readTaskStatus(taskDir);
-      if (!status || !status.user_input?.length) return;
-      watcher.close();
-      const response = status.user_input[0] as "granted" | "granted_all" | "aborted";
-      writeTaskStatus(taskDir, {
-        running_state: response === "aborted" ? "aborted" : "started",
-        time_stamp: Date.now(),
-      });
-      resolve(response);
-    });
+  const userInput = await waitForUserInput(taskDir);
+  const response = userInput[0] as "granted" | "granted_all" | "aborted";
+  writeTaskStatus(taskDir, {
+    running_state: response === "aborted" ? "aborted" : "started",
+    time_stamp: Date.now(),
   });
+  return response;
 }
 
 async function publishPermissionResolved(
@@ -477,34 +477,23 @@ async function requestUserInput(
   taskDir: string,
   inputDescriptions: string[],
 ): Promise<string[] | "aborted"> {
-  const taskId = task.frontmatter.id;
-  const statusPath = path.join(taskDir, "status.json");
-
   const currentStatus = readTaskStatus(taskDir)!;
   writeTaskStatus(taskDir, { ...currentStatus, pending_input: inputDescriptions });
 
-  await publishHostEvent(nc, config.hostId, taskId, {
+  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
     event_type: "input-request",
     host_id: config.hostId,
     input_descriptions: inputDescriptions,
     name: task.frontmatter.name,
   });
 
-  return new Promise<string[] | "aborted">((resolve) => {
-    const watcher = fs.watch(statusPath, () => {
-      const status = readTaskStatus(taskDir);
-      if (!status || !status.user_input?.length) return;
-      watcher.close();
-      const response = status.user_input;
-      if (response.length === 1 && response[0] === "aborted") {
-        writeTaskStatus(taskDir, { running_state: "aborted", time_stamp: Date.now() });
-        resolve("aborted");
-      } else {
-        writeTaskStatus(taskDir, { running_state: "started", time_stamp: Date.now() });
-        resolve(response);
-      }
-    });
-  });
+  const userInput = await waitForUserInput(taskDir);
+  if (userInput.length === 1 && userInput[0] === "aborted") {
+    writeTaskStatus(taskDir, { running_state: "aborted", time_stamp: Date.now() });
+    return "aborted";
+  }
+  writeTaskStatus(taskDir, { running_state: "started", time_stamp: Date.now() });
+  return userInput;
 }
 
 async function publishInputResolved(
@@ -526,34 +515,21 @@ async function requestConfirmation(
   task: ParsedTask,
   taskDir: string,
 ): Promise<boolean> {
-  const taskId = task.frontmatter.id;
-  const statusPath = path.join(taskDir, "status.json");
-
-  // Flag that we're awaiting user confirmation
   const currentStatus = readTaskStatus(taskDir)!;
   writeTaskStatus(taskDir, { ...currentStatus, pending_confirmation: true });
 
-  // Publish confirmation request via NATS and/or HTTP SSE
-  await publishHostEvent(nc, config.hostId, taskId, {
+  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
     event_type: "confirm-request",
     host_id: config.hostId,
   });
 
-  // Wait for task.user_input RPC to set user_input in status.json
-  return new Promise<boolean>((resolve) => {
-    const watcher = fs.watch(statusPath, () => {
-      const status = readTaskStatus(taskDir);
-      if (!status || !status.user_input?.length) return; // still pending
-      watcher.close();
-      const confirmed = status.user_input[0] === "confirmed";
-      // Clear pending_confirmation/user_input and update running_state
-      writeTaskStatus(taskDir, {
-        running_state: confirmed ? "started" : "aborted",
-        time_stamp: Date.now(),
-      });
-      resolve(confirmed);
-    });
+  const userInput = await waitForUserInput(taskDir);
+  const confirmed = userInput[0] === "confirmed";
+  writeTaskStatus(taskDir, {
+    running_state: confirmed ? "started" : "aborted",
+    time_stamp: Date.now(),
   });
+  return confirmed;
 }
 
 /**
