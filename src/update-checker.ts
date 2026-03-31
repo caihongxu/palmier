@@ -5,8 +5,12 @@ import { spawnCommand } from "./spawn-command.js";
 import { getPlatform } from "./platform/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf-8")) as { version: string };
-export const currentVersion = pkg.version;
+const packageRoot = path.join(__dirname, "..");
+const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf-8")) as { version: string };
+
+/** True when running from a source checkout (has .git) rather than a global npm install. */
+export const isDevBuild = fs.existsSync(path.join(packageRoot, ".git"));
+export const currentVersion = isDevBuild ? `${pkg.version}-dev` : pkg.version;
 
 let latestVersion: string | null = null;
 let lastCheckTime = 0;
@@ -16,6 +20,7 @@ const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
  * Check the npm registry for the latest version of palmier.
  */
 export async function checkForUpdate(): Promise<void> {
+  if (isDevBuild) return;
   const now = Date.now();
   if (now - lastCheckTime < CHECK_INTERVAL_MS) return;
   lastCheckTime = now;
