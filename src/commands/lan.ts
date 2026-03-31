@@ -2,7 +2,7 @@ import * as fs from "fs";
 import { loadConfig, CONFIG_DIR } from "../config.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startHttpTransport, detectLanIp } from "../transports/http-transport.js";
-import { generatePairingCode } from "../pairing.js";
+import { generatePairingCode } from "./pair.js";
 import { LAN_LOCKFILE } from "../lan-lock.js";
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;

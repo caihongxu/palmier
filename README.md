@@ -153,7 +153,6 @@ src/
   spawn-command.ts    # Shared helper for spawning CLI tools
   task.ts             # Task file management
   types.ts            # Shared type definitions
-  pairing.ts          # OTP code generation and expiry constant
   lan-lock.ts         # LAN lockfile path and port reader
   events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
   agents/

@@ -3,9 +3,19 @@ import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addSession } from "../session-store.js";
-import { generatePairingCode, PAIRING_EXPIRY_MS } from "../pairing.js";
 import { getLanPort } from "../lan-lock.js";
 import type { HostConfig } from "../types.js";
+
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
+const CODE_LENGTH = 6;
+
+export const PAIRING_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+export function generatePairingCode(): string {
+  const bytes = new Uint8Array(CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
+}
 
 function buildPairResponse(config: HostConfig, label?: string) {
   const session = addSession(label);
