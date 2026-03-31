@@ -4,7 +4,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, getTaskCreatedAt, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
@@ -105,7 +105,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     return {
       ...task.frontmatter,
       body: task.body,
-      created_at: getTaskCreatedAt(taskDir),
       status: readTaskStatus(taskDir),
     };
   }

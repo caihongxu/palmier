@@ -127,18 +127,6 @@ export function getTaskDir(projectRoot: string, taskId: string): string {
 }
 
 /**
- * Get the creation time (birthtime) of a TASK.md file in ms since epoch.
- */
-export function getTaskCreatedAt(taskDir: string): number {
-  const filePath = path.join(taskDir, "TASK.md");
-  try {
-    return fs.statSync(filePath).birthtimeMs;
-  } catch {
-    return 0;
-  }
-}
-
-/**
  * Write task status to status.json in the task directory.
  */
 export function writeTaskStatus(taskDir: string, status: TaskStatus): void {
