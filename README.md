@@ -6,7 +6,7 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
 
-A Node.js CLI that runs on your machine as a persistent daemon. It manages tasks, communicates with the Palmier app via NATS and/or direct HTTP, and executes tasks on schedule or demand using CLI tools.
+A Node.js CLI that runs on your machine as a persistent daemon. It manages tasks, communicates with the Palmier app via a cloud relay (NATS) and/or direct HTTP, and executes tasks on schedule or on demand using AI agent CLIs.
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 
@@ -16,10 +16,10 @@ The host supports two independent connection modes, enabled during `palmier init
 
 | Mode | Transport | PWA URL | Features |
 |------|-----------|---------|----------|
-| **Server** | NATS (cloud relay) | `https://app.palmier.me` | Push notifications, remote access |
+| **Server** | Cloud relay (NATS) | `https://app.palmier.me` | Push notifications, remote access |
 | **LAN** | HTTP (direct, on-demand) | `http://<host-ip>:7400` | Low-latency, no external server needed |
 
-**Server mode** relays communication through the Palmier server via NATS. All features including push notifications are available. The PWA is served over HTTPS.
+**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io), a lightweight messaging system). All features including push notifications are available. The PWA is served over HTTPS.
 
 **LAN mode** is started on-demand via `palmier lan`. It runs a local HTTP server that reverse-proxies PWA assets from `app.palmier.me` and serves API endpoints locally. The browser accesses everything at `http://<host-ip>:<port>` (same-origin). Push notifications are not available in LAN mode.
 
@@ -34,6 +34,8 @@ The host supports two independent connection modes, enabled during `palmier init
 ```bash
 npm install -g palmier
 ```
+
+All `palmier` commands should be run from a dedicated Palmier root directory (e.g., `~/palmier`). This is where tasks, configuration, and execution data are stored.
 
 ## CLI Commands
 
@@ -57,7 +59,7 @@ npm install -g palmier
 ### Quick Start
 
 1. Install the host: `npm install -g palmier`
-2. Run `palmier init` in your project directory.
+2. Run `palmier init` in your Palmier root directory (e.g., `~/palmier`).
 3. The wizard detects installed agents, registers with the Palmier server, installs a background daemon, and generates a pairing code.
 4. Enter the pairing code in the Palmier PWA to connect your device.
 
@@ -209,11 +211,11 @@ Requires a provisioned host (`palmier init`) with server mode enabled.
 |---|---|---|
 | `send-push-notification` | `title`, `body` (required) | Send a push notification to all paired devices |
 
-## Removing a Host
+## Uninstalling
 
-To fully remove a host from a machine:
+To fully remove Palmier from a machine:
 
-1. **Unpair the host from the PWA** (via the host menu).
+1. **Unpair your device** in the PWA (via the host menu).
 
 2. **Stop and remove the daemon:**
 
@@ -247,16 +249,11 @@ To fully remove a host from a machine:
    schtasks /delete /tn "PalmierTask-*" /f 2>$null
    ```
 
-4. **Remove the host configuration:**
+4. **Remove configuration and task data:**
 
    ```bash
    rm -rf ~/.config/palmier
-   ```
-
-5. **Remove the tasks directory** from your project root:
-
-   ```bash
-   rm -rf tasks/
+   rm -rf tasks/   # from your Palmier root directory
    ```
 
 ## Disclaimer
