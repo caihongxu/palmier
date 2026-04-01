@@ -117,14 +117,19 @@ export class WindowsPlatform implements PlatformService {
   }
 
   private spawnDaemon(script: string): void {
-    const child = nodeSpawn(process.execPath, [script, "serve"], {
+    // Use the VBS launcher to start the daemon with no visible console window.
+    // windowsHide on spawn is unreliable with detached processes on some Windows configs.
+    const vbsPath = DAEMON_VBS_FILE;
+    if (!fs.existsSync(vbsPath)) {
+      // Ensure VBS file exists (may not if restartDaemon is called before installDaemon)
+      const vbs = `CreateObject("WScript.Shell").Run """${process.execPath.replace(/\\/g, "\\\\")}"" ""${script.replace(/\\/g, "\\\\")}"" serve", 0, False`;
+      fs.writeFileSync(vbsPath, vbs, "utf-8");
+    }
+    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
+    const child = nodeSpawn(wscript, [vbsPath], {
       detached: true,
       stdio: "ignore",
-      windowsHide: true,
     });
-    if (child.pid) {
-      fs.writeFileSync(DAEMON_PID_FILE, String(child.pid), "utf-8");
-    }
     child.unref();
     console.log("Palmier daemon started.");
   }
