@@ -21,53 +21,76 @@ function schtasksTr(...subcommand: string[]): string {
   return `"${process.execPath}" "${script}" ${subcommand.join(" ")}`;
 }
 
+const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 /**
- * Convert one of the 4 supported cron patterns to schtasks flags.
+ * Convert a cron expression or "once" trigger to Task Scheduler XML trigger elements.
  *
- * Only these patterns (produced by the PWA UI) are handled:
- *   hourly:  "0 * * * *"        → /sc HOURLY
- *   daily:   "MM HH * * *"      → /sc DAILY /st HH:MM
- *   weekly:  "MM HH * * D"      → /sc WEEKLY /d <day> /st HH:MM
- *   monthly: "MM HH D * *"      → /sc MONTHLY /d D /st HH:MM
- *
- * Arbitrary cron expressions (ranges, lists, step values) are NOT handled
- * because the UI never generates them.
+ * Only these cron patterns (produced by the PWA UI) are handled:
+ *   hourly:  "0 * * * *"
+ *   daily:   "MM HH * * *"
+ *   weekly:  "MM HH * * D"
+ *   monthly: "MM HH D * *"
  */
-function cronToSchtasksArgs(cron: string): string[] {
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    throw new Error(`Invalid cron expression (expected 5 fields): ${cron}`);
+function triggerToXml(trigger: { type: string; value: string }): string {
+  if (trigger.type === "once") {
+    // ISO datetime "2026-03-28T09:00"
+    return `<TimeTrigger><StartBoundary>${trigger.value}:00</StartBoundary></TimeTrigger>`;
   }
 
+  const parts = trigger.value.trim().split(/\s+/);
+  if (parts.length !== 5) throw new Error(`Invalid cron expression: ${trigger.value}`);
   const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
+  const st = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`;
+  // StartBoundary needs a full date; use a past date as the anchor
+  const base = `2000-01-01T${st}`;
 
-  // Map cron day-of-week numbers to schtasks day abbreviations
-  const dowMap: Record<string, string> = {
-    "0": "SUN", "1": "MON", "2": "TUE", "3": "WED",
-    "4": "THU", "5": "FRI", "6": "SAT", "7": "SUN",
-  };
-
-  const st = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
-
-  // Hourly: "0 * * * *"
-  if (hour === "*" && dayOfMonth === "*" && dayOfWeek === "*") {
-    return ["/sc", "HOURLY"];
+  // Hourly
+  if (hour === "*") {
+    return `<TimeTrigger><StartBoundary>${base}</StartBoundary><Repetition><Interval>PT1H</Interval></Repetition></TimeTrigger>`;
   }
 
-  // Weekly: "MM HH * * D"
+  // Weekly
   if (dayOfMonth === "*" && dayOfWeek !== "*") {
-    const day = dowMap[dayOfWeek];
-    if (!day) throw new Error(`Unsupported day-of-week: ${dayOfWeek}`);
-    return ["/sc", "WEEKLY", "/d", day, "/st", st];
+    const day = DOW_NAMES[Number(dayOfWeek)] ?? "Monday";
+    return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByWeek><DaysOfWeek><${day} /></DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek></CalendarTrigger>`;
   }
 
-  // Monthly: "MM HH D * *"
+  // Monthly
   if (dayOfMonth !== "*" && dayOfWeek === "*") {
-    return ["/sc", "MONTHLY", "/d", dayOfMonth, "/st", st];
+    return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByMonth><DaysOfMonth><Day>${dayOfMonth}</Day></DaysOfMonth><Months><January /><February /><March /><April /><May /><June /><July /><August /><September /><October /><November /><December /></Months></ScheduleByMonth></CalendarTrigger>`;
   }
 
-  // Daily: "MM HH * * *"  (most common fallback)
-  return ["/sc", "DAILY", "/st", st];
+  // Daily
+  return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>`;
+}
+
+/**
+ * Build a complete Task Scheduler XML definition.
+ */
+function buildTaskXml(tr: string, triggers: string[]): string {
+  const [command, ...argParts] = tr.match(/"[^"]*"|[^\s]+/g) ?? [];
+  const commandStr = command?.replace(/"/g, "") ?? "";
+  const argsStr = argParts.map((a) => a.replace(/"/g, "")).join(" ");
+
+  return [
+    `<?xml version="1.0" encoding="UTF-16"?>`,
+    `<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">`,
+    `  <Settings>`,
+    `    <MultipleInstancesPolicy>StopExisting</MultipleInstancesPolicy>`,
+    `    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>`,
+    `    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>`,
+    `    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>`,
+    `  </Settings>`,
+    `  <Triggers>${triggers.join("")}</Triggers>`,
+    `  <Actions>`,
+    `    <Exec>`,
+    `      <Command>${commandStr}</Command>`,
+    `      <Arguments>${argsStr}</Arguments>`,
+    `    </Exec>`,
+    `  </Actions>`,
+    `</Task>`,
+  ].join("\n");
 }
 
 function schtasksTaskName(taskId: string): string {
@@ -135,60 +158,38 @@ export class WindowsPlatform implements PlatformService {
     const tn = schtasksTaskName(taskId);
     const tr = schtasksTr("run", taskId);
 
-    // Always create the scheduled task with a dummy trigger first.
-    // This ensures startTask (/run) works even when no triggers are configured.
+    // Build trigger XML elements
+    const triggerElements: string[] = [];
+    if (task.frontmatter.triggers_enabled) {
+      for (const trigger of task.frontmatter.triggers ?? []) {
+        try {
+          triggerElements.push(triggerToXml(trigger));
+        } catch (err) {
+          console.error(`Invalid trigger: ${err}`);
+        }
+      }
+    }
+    // Always include a dummy trigger so startTask (/run) works
+    if (triggerElements.length === 0) {
+      triggerElements.push(`<TimeTrigger><StartBoundary>2000-01-01T00:00:00</StartBoundary></TimeTrigger>`);
+    }
+
+    // Write XML and register via schtasks — gives us full control over
+    // settings like MultipleInstancesPolicy that schtasks flags don't expose.
+    const xml = buildTaskXml(tr, triggerElements);
+    const xmlPath = path.join(CONFIG_DIR, `task-${taskId}.xml`);
     try {
+      // schtasks /xml requires UTF-16LE with BOM
+      const bom = Buffer.from([0xFF, 0xFE]);
+      fs.writeFileSync(xmlPath, Buffer.concat([bom, Buffer.from(xml, "utf16le")]));
       execFileSync("schtasks", [
-        "/create", "/tn", tn,
-        "/tr", tr,
-        "/sc", "ONCE", "/sd", "01/01/2000", "/st", "00:00",
-        "/f",
+        "/create", "/tn", tn, "/xml", xmlPath, "/f",
       ], { encoding: "utf-8", windowsHide: true });
     } catch (err: unknown) {
       const e = err as { stderr?: string };
       console.error(`Failed to create scheduled task ${tn}: ${e.stderr || err}`);
-    }
-
-    // Overlay with real schedule triggers if enabled
-    if (!task.frontmatter.triggers_enabled) return;
-    const triggers = task.frontmatter.triggers || [];
-    for (const trigger of triggers) {
-      if (trigger.type === "cron") {
-        const schedArgs = cronToSchtasksArgs(trigger.value);
-        try {
-          execFileSync("schtasks", [
-            "/create", "/tn", tn,
-            "/tr", tr,
-            ...schedArgs,
-            "/f",
-          ], { encoding: "utf-8", windowsHide: true });
-        } catch (err: unknown) {
-          const e = err as { stderr?: string };
-          console.error(`Failed to create scheduled task ${tn}: ${e.stderr || err}`);
-        }
-      } else if (trigger.type === "once") {
-        // "once" triggers use ISO datetime: "2026-03-28T09:00"
-        const [datePart, timePart] = trigger.value.split("T");
-        if (!datePart || !timePart) {
-          console.error(`Invalid once trigger value: ${trigger.value}`);
-          continue;
-        }
-        // schtasks expects MM/DD/YYYY date format
-        const [year, month, day] = datePart.split("-");
-        const sd = `${month}/${day}/${year}`;
-        const st = timePart.slice(0, 5);
-        try {
-          execFileSync("schtasks", [
-            "/create", "/tn", tn,
-            "/tr", tr,
-            "/sc", "ONCE", "/sd", sd, "/st", st,
-            "/f",
-          ], { encoding: "utf-8", windowsHide: true });
-        } catch (err: unknown) {
-          const e = err as { stderr?: string };
-          console.error(`Failed to create once task ${tn}: ${e.stderr || err}`);
-        }
-      }
+    } finally {
+      try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
     }
   }
 
