@@ -32,7 +32,7 @@ const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
  *   weekly:  "MM HH * * D"
  *   monthly: "MM HH D * *"
  */
-function triggerToXml(trigger: { type: string; value: string }): string {
+export function triggerToXml(trigger: { type: string; value: string }): string {
   if (trigger.type === "once") {
     // ISO datetime "2026-03-28T09:00"
     return `<TimeTrigger><StartBoundary>${trigger.value}:00</StartBoundary></TimeTrigger>`;
@@ -68,7 +68,7 @@ function triggerToXml(trigger: { type: string; value: string }): string {
 /**
  * Build a complete Task Scheduler XML definition.
  */
-function buildTaskXml(tr: string, triggers: string[]): string {
+export function buildTaskXml(tr: string, triggers: string[]): string {
   const [command, ...argParts] = tr.match(/"[^"]*"|[^\s]+/g) ?? [];
   const commandStr = command?.replace(/"/g, "") ?? "";
   const argsStr = argParts.map((a) => a.replace(/"/g, "")).join(" ");

@@ -30,7 +30,7 @@ export class CopilotAgent implements AgentTool {
 
   async init(): Promise<boolean> {
     try {
-      execSync("gh copilot -v", { stdio: "ignore", shell: SHELL });
+      execSync("copilot -v", { stdio: "ignore", shell: SHELL });
     } catch {
       return false;
     }

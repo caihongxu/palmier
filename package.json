@@ -21,6 +21,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc && node -e \"require('fs').cpSync('src/commands/plan-generation.md','dist/commands/plan-generation.md')\"",
+    "test": "tsx --test test/**/*.test.ts",
     "prepare": "npm run build",
     "start": "node dist/index.js"
   },
