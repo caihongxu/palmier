@@ -3,6 +3,7 @@ import { ClaudeAgent } from "./claude.js";
 import { GeminiAgent } from "./gemini.js";
 import { CodexAgent } from "./codex.js";
 import { OpenClawAgent } from "./openclaw.js";
+import { CopilotAgent } from "./copilot.js";
 
 export interface CommandLine {
   command: string;
@@ -34,13 +35,15 @@ const agentRegistry: Record<string, AgentTool> = {
   gemini: new GeminiAgent(),
   codex: new CodexAgent(),
   openclaw: new OpenClawAgent(),
+  copilot: new CopilotAgent(),
 };
 
 const agentLabels: Record<string, string> = {
   claude: "Claude Code",
   gemini: "Gemini CLI",
   codex: "Codex CLI",
-  openclaw: "OpenClaw"
+  openclaw: "OpenClaw",
+  copilot: "GitHub Copilot",
 };
 
 export interface DetectedAgent {

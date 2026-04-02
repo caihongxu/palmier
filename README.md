@@ -26,7 +26,7 @@ The host supports two independent connection modes, enabled during `palmier init
 ## Prerequisites
 
 - **Node.js 24+**
-- An agent CLI tool for task execution (e.g., Claude Code, Gemini CLI, OpenAI Codex)
+- An agent CLI tool for task execution (e.g., Claude Code, Gemini CLI, OpenAI Codex, GitHub Copilot)
 - **Linux with systemd** or **Windows 10/11**
 
 ## Installation
@@ -83,7 +83,7 @@ palmier sessions revoke-all
 ```
 
 The `init` command:
-- Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI) and caches the result
+- Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI, GitHub Copilot) and caches the result
 - Saves host configuration to `~/.config/palmier/host.json`
 - Installs a background daemon (systemd user service on Linux, Registry Run key on Windows)
 - Auto-enters pair mode to connect your first device
@@ -162,6 +162,7 @@ src/
     claude.ts         # Claude Code agent implementation
     gemini.ts         # Gemini CLI agent implementation
     codex.ts          # Codex CLI agent implementation
+    copilot.ts        # GitHub Copilot agent implementation
     openclaw.ts       # OpenClaw agent implementation
   commands/
     init.ts           # Interactive setup wizard (auto-pair)
