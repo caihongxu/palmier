@@ -126,18 +126,24 @@ export class WindowsPlatform implements PlatformService {
   }
 
   async restartDaemon(): Promise<void> {
-    // Kill the old daemon if we have its PID
-    if (fs.existsSync(DAEMON_PID_FILE)) {
-      const oldPid = fs.readFileSync(DAEMON_PID_FILE, "utf-8").trim();
+    const script = process.argv[1] || "palmier";
+    const oldPid = fs.existsSync(DAEMON_PID_FILE)
+      ? fs.readFileSync(DAEMON_PID_FILE, "utf-8").trim()
+      : null;
+
+    // Spawn the new daemon before killing the old one.
+    this.spawnDaemon(script);
+
+    if (oldPid && oldPid === String(process.pid)) {
+      // We ARE the old daemon (auto-update) — exit so only the new one runs.
+      process.exit(0);
+    } else if (oldPid) {
       try {
         execFileSync("taskkill", ["/pid", oldPid, "/t", "/f"], { windowsHide: true });
       } catch {
         // Process may have already exited
       }
     }
-
-    const script = process.argv[1] || "palmier";
-    this.spawnDaemon(script);
   }
 
   private spawnDaemon(script: string): void {
