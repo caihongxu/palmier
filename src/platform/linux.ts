@@ -113,14 +113,19 @@ WantedBy=default.target
   }
 
   async restartDaemon(): Promise<void> {
-    // Update the service file's PATH to the current shell PATH,
-    // so the daemon can find agent CLIs installed after init.
+    // Update the service file's PATH so the daemon can find agent CLIs.
+    // Resolve the user's login PATH (not the daemon's limited PATH)
+    // by sourcing their shell profile.
     const servicePath = path.join(UNIT_DIR, "palmier.service");
     if (fs.existsSync(servicePath)) {
+      let userPath = process.env.PATH || "";
+      try {
+        userPath = execSync("bash -lc 'echo $PATH'", { encoding: "utf-8" }).trim();
+      } catch { /* fall back to current PATH */ }
       const content = fs.readFileSync(servicePath, "utf-8");
       const updated = content.replace(
         /^Environment=PATH=.*/m,
-        `Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}`,
+        `Environment=PATH=${userPath || "/usr/local/bin:/usr/bin:/bin"}`,
       );
       if (updated !== content) {
         fs.writeFileSync(servicePath, updated, "utf-8");
