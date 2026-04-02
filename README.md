@@ -6,7 +6,7 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
 
-A Node.js CLI that runs on your machine as a persistent daemon. It lets you create, schedule, and run AI agent tasks from your phone or browser, communicating via a cloud relay (NATS) and/or direct HTTP.
+A Node.js CLI that lets you control your own AI agents from your phone. It runs on your machine as a persistent daemon, letting you create, schedule, and monitor agent tasks from any device via a cloud relay (NATS) and/or direct HTTP.
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 

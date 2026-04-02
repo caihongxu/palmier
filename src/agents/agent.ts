@@ -43,7 +43,7 @@ const agentLabels: Record<string, string> = {
   gemini: "Gemini CLI",
   codex: "Codex CLI",
   openclaw: "OpenClaw",
-  copilot: "GitHub Copilot",
+  copilot: "Copilot CLI",
 };
 
 export interface DetectedAgent {
