@@ -113,6 +113,20 @@ WantedBy=default.target
   }
 
   async restartDaemon(): Promise<void> {
+    // Update the service file's PATH to the current shell PATH,
+    // so the daemon can find agent CLIs installed after init.
+    const servicePath = path.join(UNIT_DIR, "palmier.service");
+    if (fs.existsSync(servicePath)) {
+      const content = fs.readFileSync(servicePath, "utf-8");
+      const updated = content.replace(
+        /^Environment=PATH=.*/m,
+        `Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}`,
+      );
+      if (updated !== content) {
+        fs.writeFileSync(servicePath, updated, "utf-8");
+        execSync("systemctl --user daemon-reload", { encoding: "utf-8" });
+      }
+    }
     execSync("systemctl --user restart palmier.service", { stdio: "inherit" });
     console.log("Palmier daemon restarted.");
   }
