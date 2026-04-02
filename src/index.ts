@@ -10,7 +10,7 @@ import { infoCommand } from "./commands/info.js";
 import { runCommand } from "./commands/run.js";
 import { serveCommand } from "./commands/serve.js";
 import { mcpserverCommand } from "./commands/mcpserver.js";
-import { agentsCommand } from "./commands/agents.js";
+
 import { pairCommand } from "./commands/pair.js";
 import { lanCommand } from "./commands/lan.js";
 import { restartCommand } from "./commands/restart.js";
@@ -66,13 +66,6 @@ program
   .description("Start an MCP server exposing Palmier tools (stdio transport)")
   .action(async () => {
     await mcpserverCommand();
-  });
-
-program
-  .command("agents")
-  .description("Re-detect installed agent CLIs and update config")
-  .action(async () => {
-    await agentsCommand();
   });
 
 program

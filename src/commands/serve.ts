@@ -8,6 +8,8 @@ import { getTaskDir, readTaskStatus, writeTaskStatus, appendHistory, parseTaskFi
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { checkForUpdate } from "../update-checker.js";
+import { detectAgents } from "../agents/agent.js";
+import { saveConfig } from "../config.js";
 import type { HostConfig } from "../types.js";
 import { CONFIG_DIR } from "../config.js";
 import type { NatsConnection } from "nats";
@@ -88,6 +90,12 @@ export async function serveCommand(): Promise<void> {
   fs.writeFileSync(DAEMON_PID_FILE, String(process.pid), "utf-8");
 
   console.log("Starting...");
+
+  // Re-detect agents on every daemon start
+  const agents = await detectAgents();
+  config.agents = agents;
+  saveConfig(config);
+  console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);
 
   const nc = await connectNats(config);
 

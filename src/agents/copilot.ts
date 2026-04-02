@@ -21,7 +21,7 @@ export class CopilotAgent implements AgentTool {
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
     if (allPerms.length > 0) {
-      args.push("--allow-tool", allPerms.map((p) => p.name).join(","));
+      args.push(`--allow-tool='${allPerms.map((p) => p.name).join(",")}'`);;
     }
 
     if (retryPrompt) { args.push("--continue"); }

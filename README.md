@@ -52,7 +52,6 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
 | `palmier mcpserver` | Start an MCP server exposing Palmier tools (stdio transport) |
-| `palmier agents` | Re-detect installed agent CLIs and update config |
 
 ## Setup
 
@@ -88,7 +87,7 @@ The `init` command:
 - Installs a background daemon (systemd user service on Linux, Registry Run key on Windows)
 - Auto-enters pair mode to connect your first device
 
-To re-detect agents after installing or removing a CLI, run `palmier agents`.
+Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
 
 ### Verifying the Service
 
@@ -170,7 +169,7 @@ src/
     lan.ts            # On-demand LAN server
     sessions.ts       # Session token management CLI (list, revoke, revoke-all)
     info.ts           # Print host connection info
-    agents.ts         # Re-detect installed agent CLIs
+
     serve.ts          # Transport selection, startup, and crash detection polling
     restart.ts        # Daemon restart (cross-platform)
     run.ts            # Single task execution
