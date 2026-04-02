@@ -9,6 +9,7 @@ import type { HostConfig, ParsedTask } from "../types.js";
 const execAsync = promisify(exec);
 
 const UNIT_DIR = path.join(homedir(), ".config", "systemd", "user");
+const PATH_FILE = path.join(homedir(), ".config", "palmier", "user-path");
 
 function getTimerName(taskId: string): string {
   return `palmier-task-${taskId}.timer`;
@@ -70,6 +71,12 @@ export class LinuxPlatform implements PlatformService {
     fs.mkdirSync(UNIT_DIR, { recursive: true });
 
     const palmierBin = process.argv[1] || "palmier";
+    // Save the user's shell PATH so restartDaemon can use it later
+    // (the daemon itself runs under systemd with a limited PATH).
+    const userPath = process.env.PATH || "/usr/local/bin:/usr/bin:/bin";
+    fs.mkdirSync(path.dirname(PATH_FILE), { recursive: true });
+    fs.writeFileSync(PATH_FILE, userPath, "utf-8");
+
     const serviceContent = `[Unit]
 Description=Palmier Host
 After=network-online.target
@@ -81,7 +88,7 @@ ExecStart=${palmierBin} serve
 WorkingDirectory=${config.projectRoot}
 Restart=on-failure
 RestartSec=5
-Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}
+Environment=PATH=${userPath}
 
 [Install]
 WantedBy=default.target
@@ -113,23 +120,26 @@ WantedBy=default.target
   }
 
   async restartDaemon(): Promise<void> {
-    // Update the service file's PATH so the daemon can find agent CLIs.
-    // Resolve the user's login PATH (not the daemon's limited PATH)
-    // by sourcing their shell profile.
+    // If called from a user's terminal, save the current PATH for future use.
+    // If called from the daemon (auto-update), read the saved PATH instead.
+    if (process.stdin.isTTY) {
+      fs.mkdirSync(path.dirname(PATH_FILE), { recursive: true });
+      fs.writeFileSync(PATH_FILE, process.env.PATH || "", "utf-8");
+    }
+
     const servicePath = path.join(UNIT_DIR, "palmier.service");
-    if (fs.existsSync(servicePath)) {
-      let userPath = process.env.PATH || "";
-      try {
-        userPath = execSync("bash -lc 'echo $PATH'", { encoding: "utf-8" }).trim();
-      } catch { /* fall back to current PATH */ }
-      const content = fs.readFileSync(servicePath, "utf-8");
-      const updated = content.replace(
-        /^Environment=PATH=.*/m,
-        `Environment=PATH=${userPath || "/usr/local/bin:/usr/bin:/bin"}`,
-      );
-      if (updated !== content) {
-        fs.writeFileSync(servicePath, updated, "utf-8");
-        execSync("systemctl --user daemon-reload", { encoding: "utf-8" });
+    if (fs.existsSync(servicePath) && fs.existsSync(PATH_FILE)) {
+      const userPath = fs.readFileSync(PATH_FILE, "utf-8").trim();
+      if (userPath) {
+        const content = fs.readFileSync(servicePath, "utf-8");
+        const updated = content.replace(
+          /^Environment=PATH=.*/m,
+          `Environment=PATH=${userPath}`,
+        );
+        if (updated !== content) {
+          fs.writeFileSync(servicePath, updated, "utf-8");
+          execSync("systemctl --user daemon-reload", { encoding: "utf-8" });
+        }
       }
     }
     execSync("systemctl --user restart palmier.service", { stdio: "inherit" });
