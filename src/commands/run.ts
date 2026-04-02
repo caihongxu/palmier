@@ -536,7 +536,7 @@ async function requestConfirmation(
  * Extract report file names from agent output.
  * Looks for lines matching: [PALMIER_REPORT] <filename>
  */
-function parseReportFiles(output: string): string[] {
+export function parseReportFiles(output: string): string[] {
   const regex = new RegExp(`^\\${TASK_REPORT_PREFIX}\\s+(.+)$`, "gm");
   const files: string[] = [];
   let match;
@@ -551,7 +551,7 @@ function parseReportFiles(output: string): string[] {
  * Extract required permissions from agent output.
  * Looks for lines matching: [PALMIER_PERMISSION] <tool> | <description>
  */
-function parsePermissions(output: string): RequiredPermission[] {
+export function parsePermissions(output: string): RequiredPermission[] {
   const regex = new RegExp(`^\\${TASK_PERMISSION_PREFIX}\\s+(.+)$`, "gm");
   const perms: RequiredPermission[] = [];
   let match;
@@ -571,7 +571,7 @@ function parsePermissions(output: string): RequiredPermission[] {
  * Extract user input requests from agent output.
  * Looks for lines matching: [PALMIER_INPUT] <description>
  */
-function parseInputRequests(output: string): string[] {
+export function parseInputRequests(output: string): string[] {
   const regex = new RegExp(`^\\${TASK_INPUT_PREFIX}\\s+(.+)$`, "gm");
   const inputs: string[] = [];
   let match;
@@ -586,7 +586,7 @@ function parseInputRequests(output: string): string[] {
  * Parse the agent's output for success/failure markers.
  * Falls back to "finished" if no marker is found.
  */
-function parseTaskOutcome(output: string): TaskRunningState {
+export function parseTaskOutcome(output: string): TaskRunningState {
   const lastChunk = output.slice(-500);
   if (lastChunk.includes(TASK_FAILURE_MARKER)) return "failed";
   if (lastChunk.includes(TASK_SUCCESS_MARKER)) return "finished";

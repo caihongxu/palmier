@@ -29,7 +29,7 @@ function getServiceName(taskId: string): string {
  * Arbitrary cron expressions (ranges, lists, steps beyond hourly) are NOT
  * handled because the UI never generates them.
  */
-function cronToOnCalendar(cron: string): string {
+export function cronToOnCalendar(cron: string): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) {
     throw new Error(`Invalid cron expression (expected 5 fields): ${cron}`);

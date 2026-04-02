@@ -20,7 +20,7 @@ export function parseTaskFile(taskDir: string): ParsedTask {
 /**
  * Parse TASK.md content string into frontmatter + body.
  */
-function parseTaskContent(content: string): ParsedTask {
+export function parseTaskContent(content: string): ParsedTask {
   const fmRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
   const match = content.match(fmRegex);
 
