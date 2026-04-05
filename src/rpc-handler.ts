@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile, appendResultMessage, finalizeResultFrontmatter } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
@@ -340,6 +340,26 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           running_state: "aborted",
           time_stamp: Date.now(),
         });
+        // Append aborted status to the active RESULT file and finalize frontmatter
+        try {
+          const abortFiles = fs.readdirSync(abortTaskDir)
+            .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
+            .sort();
+          const activeResult = abortFiles[abortFiles.length - 1];
+          if (activeResult) {
+            appendResultMessage(abortTaskDir, activeResult, {
+              role: "status",
+              time: Date.now(),
+              content: "",
+              type: "aborted",
+            });
+            finalizeResultFrontmatter(abortTaskDir, activeResult, {
+              end_time: Date.now(),
+              running_state: "aborted",
+            });
+          }
+        } catch { /* best-effort */ }
+
         try {
           await getPlatform().stopTask(params.id);
         } catch (err: unknown) {
