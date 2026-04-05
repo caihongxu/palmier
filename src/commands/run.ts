@@ -10,6 +10,7 @@ import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX, TASK_INPUT_PREFIX } from "../agents/shared-prompt.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
+import { waitForUserInput, requestUserInput, publishInputResolved } from "../user-input.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
 
@@ -133,7 +134,7 @@ async function invokeAgentWithRetry(
     // Input retry
     const inputRequests = parseInputRequests(result.output);
     if (outcome === "failed" && inputRequests.length > 0) {
-      const response = await requestUserInput(ctx.nc, ctx.config, ctx.task, ctx.taskDir, inputRequests);
+      const response = await requestUserInput(ctx.nc, ctx.config, ctx.taskId, ctx.task.frontmatter.name, ctx.taskDir, inputRequests);
       await publishInputResolved(ctx.nc, ctx.config, ctx.taskId, response === "aborted" ? "aborted" : "provided");
 
       if (response === "aborted") {
@@ -430,22 +431,6 @@ async function publishConfirmResolved(
   });
 }
 
-/**
- * Watch status.json until user_input is populated by an RPC call, then resolve.
- * All interactive request flows (confirmation, permission, user input) share this.
- */
-function waitForUserInput(taskDir: string): Promise<string[]> {
-  const statusPath = path.join(taskDir, "status.json");
-  return new Promise<string[]>((resolve) => {
-    const watcher = fs.watch(statusPath, () => {
-      const status = readTaskStatus(taskDir);
-      if (!status || !status.user_input?.length) return;
-      watcher.close();
-      resolve(status.user_input);
-    });
-  });
-}
-
 async function requestPermission(
   nc: NatsConnection | undefined,
   config: HostConfig,
@@ -480,45 +465,6 @@ async function publishPermissionResolved(
 ): Promise<void> {
   await publishHostEvent(nc, config.hostId, taskId, {
     event_type: "permission-resolved",
-    host_id: config.hostId,
-    status,
-  });
-}
-
-async function requestUserInput(
-  nc: NatsConnection | undefined,
-  config: HostConfig,
-  task: ParsedTask,
-  taskDir: string,
-  inputDescriptions: string[],
-): Promise<string[] | "aborted"> {
-  const currentStatus = readTaskStatus(taskDir)!;
-  writeTaskStatus(taskDir, { ...currentStatus, pending_input: inputDescriptions });
-
-  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
-    event_type: "input-request",
-    host_id: config.hostId,
-    input_descriptions: inputDescriptions,
-    name: task.frontmatter.name,
-  });
-
-  const userInput = await waitForUserInput(taskDir);
-  if (userInput.length === 1 && userInput[0] === "aborted") {
-    writeTaskStatus(taskDir, { running_state: "aborted", time_stamp: Date.now() });
-    return "aborted";
-  }
-  writeTaskStatus(taskDir, { running_state: "started", time_stamp: Date.now() });
-  return userInput;
-}
-
-async function publishInputResolved(
-  nc: NatsConnection | undefined,
-  config: HostConfig,
-  taskId: string,
-  status: "provided" | "aborted",
-): Promise<void> {
-  await publishHostEvent(nc, config.hostId, taskId, {
-    event_type: "input-resolved",
     host_id: config.hostId,
     status,
   });

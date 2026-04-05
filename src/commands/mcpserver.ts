@@ -4,6 +4,8 @@ import { z } from "zod";
 import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
+import { getTaskDir, parseTaskFile } from "../task.js";
+import { requestUserInput, publishInputResolved } from "../user-input.js";
 export async function mcpserverCommand(): Promise<void> {
   const config = loadConfig();
   const nc = await connectNats(config);
@@ -20,7 +22,7 @@ export async function mcpserverCommand(): Promise<void> {
     server.registerTool(
       "send-push-notification",
       {
-        description: "Send a push notification to all paired devices via the Palmier platform",
+        description: "Send a push notification to the user",
         inputSchema: {
           title: z.string().describe("Notification title"),
           body: z.string().describe("Notification body text"),
@@ -56,6 +58,44 @@ export async function mcpserverCommand(): Promise<void> {
         } catch (err) {
           return {
             content: [{ type: "text" as const, text: `Error sending push notification: ${err}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+  }
+
+  const taskId = process.env.PALMIER_TASK_ID;
+  if (taskId) {
+    const taskDir = getTaskDir(config.projectRoot, taskId);
+    const task = parseTaskFile(taskDir);
+
+    server.registerTool(
+      "request-user-input",
+      {
+        description: "Request input from the user. The user will see the descriptions and can provide values or abort.",
+        inputSchema: {
+          descriptions: z.array(z.string()).describe("List of input descriptions to show the user"),
+        },
+      },
+      async (args) => {
+        try {
+          const response = await requestUserInput(nc, config, taskId, task.frontmatter.name, taskDir, args.descriptions);
+          await publishInputResolved(nc, config, taskId, response === "aborted" ? "aborted" : "provided");
+
+          if (response === "aborted") {
+            return {
+              content: [{ type: "text" as const, text: "User aborted the input request." }],
+            };
+          }
+
+          const lines = args.descriptions.map((desc: string, i: number) => `${desc}: ${response[i]}`).join("\n");
+          return {
+            content: [{ type: "text" as const, text: lines }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text" as const, text: `Error requesting user input: ${err}` }],
             isError: true,
           };
         }
