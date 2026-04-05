@@ -9,7 +9,8 @@ import { initCommand } from "./commands/init.js";
 import { infoCommand } from "./commands/info.js";
 import { runCommand } from "./commands/run.js";
 import { serveCommand } from "./commands/serve.js";
-import { mcpserverCommand } from "./commands/mcpserver.js";
+import { notifyCommand } from "./commands/notify.js";
+import { requestInputCommand } from "./commands/request-input.js";
 
 import { pairCommand } from "./commands/pair.js";
 import { lanCommand } from "./commands/lan.js";
@@ -62,10 +63,20 @@ program
   });
 
 program
-  .command("mcpserver")
-  .description("Start an MCP server exposing Palmier tools (stdio transport)")
-  .action(async () => {
-    await mcpserverCommand();
+  .command("notify")
+  .description("Send a push notification to the user")
+  .requiredOption("--title <title>", "Notification title")
+  .requiredOption("--body <body>", "Notification body text")
+  .action(async (opts: { title: string; body: string }) => {
+    await notifyCommand(opts);
+  });
+
+program
+  .command("request-input")
+  .description("Request input from the user (requires PALMIER_TASK_ID env var)")
+  .requiredOption("--description <desc...>", "Input descriptions to show the user")
+  .action(async (opts: { description: string[] }) => {
+    await requestInputCommand(opts);
   });
 
 program

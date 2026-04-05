@@ -6,7 +6,7 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
 
-A Node.js CLI that lets you run your own AI agents from your phone. It runs on your machine as a persistent daemon, letting you create, schedule, and monitor agent tasks from any device via a cloud relay (NATS) and/or direct HTTP.
+A Node.js CLI that lets you dispatch your own AI agents from your phone. It runs on your machine as a persistent daemon, letting you create, schedule, and monitor agent tasks from any device via a cloud relay (NATS) and/or direct HTTP.
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 
@@ -51,7 +51,8 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
-| `palmier mcpserver` | Start an MCP server exposing Palmier tools (stdio transport) |
+| `palmier notify` | Send a push notification to paired devices |
+| `palmier request-input` | Request input from the user during task execution |
 
 ## Setup
 
@@ -131,7 +132,7 @@ palmier restart
 - **Task confirmation** — tasks can optionally require your approval before running. You'll get a push notification (server mode) or a prompt in the PWA to confirm or abort.
 - **Run history** — each run produces a timestamped result file. You can view results and reports from the PWA.
 - **Real-time updates** — task status changes (started, finished, failed) are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (LAN mode).
-- **MCP server** (`palmier mcpserver`) exposes platform tools (e.g., `send-push-notification`) to AI agents like Claude Code over stdio.
+- **Agent CLI commands** — `palmier notify` and `palmier request-input` allow agents to send push notifications and request user input during task execution without requiring MCP support.
 
 ## NATS Subjects
 
@@ -173,7 +174,8 @@ src/
     serve.ts          # Transport selection, startup, and crash detection polling
     restart.ts        # Daemon restart (cross-platform)
     run.ts            # Single task execution
-    mcpserver.ts      # MCP server with platform tools (send-push-notification)
+    notify.ts         # Send push notification to paired devices
+    request-input.ts  # Request user input during task execution
   platform/
     platform.ts       # PlatformService interface
     index.ts          # Platform factory (Linux vs Windows)
@@ -184,32 +186,16 @@ src/
     http-transport.ts # HTTP server with RPC, SSE, PWA reverse proxy, and internal event endpoints
 ```
 
-## MCP Server
+## Agent CLI Commands
 
-The host includes an MCP server that exposes Palmier platform tools to AI agents like Claude Code.
+These commands are available to agents during task execution. They are included in the agent's system prompt automatically.
 
-### Setup
-
-Add to your Claude Code MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "palmier": {
-      "command": "palmier",
-      "args": ["mcpserver"]
-    }
-  }
-}
-```
-
-Requires a provisioned host (`palmier init`) with server mode enabled.
-
-### Available Tools
-
-| Tool | Inputs | Description |
+| Command | Flags | Description |
 |---|---|---|
-| `send-push-notification` | `title`, `body` (required) | Send a push notification to all paired devices |
+| `palmier notify` | `--title <title>` `--body <body>` | Send a push notification to all paired devices |
+| `palmier request-input` | `--description <desc...>` | Request input from the user; blocks until a response is provided |
+
+Push notifications require server mode to be enabled. `request-input` requires the `PALMIER_TASK_ID` environment variable (set automatically during task execution).
 
 ## Uninstalling
 

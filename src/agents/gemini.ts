@@ -35,11 +35,6 @@ export class GeminiAgent implements AgentTool {
     } catch {
       return false;
     }
-    try {
-      execSync("gemini mcp add --scope user palmier palmier mcpserver", { stdio: "ignore", shell: SHELL });
-    } catch {
-      // MCP registration is best-effort; agent still works without it
-    }
     return true;
   }
 }

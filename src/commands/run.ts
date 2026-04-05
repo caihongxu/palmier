@@ -7,10 +7,10 @@ import { connectNats } from "../nats-client.js";
 import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
-import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX, TASK_INPUT_PREFIX } from "../agents/shared-prompt.js";
+import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
-import { waitForUserInput, requestUserInput, publishInputResolved } from "../user-input.js";
+import { waitForUserInput } from "../user-input.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
 
@@ -113,21 +113,6 @@ async function invokeAgentWithRetry(
       }
 
       retryPrompt = "Permissions granted, please continue.";
-      continue;
-    }
-
-    // Input retry
-    const inputRequests = parseInputRequests(result.output);
-    if (outcome === "failed" && inputRequests.length > 0) {
-      const response = await requestUserInput(ctx.nc, ctx.config, ctx.taskId, ctx.task.frontmatter.name, ctx.taskDir, inputRequests);
-      await publishInputResolved(ctx.nc, ctx.config, ctx.taskId, response === "aborted" ? "aborted" : "provided");
-
-      if (response === "aborted") {
-        return { output: result.output, outcome: "failed", reportFiles, requiredPermissions };
-      }
-
-      const inputLines = inputRequests.map((desc, i) => `- ${desc} → ${response[i]}`).join("\n");
-      retryPrompt = `The user provided the following inputs:\n${inputLines}\nPlease continue with these values.`;
       continue;
     }
 
@@ -532,21 +517,6 @@ export function parsePermissions(output: string): RequiredPermission[] {
     }
   }
   return perms;
-}
-
-/**
- * Extract user input requests from agent output.
- * Looks for lines matching: [PALMIER_INPUT] <description>
- */
-export function parseInputRequests(output: string): string[] {
-  const regex = new RegExp(`^\\${TASK_INPUT_PREFIX}\\s+(.+)$`, "gm");
-  const inputs: string[] = [];
-  let match;
-  while ((match = regex.exec(output)) !== null) {
-    const desc = match[1].trim();
-    if (desc) inputs.push(desc);
-  }
-  return inputs;
 }
 
 /**

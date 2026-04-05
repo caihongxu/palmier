@@ -34,11 +34,6 @@ export class CodexAgent implements AgentTool {
     } catch {
       return false;
     }
-    try {
-      execSync("codex mcp add palmier palmier mcpserver", { stdio: "ignore", shell: SHELL });
-    } catch {
-      // MCP registration is best-effort; agent still works without it
-    }
     return true;
   }
 }
