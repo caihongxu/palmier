@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { spawn } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList } from "./task.js";
@@ -241,6 +242,46 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         removeFromTaskList(config.projectRoot, params.id);
 
         return { ok: true, task_id: params.id };
+      }
+
+      case "task.run_oneoff": {
+        const params = request.params as {
+          user_prompt: string;
+          agent: string;
+          requires_confirmation?: boolean;
+          command?: string;
+        };
+
+        const id = randomUUID();
+        const taskDir = getTaskDir(config.projectRoot, id);
+        const name = params.user_prompt.slice(0, 60);
+        const task: ParsedTask = {
+          frontmatter: {
+            id,
+            name,
+            user_prompt: params.user_prompt,
+            agent: params.agent,
+            triggers: [],
+            triggers_enabled: false,
+            requires_confirmation: params.requires_confirmation ?? false,
+            ...(params.command ? { command: params.command } : {}),
+          },
+          body: "",
+        };
+
+        writeTaskFile(taskDir, task);
+        // Do NOT append to tasks.jsonl — this is a one-off run
+
+        // Spawn `palmier run <id>` directly as a detached process
+        const script = process.argv[1] || "palmier";
+        const child = spawn(process.execPath, [script, "run", id], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        child.unref();
+
+        return { ok: true, task_id: id };
       }
 
       case "task.run": {
