@@ -7,7 +7,6 @@ import { startNatsTransport } from "../transports/nats-transport.js";
 import { getTaskDir, readTaskStatus, writeTaskStatus, appendHistory, parseTaskFile } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
-import { checkForUpdate } from "../update-checker.js";
 import { detectAgents } from "../agents/agent.js";
 import { saveConfig } from "../config.js";
 import type { HostConfig } from "../types.js";
@@ -108,10 +107,6 @@ export async function serveCommand(): Promise<void> {
       console.error("[monitor] Error checking stale tasks:", err);
     });
   }, POLL_INTERVAL_MS);
-
-  // Check for updates on startup and every 24 hours
-  checkForUpdate().catch(() => {});
-  setInterval(() => { checkForUpdate().catch(() => {}); }, 24 * 60 * 60 * 1000);
 
   const handleRpc = createRpcHandler(config, nc);
   await startNatsTransport(config, handleRpc, nc);
