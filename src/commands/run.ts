@@ -131,7 +131,7 @@ async function appendAndNotify(
   msg: Parameters<typeof appendResultMessage>[2],
 ): Promise<void> {
   appendResultMessage(ctx.taskDir, ctx.resultFileName, msg);
-  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated" });
+  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", result_file: ctx.resultFileName });
 }
 
 /**
@@ -211,13 +211,11 @@ export async function runCommand(taskId: string): Promise<void> {
   try {
     nc = await connectNats(config);
 
-    // Mark as started immediately
-    await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
-
-    // Status: started (skip if follow-up — already appended by task.followup RPC)
+    // Follow-ups don't affect task status — skip status updates
     if (!continuationPrompt) {
+      await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
       appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "started" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", result_file: resultFileName });
     }
 
     // If requires_confirmation, notify clients and wait
@@ -234,7 +232,7 @@ export async function runCommand(taskId: string): Promise<void> {
       }
       console.log("Task confirmed by user.");
       appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "confirmation" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", result_file: resultFileName });
     }
 
     // Shared invocation context
@@ -253,11 +251,8 @@ export async function runCommand(taskId: string): Promise<void> {
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else if (continuationPrompt) {
-      // Follow-up: user message already appended by task.followup RPC
-      const result = await invokeAgentWithRetry(ctx, task, continuationPrompt);
-      const outcome = resolveOutcome(taskDir, result.outcome);
-      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
+      // Follow-up: user message already appended by task.followup RPC, no status side-effects
+      await invokeAgentWithRetry(ctx, task, continuationPrompt);
       console.log(`Task ${taskId} follow-up completed.`);
     } else {
       // Standard execution — add user prompt as first message

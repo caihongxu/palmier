@@ -37,24 +37,23 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   const messages = parseConversationMessages(fmMatch[2]);
 
-  // Derive running_state, start_time, end_time from status messages.
-  // Use the LAST status message to determine current state (follow-ups add new started/finished cycles).
+  // Derive running_state, start_time, end_time from status messages
   const statusMessages = messages.filter((m: ConversationMessage) => m.role === "status");
   const startedMsg = statusMessages.find((m: ConversationMessage) => m.type === "started");
   const terminalStates = ["finished", "failed", "aborted"];
-  const reversed = [...statusMessages].reverse();
-  const lastStarted = reversed.find((m: ConversationMessage) => m.type === "started");
-  const lastTerminal = reversed.find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
+  const terminalMsg = [...statusMessages].reverse().find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
 
-  // Current state: if the last started is newer than the last terminal, task is running
-  const isRunning = lastStarted && (!lastTerminal || lastStarted.time >= lastTerminal.time);
+  // Detect follow-up in progress: last non-status message is a user message with no assistant response
+  const nonStatusMessages = messages.filter((m: ConversationMessage) => m.role !== "status");
+  const lastNonStatus = nonStatusMessages[nonStatusMessages.length - 1];
+  const followupRunning = lastNonStatus?.role === "user" && terminalMsg !== undefined;
 
   return {
     messages,
     task_name: meta.task_name,
-    running_state: isRunning ? "started" : (lastTerminal?.type ?? (startedMsg ? "started" : undefined)),
+    running_state: followupRunning ? "followup" : (terminalMsg?.type ?? (startedMsg ? "started" : undefined)),
     start_time: startedMsg?.time || undefined,
-    end_time: lastTerminal?.time || undefined,
+    end_time: terminalMsg?.time || undefined,
   };
 }
 
@@ -349,31 +348,15 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         }
         const followupTaskDir = getTaskDir(config.projectRoot, params.id);
 
-        // Append user message and started status to RESULT file
+        // Append user message to RESULT file (no status entries — follow-ups don't affect task status)
         appendResultMessage(followupTaskDir, params.result_file, {
           role: "user",
           time: Date.now(),
           content: params.message,
         });
-        appendResultMessage(followupTaskDir, params.result_file, {
-          role: "status",
-          time: Date.now(),
-          content: "",
-          type: "started",
-        });
 
-        // Set status.json so abort/PID tracking works
-        writeTaskStatus(followupTaskDir, {
-          running_state: "started",
-          time_stamp: Date.now(),
-        });
-
-        // Broadcast so UI updates
-        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated" });
-        await publishHostEvent(nc, config.hostId, params.id, {
-          event_type: "running-state",
-          running_state: "started",
-        });
+        // Broadcast so UI updates (shows typing indicator based on unanswered user message)
+        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", result_file: params.result_file });
 
         // Spawn `palmier run <id>` as detached process — it will detect
         // the existing RESULT file and use the last user message as continuation prompt
