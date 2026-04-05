@@ -13,14 +13,6 @@ const DAEMON_TASK_NAME = "PalmierDaemon";
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
 const DAEMON_VBS_FILE = path.join(CONFIG_DIR, "daemon.vbs");
 
-/**
- * Build the /tr value for schtasks: a single string with quoted paths
- * so Task Scheduler can invoke node with the palmier script + subcommand.
- */
-function schtasksTr(...subcommand: string[]): string {
-  const script = process.argv[1] || "palmier";
-  return `"${process.execPath}" "${script}" ${subcommand.join(" ")}`;
-}
 
 const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -169,7 +161,15 @@ export class WindowsPlatform implements PlatformService {
   installTaskTimer(config: HostConfig, task: ParsedTask): void {
     const taskId = task.frontmatter.id;
     const tn = schtasksTaskName(taskId);
-    const tr = schtasksTr("run", taskId);
+    const script = process.argv[1] || "palmier";
+
+    // Write a VBS launcher so the task runs without a visible console window
+    const vbsPath = path.join(CONFIG_DIR, `task-${taskId}.vbs`);
+    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" run ${taskId}", 0, True`;
+    fs.writeFileSync(vbsPath, vbs, "utf-8");
+
+    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
+    const tr = `"${wscript}" "${vbsPath}"`;
 
     // Build trigger XML elements
     const triggerElements: string[] = [];
@@ -213,6 +213,7 @@ export class WindowsPlatform implements PlatformService {
     } catch {
       // Task might not exist — that's fine
     }
+    try { fs.unlinkSync(path.join(CONFIG_DIR, `task-${taskId}.vbs`)); } catch { /* ignore */ }
   }
 
   async startTask(taskId: string): Promise<void> {
