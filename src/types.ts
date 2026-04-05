@@ -53,6 +53,8 @@ export type TaskRunningState = "started" | "finished" | "aborted" | "failed";
 export interface TaskStatus {
   running_state: TaskRunningState;
   time_stamp: number;
+  /** PID of the palmier run process (used on Windows to kill the process tree). */
+  pid?: number;
   /** Set when the task has `requires_confirmation` and is awaiting user approval. */
   pending_confirmation?: boolean;
   /** Set when the agent requests permissions not yet granted. Contains the permissions needed. */

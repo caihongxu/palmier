@@ -4,7 +4,8 @@ import { execFileSync } from "child_process";
 import { spawn as nodeSpawn } from "child_process";
 import type { PlatformService } from "./platform.js";
 import type { HostConfig, ParsedTask } from "../types.js";
-import { CONFIG_DIR } from "../config.js";
+import { CONFIG_DIR, loadConfig } from "../config.js";
+import { getTaskDir, readTaskStatus } from "../task.js";
 
 
 const TASK_PREFIX = "\\Palmier\\PalmierTask-";
@@ -140,7 +141,7 @@ export class WindowsPlatform implements PlatformService {
     // Kill old daemon first, then spawn new one.
     if (oldPid) {
       try {
-        execFileSync("taskkill", ["/pid", oldPid, "/f"], { windowsHide: true, stdio: "pipe" });
+        execFileSync("taskkill", ["/pid", oldPid, "/f", "/t"], { windowsHide: true, stdio: "pipe" });
       } catch {
         // Process may have already exited
       }
@@ -225,6 +226,20 @@ export class WindowsPlatform implements PlatformService {
   }
 
   async stopTask(taskId: string): Promise<void> {
+    // Try to kill the entire process tree via the PID recorded in status.json.
+    // schtasks /end only kills the top-level process, leaving agent children orphaned.
+    try {
+      const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
+      const status = readTaskStatus(taskDir);
+      if (status?.pid) {
+        execFileSync("taskkill", ["/pid", String(status.pid), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
+        return;
+      }
+    } catch {
+      // PID may be stale or config unavailable; fall through to schtasks /end
+    }
+
+    // Fallback: schtasks /end (kills top-level process only)
     const tn = schtasksTaskName(taskId);
     try {
       execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true });

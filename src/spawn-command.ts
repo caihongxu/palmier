@@ -1,5 +1,16 @@
 import crossSpawn from "cross-spawn";
-import type { ChildProcess } from "child_process";
+import { execFileSync, type ChildProcess } from "child_process";
+
+/** Kill a child process and its entire tree on Windows; plain kill elsewhere. */
+function treeKill(child: ChildProcess): void {
+  if (process.platform === "win32" && child.pid) {
+    try {
+      execFileSync("taskkill", ["/pid", String(child.pid), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
+      return;
+    } catch { /* fall through */ }
+  }
+  child.kill();
+}
 
 export interface SpawnStreamingOptions {
   cwd: string;
@@ -100,7 +111,7 @@ export function spawnCommand(
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (opts.timeout) {
       timer = setTimeout(() => {
-        child.kill();
+        treeKill(child);
         reject(new Error("command timed out"));
       }, opts.timeout);
     }

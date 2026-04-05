@@ -398,6 +398,7 @@ async function publishTaskEvent(
   writeTaskStatus(taskDir, {
     running_state: eventType,
     time_stamp: Date.now(),
+    ...(eventType === "started" ? { pid: process.pid } : {}),
   });
 
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: eventType };
