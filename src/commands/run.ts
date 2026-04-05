@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage, finalizeResultFrontmatter } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -172,12 +172,6 @@ export async function runCommand(taskId: string): Promise<void> {
   const startTime = existingResult ? parseInt(existingResult.replace("RESULT-", "").replace(".md", ""), 10) : Date.now();
   const resultFileName = existingResult ?? createResultFile(taskDir, taskName, startTime);
 
-  // Snapshot the task file at run time
-  const taskSnapshotName = `TASK-${startTime}.md`;
-  if (!fs.existsSync(path.join(taskDir, taskSnapshotName))) {
-    fs.copyFileSync(path.join(taskDir, "TASK.md"), path.join(taskDir, taskSnapshotName));
-  }
-
   const cleanup = async () => {
     if (nc && !nc.isClosed()) {
       await nc.drain();
@@ -206,7 +200,6 @@ export async function runCommand(taskId: string): Promise<void> {
       if (!confirmed) {
         console.log("Task aborted by user.");
         appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "aborted" });
-        finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: "aborted" });
         await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, resultFileName);
         await cleanup();
         return;
@@ -229,7 +222,6 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-      finalizeResultFrontmatter(taskDir, resultFileName, { end_time: result.endTime, running_state: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else {
@@ -243,7 +235,6 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await invokeAgentWithRetry(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-      finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed.`);
     }
@@ -257,7 +248,6 @@ export async function runCommand(taskId: string): Promise<void> {
       content: errorMsg,
     });
     appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-    finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: outcome });
     await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
     process.exitCode = 1;
   } finally {

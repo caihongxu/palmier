@@ -149,7 +149,6 @@ export function readTaskStatus(taskDir: string): TaskStatus | undefined {
 
 /**
  * Create the initial result file when a task starts running.
- * Contains only start_time and running_state=started; no end_time or content yet.
  * Returns the result file name.
  */
 export function createResultFile(
@@ -158,8 +157,7 @@ export function createResultFile(
   startTime: number,
 ): string {
   const resultFileName = `RESULT-${startTime}.md`;
-  const taskSnapshotName = `TASK-${startTime}.md`;
-  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n\n`;
+  const content = `---\ntask_name: ${taskName}\n---\n\n`;
   fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
   return resultFileName;
 }
@@ -181,33 +179,6 @@ export function appendResultMessage(
   fs.appendFileSync(path.join(taskDir, resultFile), entry, "utf-8");
 }
 
-/**
- * Update frontmatter fields in a RESULT file without touching the body.
- */
-export function finalizeResultFrontmatter(
-  taskDir: string,
-  resultFile: string,
-  updates: { end_time?: number; running_state?: string },
-): void {
-  const filePath = path.join(taskDir, resultFile);
-  const raw = fs.readFileSync(filePath, "utf-8");
-  const fmEnd = raw.indexOf("\n---\n", 4); // skip opening ---
-  if (fmEnd === -1) return;
-
-  let frontmatter = raw.slice(0, fmEnd);
-  const body = raw.slice(fmEnd);
-
-  for (const [key, value] of Object.entries(updates)) {
-    const regex = new RegExp(`^${key}:.*$`, "m");
-    if (regex.test(frontmatter)) {
-      frontmatter = frontmatter.replace(regex, `${key}: ${value}`);
-    } else {
-      frontmatter += `\n${key}: ${value}`;
-    }
-  }
-
-  fs.writeFileSync(filePath, frontmatter + body, "utf-8");
-}
 
 /**
  * Append a history entry to the project-level history.jsonl file.
@@ -253,16 +224,6 @@ export function deleteHistoryEntry(
   const resultPath = path.join(projectRoot, "tasks", taskId, resultFile);
   if (fs.existsSync(resultPath)) {
     fs.unlinkSync(resultPath);
-  }
-
-  // Delete the corresponding task snapshot (TASK-<timestamp>.md)
-  const tsMatch = resultFile.match(/^RESULT-(\d+)\.md$/);
-  if (tsMatch) {
-    const snapshotFile = `TASK-${tsMatch[1]}.md`;
-    const snapshotPath = path.join(projectRoot, "tasks", taskId, snapshotFile);
-    if (fs.existsSync(snapshotPath)) {
-      fs.unlinkSync(snapshotPath);
-    }
   }
 
   return true;

@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile, appendResultMessage, finalizeResultFrontmatter } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile, appendResultMessage } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
@@ -37,13 +37,18 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   const messages = parseConversationMessages(fmMatch[2]);
 
+  // Derive running_state, start_time, end_time from status messages
+  const statusMessages = messages.filter((m: ConversationMessage) => m.role === "status");
+  const startedMsg = statusMessages.find((m: ConversationMessage) => m.type === "started");
+  const terminalStates = ["finished", "failed", "aborted"];
+  const terminalMsg = statusMessages.find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
+
   return {
     messages,
     task_name: meta.task_name,
-    running_state: meta.running_state,
-    start_time: meta.start_time ? Number(meta.start_time) : undefined,
-    end_time: meta.end_time ? Number(meta.end_time) : undefined,
-    task_file: meta.task_file,
+    running_state: terminalMsg?.type ?? (startedMsg ? "started" : undefined),
+    start_time: startedMsg?.time || undefined,
+    end_time: terminalMsg?.time || undefined,
   };
 }
 
@@ -344,7 +349,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           time_stamp: Date.now(),
           ...(abortPrevStatus?.pid ? { pid: abortPrevStatus.pid } : {}),
         });
-        // Append aborted status to the active RESULT file and finalize frontmatter
+        // Append aborted status to the active RESULT file
         try {
           const abortFiles = fs.readdirSync(abortTaskDir)
             .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
@@ -356,10 +361,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
               time: Date.now(),
               content: "",
               type: "aborted",
-            });
-            finalizeResultFrontmatter(abortTaskDir, activeResult, {
-              end_time: Date.now(),
-              running_state: "aborted",
             });
           }
         } catch { /* best-effort */ }

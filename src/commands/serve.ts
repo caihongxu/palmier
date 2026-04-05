@@ -4,7 +4,7 @@ import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendResultMessage, finalizeResultFrontmatter } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendResultMessage } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -62,7 +62,6 @@ async function checkStaleTasks(
         content: "",
         type: "failed",
       });
-      finalizeResultFrontmatter(taskDir, resultFile, { end_time: endTime, running_state: "failed" });
     }
 
     let taskName = taskId;
