@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage, readResultMessages } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -45,8 +45,9 @@ interface InvocationResult {
 async function invokeAgentWithRetry(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
+  continuationPrompt?: string,
 ): Promise<InvocationResult> {
-  let retryPrompt: string | undefined;
+  let retryPrompt: string | undefined = continuationPrompt;
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, retryPrompt, ctx.transientPermissions);
@@ -134,13 +135,28 @@ async function appendAndNotify(
 }
 
 /**
- * Find an existing RESULT file with running_state=started (created by the RPC handler).
+ * Find an active RESULT file — one whose last status message is NOT terminal,
+ * or that has messages after the last terminal status (e.g. a follow-up user message).
  */
-function findStartedResultFile(taskDir: string): string | null {
-  const files = fs.readdirSync(taskDir).filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"));
-  for (const file of files) {
-    const content = fs.readFileSync(path.join(taskDir, file), "utf-8");
-    if (content.includes("running_state: started")) return file;
+function findActiveResultFile(taskDir: string): string | null {
+  const terminalTypes = new Set(["finished", "failed", "aborted"]);
+  const files = fs.readdirSync(taskDir)
+    .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
+    .sort();
+
+  // Check latest first
+  for (let i = files.length - 1; i >= 0; i--) {
+    const messages = readResultMessages(taskDir, files[i]);
+    if (messages.length === 0) return files[i]; // empty = just created
+
+    // Find the last status message
+    const lastStatus = [...messages].reverse().find((m) => m.role === "status");
+    if (!lastStatus || !terminalTypes.has(lastStatus.type ?? "")) return files[i];
+
+    // If there are non-status messages after the last terminal status, it's a follow-up
+    const lastTerminalIdx = messages.lastIndexOf(lastStatus);
+    const hasMessagesAfter = messages.slice(lastTerminalIdx + 1).some((m) => m.role !== "status");
+    if (hasMessagesAfter) return files[i];
   }
   return null;
 }
@@ -167,10 +183,20 @@ export async function runCommand(taskId: string): Promise<void> {
   let nc: NatsConnection | undefined;
   const taskName = task.frontmatter.name;
 
-  // Check for an existing "started" result file (created by the RPC handler)
-  const existingResult = findStartedResultFile(taskDir);
+  // Check for an existing active result file (created by the RPC handler or task.followup)
+  const existingResult = findActiveResultFile(taskDir);
   const startTime = existingResult ? parseInt(existingResult.replace("RESULT-", "").replace(".md", ""), 10) : Date.now();
   const resultFileName = existingResult ?? createResultFile(taskDir, taskName, startTime);
+
+  // Detect continuation: if the last non-status message is a user message, this is a follow-up
+  let continuationPrompt: string | undefined;
+  if (existingResult) {
+    const messages = readResultMessages(taskDir, existingResult);
+    const lastNonStatus = [...messages].reverse().find((m) => m.role !== "status");
+    if (lastNonStatus?.role === "user") {
+      continuationPrompt = lastNonStatus.content;
+    }
+  }
 
   const cleanup = async () => {
     if (nc && !nc.isClosed()) {
@@ -188,9 +214,11 @@ export async function runCommand(taskId: string): Promise<void> {
     // Mark as started immediately
     await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
 
-    // Status: started
-    appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "started" });
-    await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
+    // Status: started (skip if follow-up — already appended by task.followup RPC)
+    if (!continuationPrompt) {
+      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "started" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
+    }
 
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
@@ -224,6 +252,13 @@ export async function runCommand(taskId: string): Promise<void> {
       appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed (command-triggered).`);
+    } else if (continuationPrompt) {
+      // Follow-up: user message already appended by task.followup RPC
+      const result = await invokeAgentWithRetry(ctx, task, continuationPrompt);
+      const outcome = resolveOutcome(taskDir, result.outcome);
+      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
+      console.log(`Task ${taskId} follow-up completed.`);
     } else {
       // Standard execution — add user prompt as first message
       await appendAndNotify(ctx, {

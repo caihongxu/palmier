@@ -5,6 +5,8 @@ import { execSync, exec } from "child_process";
 import { promisify } from "util";
 import type { PlatformService } from "./platform.js";
 import type { HostConfig, ParsedTask } from "../types.js";
+import { loadConfig } from "../config.js";
+import { getTaskDir, readTaskStatus } from "../task.js";
 
 const execAsync = promisify(exec);
 
@@ -230,20 +232,28 @@ WantedBy=timers.target
   }
 
   isTaskRunning(taskId: string): boolean {
+    // Check systemd first (for scheduled/on-demand runs)
     const serviceName = getServiceName(taskId);
     try {
-      // is-active exits 0 only for "active". For oneshot services (Type=oneshot),
-      // the state is "activating" while running, which exits non-zero.
-      // Use show -p ActiveState to reliably get the state without exit code issues.
       const out = execSync(
         `systemctl --user show -p ActiveState --value ${serviceName}`,
         { encoding: "utf-8" },
       );
       const state = out.trim();
-      return state === "active" || state === "activating";
-    } catch {
-      return false;
-    }
+      if (state === "active" || state === "activating") return true;
+    } catch { /* service may not exist */ }
+
+    // Fall back to PID check (for follow-up runs spawned directly)
+    try {
+      const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
+      const status = readTaskStatus(taskDir);
+      if (status?.pid) {
+        process.kill(status.pid, 0); // signal 0 = check if process exists
+        return true;
+      }
+    } catch { /* process not running or config unavailable */ }
+
+    return false;
   }
 
   getGuiEnv(): Record<string, string> {

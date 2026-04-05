@@ -251,16 +251,38 @@ export class WindowsPlatform implements PlatformService {
   }
 
   isTaskRunning(taskId: string): boolean {
+    // Check Task Scheduler first (for scheduled/on-demand runs)
     const tn = schtasksTaskName(taskId);
     try {
       const out = execFileSync("schtasks", ["/query", "/tn", tn, "/fo", "CSV", "/nh"], {
         encoding: "utf-8",
         windowsHide: true,
       });
-      return out.includes('"Running"');
-    } catch {
-      return false;
-    }
+      if (out.includes('"Running"')) return true;
+    } catch { /* task may not exist in scheduler */ }
+
+    // Fall back to PID check (for follow-up runs spawned directly, not via schtasks)
+    try {
+      const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
+      const status = readTaskStatus(taskDir);
+      if (status?.pid) {
+        // tasklist exits 0 if the PID is found
+        execFileSync("tasklist", ["/fi", `PID eq ${status.pid}`, "/nh"], {
+          encoding: "utf-8",
+          windowsHide: true,
+          stdio: "pipe",
+        });
+        // tasklist always exits 0; check if output contains the PID
+        const out = execFileSync("tasklist", ["/fi", `PID eq ${status.pid}`, "/fo", "CSV", "/nh"], {
+          encoding: "utf-8",
+          windowsHide: true,
+          stdio: "pipe",
+        });
+        if (out.includes(`"${status.pid}"`)) return true;
+      }
+    } catch { /* ignore */ }
+
+    return false;
   }
 
   getGuiEnv(): Record<string, string> {

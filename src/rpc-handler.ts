@@ -37,18 +37,24 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   const messages = parseConversationMessages(fmMatch[2]);
 
-  // Derive running_state, start_time, end_time from status messages
+  // Derive running_state, start_time, end_time from status messages.
+  // Use the LAST status message to determine current state (follow-ups add new started/finished cycles).
   const statusMessages = messages.filter((m: ConversationMessage) => m.role === "status");
   const startedMsg = statusMessages.find((m: ConversationMessage) => m.type === "started");
   const terminalStates = ["finished", "failed", "aborted"];
-  const terminalMsg = statusMessages.find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
+  const reversed = [...statusMessages].reverse();
+  const lastStarted = reversed.find((m: ConversationMessage) => m.type === "started");
+  const lastTerminal = reversed.find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
+
+  // Current state: if the last started is newer than the last terminal, task is running
+  const isRunning = lastStarted && (!lastTerminal || lastStarted.time >= lastTerminal.time);
 
   return {
     messages,
     task_name: meta.task_name,
-    running_state: terminalMsg?.type ?? (startedMsg ? "started" : undefined),
+    running_state: isRunning ? "started" : (lastTerminal?.type ?? (startedMsg ? "started" : undefined)),
     start_time: startedMsg?.time || undefined,
-    end_time: terminalMsg?.time || undefined,
+    end_time: lastTerminal?.time || undefined,
   };
 }
 
@@ -334,6 +340,52 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           console.error(`task.run failed for ${params.id}: ${e.stderr || e.message}`);
           return { error: `Failed to start task: ${e.stderr || e.message}` };
         }
+      }
+
+      case "task.followup": {
+        const params = request.params as { id: string; result_file: string; message: string };
+        if (!params.result_file || !params.message?.trim()) {
+          return { error: "result_file and message are required" };
+        }
+        const followupTaskDir = getTaskDir(config.projectRoot, params.id);
+
+        // Append user message and started status to RESULT file
+        appendResultMessage(followupTaskDir, params.result_file, {
+          role: "user",
+          time: Date.now(),
+          content: params.message,
+        });
+        appendResultMessage(followupTaskDir, params.result_file, {
+          role: "status",
+          time: Date.now(),
+          content: "",
+          type: "started",
+        });
+
+        // Set status.json so abort/PID tracking works
+        writeTaskStatus(followupTaskDir, {
+          running_state: "started",
+          time_stamp: Date.now(),
+        });
+
+        // Broadcast so UI updates
+        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated" });
+        await publishHostEvent(nc, config.hostId, params.id, {
+          event_type: "running-state",
+          running_state: "started",
+        });
+
+        // Spawn `palmier run <id>` as detached process — it will detect
+        // the existing RESULT file and use the last user message as continuation prompt
+        const followupScript = process.argv[1] || "palmier";
+        const followupChild = spawn(process.execPath, [followupScript, "run", params.id], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        followupChild.unref();
+
+        return { ok: true, task_id: params.id, result_file: params.result_file };
       }
 
       case "task.abort": {

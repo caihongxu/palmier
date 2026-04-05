@@ -181,6 +181,43 @@ export function appendResultMessage(
 
 
 /**
+ * Read conversation messages from a RESULT file.
+ */
+export function readResultMessages(taskDir: string, resultFile: string): ConversationMessage[] {
+  const raw = fs.readFileSync(path.join(taskDir, resultFile), "utf-8");
+  const fmMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+  if (!fmMatch) return [];
+
+  const body = fmMatch[1];
+  const delimiterRegex = /<!-- palmier:message\s+(.*?)\s*-->/g;
+  const matches = [...body.matchAll(delimiterRegex)];
+  if (matches.length === 0) return [];
+
+  const messages: ConversationMessage[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const attrs = match[1];
+    const start = match.index! + match[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index! : body.length;
+    const content = body.slice(start, end).trim();
+
+    const roleAttr = attrs.match(/role="([^"]*)"/)?.[1] ?? "assistant";
+    const timeAttr = attrs.match(/time="([^"]*)"/)?.[1] ?? "0";
+    const typeAttr = attrs.match(/type="([^"]*)"/)?.[1];
+    const attachmentsAttr = attrs.match(/attachments="([^"]*)"/)?.[1];
+
+    messages.push({
+      role: roleAttr as ConversationMessage["role"],
+      time: Number(timeAttr),
+      content,
+      ...(typeAttr ? { type: typeAttr as ConversationMessage["type"] } : {}),
+      ...(attachmentsAttr ? { attachments: attachmentsAttr.split(",").map((f) => f.trim()).filter(Boolean) } : {}),
+    });
+  }
+  return messages;
+}
+
+/**
  * Append a history entry to the project-level history.jsonl file.
  */
 export function appendHistory(projectRoot: string, entry: HistoryEntry): void {
