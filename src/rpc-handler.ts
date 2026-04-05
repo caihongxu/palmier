@@ -333,12 +333,16 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
       case "task.abort": {
         const params = request.params as { id: string };
+        const abortTaskDir = getTaskDir(config.projectRoot, params.id);
+        // Read the PID before overwriting status — stopTask needs it to
+        // kill the entire process tree on Windows.
+        const abortPrevStatus = readTaskStatus(abortTaskDir);
         // Write abort status BEFORE killing so the dying process's signal
         // handler can detect this was RPC-initiated and skip publishing.
-        const abortTaskDir = getTaskDir(config.projectRoot, params.id);
         writeTaskStatus(abortTaskDir, {
           running_state: "aborted",
           time_stamp: Date.now(),
+          ...(abortPrevStatus?.pid ? { pid: abortPrevStatus.pid } : {}),
         });
         // Append aborted status to the active RESULT file and finalize frontmatter
         try {
