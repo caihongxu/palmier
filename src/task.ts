@@ -148,6 +148,23 @@ export function readTaskStatus(taskDir: string): TaskStatus | undefined {
 }
 
 /**
+ * Create the initial result file when a task starts running.
+ * Contains only start_time and running_state=started; no end_time or content yet.
+ * Returns the result file name.
+ */
+export function createResultFile(
+  taskDir: string,
+  taskName: string,
+  startTime: number,
+): string {
+  const resultFileName = `RESULT-${startTime}.md`;
+  const taskSnapshotName = `TASK-${startTime}.md`;
+  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n`;
+  fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
+  return resultFileName;
+}
+
+/**
  * Append a history entry to the project-level history.jsonl file.
  */
 export function appendHistory(projectRoot: string, entry: HistoryEntry): void {

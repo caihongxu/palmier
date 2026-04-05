@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX, TASK_INPUT_PREFIX } from "../agents/shared-prompt.js";
@@ -18,21 +18,6 @@ import type { NatsConnection } from "nats";
  * Write a time-stamped RESULT file with frontmatter.
  * Always generated, even for abort/fail.
  */
-/**
- * Create the initial result file when a task starts running.
- * Contains only start_time and running_state=started; no end_time or content yet.
- */
-function createResultFile(
-  taskDir: string,
-  taskName: string,
-  taskSnapshotName: string,
-  startTime: number,
-): string {
-  const resultFileName = `RESULT-${startTime}.md`;
-  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n`;
-  fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
-  return resultFileName;
-}
 
 /**
  * Update an existing result file with the final outcome.
@@ -152,6 +137,18 @@ async function invokeAgentWithRetry(
 }
 
 /**
+ * Find an existing RESULT file with running_state=started (created by the RPC handler).
+ */
+function findStartedResultFile(taskDir: string): string | null {
+  const files = fs.readdirSync(taskDir).filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"));
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(taskDir, file), "utf-8");
+    if (content.includes("running_state: started")) return file;
+  }
+  return null;
+}
+
+/**
  * If the RPC handler already wrote "aborted" to status.json (e.g. via task.abort),
  * respect that instead of overwriting with the process's own outcome.
  */
@@ -171,12 +168,18 @@ export async function runCommand(taskId: string): Promise<void> {
   console.log(`Running task: ${taskId}`);
 
   let nc: NatsConnection | undefined;
-  const startTime = Date.now();
   const taskName = task.frontmatter.name;
+
+  // Check for an existing "started" result file (created by the RPC handler)
+  const existingResult = findStartedResultFile(taskDir);
+  const startTime = existingResult ? parseInt(existingResult.replace("RESULT-", "").replace(".md", ""), 10) : Date.now();
+  const resultFileName = existingResult ?? createResultFile(taskDir, taskName, startTime);
 
   // Snapshot the task file at run time
   const taskSnapshotName = `TASK-${startTime}.md`;
-  fs.copyFileSync(path.join(taskDir, "TASK.md"), path.join(taskDir, taskSnapshotName));
+  if (!fs.existsSync(path.join(taskDir, taskSnapshotName))) {
+    fs.copyFileSync(path.join(taskDir, "TASK.md"), path.join(taskDir, taskSnapshotName));
+  }
 
   const cleanup = async () => {
     if (nc && !nc.isClosed()) {
@@ -184,15 +187,15 @@ export async function runCommand(taskId: string): Promise<void> {
     }
   };
 
-  // Create the result file immediately so it appears in the runs list as "Running"
-  const resultFileName = createResultFile(taskDir, taskName, taskSnapshotName, startTime);
-  appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+  if (!existingResult) {
+    appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+  }
 
   try {
     nc = await connectNats(config);
 
     // Mark as started immediately
-    await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName);
+    await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
 
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
@@ -203,7 +206,7 @@ export async function runCommand(taskId: string): Promise<void> {
         console.log("Task aborted by user.");
         const endTime = Date.now();
         finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, "aborted", startTime, endTime, "", [], []);
-        await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName);
+        await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, resultFileName);
         await cleanup();
         return;
       }
@@ -223,7 +226,7 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, result.endTime, result.output, [], []);
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else {
       // Standard execution
@@ -231,7 +234,7 @@ export async function runCommand(taskId: string): Promise<void> {
       const outcome = resolveOutcome(taskDir, result.outcome);
 
       finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, Date.now(), result.output, result.reportFiles, result.requiredPermissions);
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
 
       if (result.reportFiles.length > 0) {
         await publishHostEvent(nc, config.hostId, taskId, {
@@ -239,6 +242,7 @@ export async function runCommand(taskId: string): Promise<void> {
           name: taskName,
           report_files: result.reportFiles,
           running_state: outcome,
+          result_file: resultFileName,
         });
       }
 
@@ -250,7 +254,7 @@ export async function runCommand(taskId: string): Promise<void> {
     const outcome = resolveOutcome(taskDir, "failed");
     const errorMsg = err instanceof Error ? err.message : String(err);
     finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, endTime, errorMsg, [], []);
-    await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
+    await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
     process.exitCode = 1;
   } finally {
     await cleanup();
@@ -404,6 +408,7 @@ async function publishTaskEvent(
   taskId: string,
   eventType: TaskRunningState,
   taskName?: string,
+  resultFile?: string,
 ): Promise<void> {
   writeTaskStatus(taskDir, {
     running_state: eventType,
@@ -412,6 +417,7 @@ async function publishTaskEvent(
 
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: eventType };
   if (taskName) payload.name = taskName;
+  if (resultFile) payload.result_file = resultFile;
   await publishHostEvent(nc, config.hostId, taskId, payload);
 }
 

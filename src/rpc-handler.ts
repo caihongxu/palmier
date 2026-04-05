@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
@@ -272,6 +272,10 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         writeTaskFile(taskDir, task);
         // Do NOT append to tasks.jsonl — this is a one-off run
 
+        // Create initial result file so it appears in runs list immediately
+        const resultFileName = createResultFile(taskDir, name, Date.now());
+        appendHistory(config.projectRoot, { task_id: id, result_file: resultFileName });
+
         // Spawn `palmier run <id>` directly as a detached process
         const script = process.argv[1] || "palmier";
         const child = spawn(process.execPath, [script, "run", id], {
@@ -281,14 +285,20 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
         child.unref();
 
-        return { ok: true, task_id: id };
+        return { ok: true, task_id: id, result_file: resultFileName };
       }
 
       case "task.run": {
         const params = request.params as { id: string };
         try {
+          // Create initial result file so it appears in runs list immediately
+          const runTaskDir = getTaskDir(config.projectRoot, params.id);
+          const runTask = parseTaskFile(runTaskDir);
+          const runResultFileName = createResultFile(runTaskDir, runTask.frontmatter.name, Date.now());
+          appendHistory(config.projectRoot, { task_id: params.id, result_file: runResultFileName });
+
           await getPlatform().startTask(params.id);
-          return { ok: true, task_id: params.id };
+          return { ok: true, task_id: params.id, result_file: runResultFileName };
         } catch (err: unknown) {
           const e = err as { stderr?: string; message?: string };
           console.error(`task.run failed for ${params.id}: ${e.stderr || e.message}`);
