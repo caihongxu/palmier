@@ -17,8 +17,28 @@ import type { NatsConnection } from "nats";
  * Write a time-stamped RESULT file with frontmatter.
  * Always generated, even for abort/fail.
  */
-function writeResult(
+/**
+ * Create the initial result file when a task starts running.
+ * Contains only start_time and running_state=started; no end_time or content yet.
+ */
+function createResultFile(
   taskDir: string,
+  taskName: string,
+  taskSnapshotName: string,
+  startTime: number,
+): string {
+  const resultFileName = `RESULT-${startTime}.md`;
+  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n`;
+  fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
+  return resultFileName;
+}
+
+/**
+ * Update an existing result file with the final outcome.
+ */
+function finalizeResultFile(
+  taskDir: string,
+  resultFileName: string,
   taskName: string,
   taskSnapshotName: string,
   runningState: string,
@@ -27,13 +47,11 @@ function writeResult(
   output: string,
   reportFiles: string[],
   requiredPermissions: RequiredPermission[],
-): string {
-  const resultFileName = `RESULT-${endTime}.md`;
+): void {
   const reportLine = reportFiles.length > 0 ? `\nreport_files: ${reportFiles.join(", ")}` : "";
   const permLines = requiredPermissions.map((p) => `\nrequired_permission: ${p.name} | ${p.description}`).join("");
   const content = `---\ntask_name: ${taskName}\nrunning_state: ${runningState}\nstart_time: ${startTime}\nend_time: ${endTime}\ntask_file: ${taskSnapshotName}${reportLine}${permLines}\n---\n${output}`;
   fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
-  return resultFileName;
 }
 
 /**
@@ -165,6 +183,10 @@ export async function runCommand(taskId: string): Promise<void> {
     }
   };
 
+  // Create the result file immediately so it appears in the runs list as "Running"
+  const resultFileName = createResultFile(taskDir, taskName, taskSnapshotName, startTime);
+  appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+
   try {
     nc = await connectNats(config);
 
@@ -179,8 +201,7 @@ export async function runCommand(taskId: string): Promise<void> {
       if (!confirmed) {
         console.log("Task aborted by user.");
         const endTime = Date.now();
-        const resultFileName = writeResult(taskDir, taskName, taskSnapshotName, "aborted", startTime, endTime, "", [], []);
-        appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+        finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, "aborted", startTime, endTime, "", [], []);
         await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName);
         await cleanup();
         return;
@@ -200,11 +221,7 @@ export async function runCommand(taskId: string): Promise<void> {
       // Command-triggered mode
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
-      const resultFileName = writeResult(
-        taskDir, taskName, taskSnapshotName, outcome,
-        startTime, result.endTime, result.output, [], [],
-      );
-      appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+      finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, result.endTime, result.output, [], []);
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else {
@@ -212,8 +229,7 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await invokeAgentWithRetry(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
 
-      const resultFileName = writeResult(taskDir, taskName, taskSnapshotName, outcome, startTime, Date.now(), result.output, result.reportFiles, result.requiredPermissions);
-      appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+      finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, Date.now(), result.output, result.reportFiles, result.requiredPermissions);
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
 
       if (result.reportFiles.length > 0) {
@@ -232,8 +248,7 @@ export async function runCommand(taskId: string): Promise<void> {
     const endTime = Date.now();
     const outcome = resolveOutcome(taskDir, "failed");
     const errorMsg = err instanceof Error ? err.message : String(err);
-    const resultFileName = writeResult(taskDir, taskName, taskSnapshotName, outcome, startTime, endTime, errorMsg, [], []);
-    appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+    finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, endTime, errorMsg, [], []);
     await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName);
     process.exitCode = 1;
   } finally {
