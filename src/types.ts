@@ -75,6 +75,14 @@ export interface RequiredPermission {
   description: string;
 }
 
+export interface ConversationMessage {
+  role: "assistant" | "user" | "status";
+  time: number;
+  content: string;
+  type?: "input" | "permission" | "confirmation" | "started" | "finished" | "failed" | "aborted";
+  attachments?: string[];
+}
+
 export interface RpcMessage {
   method: string;
   params: Record<string, unknown>;

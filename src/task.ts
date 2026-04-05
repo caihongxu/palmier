@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import type { ParsedTask, TaskFrontmatter, TaskStatus, HistoryEntry } from "./types.js";
+import type { ParsedTask, TaskFrontmatter, TaskStatus, HistoryEntry, ConversationMessage } from "./types.js";
 
 /**
  * Parse a TASK.md file from the given task directory.
@@ -159,9 +159,54 @@ export function createResultFile(
 ): string {
   const resultFileName = `RESULT-${startTime}.md`;
   const taskSnapshotName = `TASK-${startTime}.md`;
-  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n`;
+  const content = `---\ntask_name: ${taskName}\nrunning_state: started\nstart_time: ${startTime}\ntask_file: ${taskSnapshotName}\n---\n\n`;
   fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
   return resultFileName;
+}
+
+/**
+ * Append a conversation message to a RESULT file.
+ */
+export function appendResultMessage(
+  taskDir: string,
+  resultFile: string,
+  msg: ConversationMessage,
+): void {
+  const attrs = [`role="${msg.role}"`, `time="${msg.time}"`];
+  if (msg.type) attrs.push(`type="${msg.type}"`);
+  if (msg.attachments?.length) attrs.push(`attachments="${msg.attachments.join(",")}"`);
+
+  const delimiter = `<!-- palmier:message ${attrs.join(" ")} -->`;
+  const entry = `${delimiter}\n\n${msg.content}\n\n`;
+  fs.appendFileSync(path.join(taskDir, resultFile), entry, "utf-8");
+}
+
+/**
+ * Update frontmatter fields in a RESULT file without touching the body.
+ */
+export function finalizeResultFrontmatter(
+  taskDir: string,
+  resultFile: string,
+  updates: { end_time?: number; running_state?: string },
+): void {
+  const filePath = path.join(taskDir, resultFile);
+  const raw = fs.readFileSync(filePath, "utf-8");
+  const fmEnd = raw.indexOf("\n---\n", 4); // skip opening ---
+  if (fmEnd === -1) return;
+
+  let frontmatter = raw.slice(0, fmEnd);
+  const body = raw.slice(fmEnd);
+
+  for (const [key, value] of Object.entries(updates)) {
+    const regex = new RegExp(`^${key}:.*$`, "m");
+    if (regex.test(frontmatter)) {
+      frontmatter = frontmatter.replace(regex, `${key}: ${value}`);
+    } else {
+      frontmatter += `\n${key}: ${value}`;
+    }
+  }
+
+  fs.writeFileSync(filePath, frontmatter + body, "utf-8");
 }
 
 /**

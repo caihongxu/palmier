@@ -12,7 +12,7 @@ import { getAgent } from "./agents/agent.js";
 import { validateSession } from "./session-store.js";
 import { publishHostEvent } from "./events.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
-import type { HostConfig, ParsedTask, RpcMessage } from "./types.js";
+import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,44 +22,70 @@ const PLAN_GENERATION_PROMPT = fs.readFileSync(
 );
 
 /**
- * Parse RESULT frontmatter into a metadata object.
+ * Parse RESULT frontmatter and conversation messages.
  */
 function parseResultFrontmatter(raw: string): Record<string, unknown> {
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!fmMatch) return { content: raw };
+  if (!fmMatch) return { messages: [] };
 
   const meta: Record<string, string> = {};
-  const requiredPermissions: Array<{ name: string; description: string }> = [];
   for (const line of fmMatch[1].split("\n")) {
     const sep = line.indexOf(": ");
     if (sep === -1) continue;
-    const key = line.slice(0, sep).trim();
-    const value = line.slice(sep + 2).trim();
-    if (key === "required_permission") {
-      const pipeSep = value.indexOf("|");
-      if (pipeSep !== -1) {
-        requiredPermissions.push({ name: value.slice(0, pipeSep).trim(), description: value.slice(pipeSep + 1).trim() });
-      } else {
-        requiredPermissions.push({ name: value, description: "" });
-      }
-    } else {
-      meta[key] = value;
-    }
+    meta[line.slice(0, sep).trim()] = line.slice(sep + 2).trim();
   }
-  const reportFiles = meta.report_files
-    ? meta.report_files.split(",").map((f: string) => f.trim()).filter(Boolean)
-    : [];
+
+  const messages = parseConversationMessages(fmMatch[2]);
 
   return {
-    content: fmMatch[2],
+    messages,
     task_name: meta.task_name,
     running_state: meta.running_state,
     start_time: meta.start_time ? Number(meta.start_time) : undefined,
     end_time: meta.end_time ? Number(meta.end_time) : undefined,
     task_file: meta.task_file,
-    report_files: reportFiles.length > 0 ? reportFiles : undefined,
-    required_permissions: requiredPermissions.length > 0 ? requiredPermissions : undefined,
   };
+}
+
+/**
+ * Parse conversation messages from the body of a RESULT file.
+ */
+function parseConversationMessages(body: string): ConversationMessage[] {
+  const delimiterRegex = /<!-- palmier:message\s+(.*?)\s*-->/g;
+  const messages: ConversationMessage[] = [];
+  const matches = [...body.matchAll(delimiterRegex)];
+
+  if (matches.length === 0) {
+    // No delimiters — treat entire body as single assistant message if non-empty
+    const content = body.trim();
+    if (content) {
+      messages.push({ role: "assistant", time: 0, content });
+    }
+    return messages;
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const attrs = match[1];
+    const start = match.index! + match[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index! : body.length;
+    const content = body.slice(start, end).trim();
+
+    const role = (parseAttr(attrs, "role") ?? "assistant") as "assistant" | "user";
+    const time = Number(parseAttr(attrs, "time") ?? "0");
+    const type = parseAttr(attrs, "type") as ConversationMessage["type"];
+    const attachmentsRaw = parseAttr(attrs, "attachments");
+    const attachments = attachmentsRaw ? attachmentsRaw.split(",").map((f) => f.trim()).filter(Boolean) : undefined;
+
+    messages.push({ role, time, content, ...(type ? { type } : {}), ...(attachments ? { attachments } : {}) });
+  }
+
+  return messages;
+}
+
+function parseAttr(attrs: string, name: string): string | undefined {
+  const match = attrs.match(new RegExp(`${name}="([^"]*)"`));
+  return match ? match[1] : undefined;
 }
 
 /**
@@ -408,8 +434,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           try {
             const raw = fs.readFileSync(resultPath, "utf-8");
             const meta = parseResultFrontmatter(raw);
-            // Exclude full content from list response
-            const { content: _, ...rest } = meta;
+            // Exclude messages from list response
+            const { messages: _, ...rest } = meta;
             return { ...entry, ...rest };
           } catch {
             return { ...entry, error: "Result file not found" };

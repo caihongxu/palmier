@@ -4,7 +4,7 @@ import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, appendHistory, parseTaskFile } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, appendHistory, parseTaskFile, appendResultMessage } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -41,8 +41,13 @@ async function markTaskFailed(
   } catch { /* use taskId as fallback */ }
 
   const resultFileName = `RESULT-${endTime}.md`;
-  const content = `---\ntask_name: ${taskName}\nrunning_state: failed\nstart_time: ${status.time_stamp}\nend_time: ${endTime}\ntask_file: \n---\n${reason}`;
+  const content = `---\ntask_name: ${taskName}\nrunning_state: failed\nstart_time: ${status.time_stamp}\nend_time: ${endTime}\ntask_file: \n---\n\n`;
   fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
+  appendResultMessage(taskDir, resultFileName, {
+    role: "assistant",
+    time: endTime,
+    content: reason,
+  });
   appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
 
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: "failed", name: taskName };

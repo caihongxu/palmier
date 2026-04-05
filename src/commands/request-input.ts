@@ -1,6 +1,6 @@
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { getTaskDir, parseTaskFile } from "../task.js";
+import { getTaskDir, parseTaskFile, appendResultMessage } from "../task.js";
 import { requestUserInput, publishInputResolved } from "../user-input.js";
 
 /**
@@ -27,8 +27,30 @@ export async function requestInputCommand(opts: { description: string[] }): Prom
     await publishInputResolved(nc, config, taskId, response === "aborted" ? "aborted" : "provided");
 
     if (response === "aborted") {
+      // Write abort as user message if RESULT file is available
+      const resultFile = process.env.PALMIER_RESULT_FILE;
+      if (resultFile) {
+        appendResultMessage(taskDir, resultFile, {
+          role: "user",
+          time: Date.now(),
+          content: "Input request aborted.",
+          type: "input",
+        });
+      }
       console.error("User aborted the input request.");
       process.exit(1);
+    }
+
+    // Write user input as a conversation message
+    const resultFile = process.env.PALMIER_RESULT_FILE;
+    if (resultFile) {
+      const lines = opts.description.map((desc, i) => `**${desc}** ${response[i]}`);
+      appendResultMessage(taskDir, resultFile, {
+        role: "user",
+        time: Date.now(),
+        content: lines.join("\n"),
+        type: "input",
+      });
     }
 
     for (let i = 0; i < opts.description.length; i++) {

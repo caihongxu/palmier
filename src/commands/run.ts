@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage, finalizeResultFrontmatter } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -15,32 +15,6 @@ import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } fro
 import type { NatsConnection } from "nats";
 
 /**
- * Write a time-stamped RESULT file with frontmatter.
- * Always generated, even for abort/fail.
- */
-
-/**
- * Update an existing result file with the final outcome.
- */
-function finalizeResultFile(
-  taskDir: string,
-  resultFileName: string,
-  taskName: string,
-  taskSnapshotName: string,
-  runningState: string,
-  startTime: number,
-  endTime: number,
-  output: string,
-  reportFiles: string[],
-  requiredPermissions: RequiredPermission[],
-): void {
-  const reportLine = reportFiles.length > 0 ? `\nreport_files: ${reportFiles.join(", ")}` : "";
-  const permLines = requiredPermissions.map((p) => `\nrequired_permission: ${p.name} | ${p.description}`).join("");
-  const content = `---\ntask_name: ${taskName}\nrunning_state: ${runningState}\nstart_time: ${startTime}\nend_time: ${endTime}\ntask_file: ${taskSnapshotName}${reportLine}${permLines}\n---\n${output}`;
-  fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
-}
-
-/**
  * Shared context for agent invocation retry loops.
  * Passed around to avoid threading many individual parameters.
  */
@@ -48,6 +22,7 @@ interface InvocationContext {
   agent: AgentTool;
   task: ParsedTask;
   taskDir: string;
+  resultFileName: string;
   guiEnv: Record<string, string>;
   nc: NatsConnection | undefined;
   config: HostConfig;
@@ -57,10 +32,7 @@ interface InvocationContext {
 }
 
 interface InvocationResult {
-  output: string;
   outcome: TaskRunningState;
-  reportFiles: string[];
-  requiredPermissions: RequiredPermission[];
 }
 
 /**
@@ -80,7 +52,7 @@ async function invokeAgentWithRetry(
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, retryPrompt, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: ctx.taskDir,
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id },
+      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RESULT_FILE: ctx.resultFileName },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -90,19 +62,41 @@ async function invokeAgentWithRetry(
     const reportFiles = parseReportFiles(result.output);
     const requiredPermissions = parsePermissions(result.output);
 
+    // Append assistant message for this invocation
+    await appendAndNotify(ctx, {
+      role: "assistant",
+      time: Date.now(),
+      content: stripPalmierMarkers(result.output),
+      attachments: reportFiles.length > 0 ? reportFiles : undefined,
+    });
+
     // Permission retry
     if (outcome === "failed" && requiredPermissions.length > 0) {
       const response = await requestPermission(ctx.nc, ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
       await publishPermissionResolved(ctx.nc, ctx.config, ctx.taskId, response);
 
       if (response === "aborted") {
-        return { output: result.output, outcome: "failed", reportFiles, requiredPermissions };
+        await appendAndNotify(ctx, {
+          role: "user",
+          time: Date.now(),
+          content: "Permissions denied. Task aborted.",
+          type: "permission",
+        });
+        return { outcome: "failed" };
       }
 
       const newPerms = requiredPermissions.filter(
         (rp) => !ctx.task.frontmatter.permissions?.some((ep) => ep.name === rp.name)
           && !ctx.transientPermissions.some((ep) => ep.name === rp.name),
       );
+
+      // Append user message for permission grant
+      await appendAndNotify(ctx, {
+        role: "user",
+        time: Date.now(),
+        content: `Permissions granted: ${newPerms.map((p) => p.name).join(", ")}`,
+        type: "permission",
+      });
 
       if (response === "granted_all") {
         ctx.task.frontmatter.permissions = [...(ctx.task.frontmatter.permissions ?? []), ...newPerms];
@@ -117,8 +111,26 @@ async function invokeAgentWithRetry(
     }
 
     // Normal completion (success or non-retryable failure)
-    return { output: result.output, outcome, reportFiles, requiredPermissions };
+    return { outcome };
   }
+}
+
+/**
+ * Strip [PALMIER_*] marker lines from agent output.
+ */
+function stripPalmierMarkers(output: string): string {
+  return output.split("\n").filter((l) => !l.startsWith("[PALMIER")).join("\n").trim();
+}
+
+/**
+ * Append a conversation message to the RESULT file and notify connected clients.
+ */
+async function appendAndNotify(
+  ctx: InvocationContext,
+  msg: Parameters<typeof appendResultMessage>[2],
+): Promise<void> {
+  appendResultMessage(ctx.taskDir, ctx.resultFileName, msg);
+  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated" });
 }
 
 /**
@@ -182,6 +194,10 @@ export async function runCommand(taskId: string): Promise<void> {
     // Mark as started immediately
     await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
 
+    // Status: started
+    appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "started" });
+    await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
+
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
       const confirmed = await requestConfirmation(nc, config, task, taskDir);
@@ -189,20 +205,22 @@ export async function runCommand(taskId: string): Promise<void> {
       await publishConfirmResolved(nc, config, taskId, resolvedStatus);
       if (!confirmed) {
         console.log("Task aborted by user.");
-        const endTime = Date.now();
-        finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, "aborted", startTime, endTime, "", [], []);
+        appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "aborted" });
+        finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: "aborted" });
         await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, resultFileName);
         await cleanup();
         return;
       }
       console.log("Task confirmed by user.");
+      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "confirmation" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated" });
     }
 
     // Shared invocation context
     const guiEnv = getPlatform().getGuiEnv();
     const agent = getAgent(task.frontmatter.agent);
     const ctx: InvocationContext = {
-      agent, task, taskDir, guiEnv, nc, config, taskId,
+      agent, task, taskDir, resultFileName, guiEnv, nc, config, taskId,
       transientPermissions: [],
     };
 
@@ -210,35 +228,36 @@ export async function runCommand(taskId: string): Promise<void> {
       // Command-triggered mode
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
-      finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, result.endTime, result.output, [], []);
+      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
+      finalizeResultFrontmatter(taskDir, resultFileName, { end_time: result.endTime, running_state: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else {
-      // Standard execution
+      // Standard execution — add user prompt as first message
+      await appendAndNotify(ctx, {
+        role: "user",
+        time: Date.now(),
+        content: task.body || task.frontmatter.user_prompt,
+      });
+
       const result = await invokeAgentWithRetry(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
-
-      finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, Date.now(), result.output, result.reportFiles, result.requiredPermissions);
+      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
+      finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
-
-      if (result.reportFiles.length > 0) {
-        await publishHostEvent(nc, config.hostId, taskId, {
-          event_type: "report-generated",
-          name: taskName,
-          report_files: result.reportFiles,
-          running_state: outcome,
-          result_file: resultFileName,
-        });
-      }
-
       console.log(`Task ${taskId} completed.`);
     }
   } catch (err) {
     console.error(`Task ${taskId} failed:`, err);
-    const endTime = Date.now();
     const outcome = resolveOutcome(taskDir, "failed");
     const errorMsg = err instanceof Error ? err.message : String(err);
-    finalizeResultFile(taskDir, resultFileName, taskName, taskSnapshotName, outcome, startTime, endTime, errorMsg, [], []);
+    appendResultMessage(taskDir, resultFileName, {
+      role: "assistant",
+      time: Date.now(),
+      content: errorMsg,
+    });
+    appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
+    finalizeResultFrontmatter(taskDir, resultFileName, { end_time: Date.now(), running_state: outcome });
     await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
     process.exitCode = 1;
   } finally {
@@ -260,7 +279,7 @@ const MAX_LINE_LENGTH = 200_000;
  */
 async function runCommandTriggeredMode(
   ctx: InvocationContext,
-): Promise<{ outcome: TaskRunningState; endTime: number; output: string }> {
+): Promise<{ outcome: TaskRunningState; endTime: number }> {
   const commandStr = ctx.task.frontmatter.command!;
   console.log(`[command-triggered] Spawning: ${commandStr}`);
 
@@ -316,7 +335,7 @@ async function runCommandTriggeredMode(
     } else {
       invocationsFailed++;
     }
-    appendLog(line, result.output, result.outcome);
+    appendLog(line, "", result.outcome);
   }
 
   async function drainQueue(): Promise<void> {
@@ -375,15 +394,7 @@ async function runCommandTriggeredMode(
   }
 
   const endTime = Date.now();
-  const summary = [
-    `Command: ${commandStr}`,
-    `Exit code: ${exitCode}`,
-    `Lines processed: ${linesProcessed}`,
-    `Agent invocations succeeded: ${invocationsSucceeded}`,
-    `Agent invocations failed: ${invocationsFailed}`,
-  ].join("\n");
-
-  return { outcome: "finished", endTime, output: summary };
+  return { outcome: "finished", endTime };
 }
 
 async function publishTaskEvent(
