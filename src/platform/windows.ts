@@ -131,31 +131,37 @@ export class WindowsPlatform implements PlatformService {
       ? fs.readFileSync(DAEMON_PID_FILE, "utf-8").trim()
       : null;
 
-    // Spawn the new daemon before killing the old one.
-    this.spawnDaemon(script);
-
     if (oldPid && oldPid === String(process.pid)) {
-      // We ARE the old daemon (auto-update) — exit so only the new one runs.
+      // We ARE the old daemon (auto-update) — spawn replacement then exit.
+      this.spawnDaemon(script);
       process.exit(0);
-    } else if (oldPid) {
+    }
+
+    // Kill old daemon first, then spawn new one.
+    if (oldPid) {
       try {
-        execFileSync("taskkill", ["/pid", oldPid, "/t", "/f"], { windowsHide: true });
+        execFileSync("taskkill", ["/pid", oldPid, "/f"], { windowsHide: true, stdio: "pipe" });
       } catch {
         // Process may have already exited
       }
     }
+
+    this.spawnDaemon(script);
   }
 
   private spawnDaemon(script: string): void {
-    const child = nodeSpawn(process.execPath, [script, "serve"], {
+    // Write a VBS launcher that starts the daemon with no visible console window.
+    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" serve", 0, False`;
+    fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
+
+    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
+    const child = nodeSpawn(wscript, [DAEMON_VBS_FILE], {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
     });
-    if (child.pid) {
-      fs.writeFileSync(DAEMON_PID_FILE, String(child.pid), "utf-8");
-    }
     child.unref();
+    // PID file will be written by the serve command itself when it starts.
     console.log("Palmier daemon started.");
   }
 
