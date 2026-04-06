@@ -6,6 +6,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir } from "./task.js";
+import { resolvePending, getPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
@@ -157,8 +158,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   }
 
   async function handleRpc(request: RpcMessage): Promise<unknown> {
-    // Session token validation: always require a valid session token
-    if (!request.sessionToken || !validateSession(request.sessionToken)) {
+    // Session token validation: skip for trusted localhost requests
+    if (!request.localhost && (!request.sessionToken || !validateSession(request.sessionToken))) {
       return { error: "Unauthorized" };
     }
 
@@ -521,7 +522,14 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!status) {
           return { task_id: params.id, error: "No status found" };
         }
-        return { task_id: params.id, ...status };
+        const pending = getPending(params.id);
+        return {
+          task_id: params.id,
+          ...status,
+          ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
+          ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
+          ...(pending?.type === "input" ? { pending_input: pending.params } : {}),
+        };
       }
 
       case "task.result": {
@@ -570,17 +578,15 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
       case "task.user_input": {
         const params = request.params as { id: string; value: string[] };
-        const taskDir = getTaskDir(config.projectRoot, params.id);
 
-        const currentStatus = readTaskStatus(taskDir);
-        if (!currentStatus?.pending_confirmation && !currentStatus?.pending_permission?.length && !currentStatus?.pending_input?.length) {
+        const pending = getPending(params.id);
+        if (!pending) {
           return { ok: false, error: "not pending" };
         }
 
-        writeTaskStatus(taskDir, { ...currentStatus, user_input: params.value });
-
+        const resolved = resolvePending(params.id, params.value);
         console.log(`[task.user_input] ${params.id} → ${params.value}`);
-        return { ok: true };
+        return { ok: resolved };
       }
 
       case "taskrun.list": {

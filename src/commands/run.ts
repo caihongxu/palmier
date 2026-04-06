@@ -10,7 +10,6 @@ import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
-import { waitForUserInput } from "../user-input.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
 
@@ -52,7 +51,7 @@ async function invokeAgentWithContinuation(
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, followupPrompt, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId) },
+      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -72,8 +71,7 @@ async function invokeAgentWithContinuation(
 
     // Permission handling — agent requested permissions
     if (requiredPermissions.length > 0) {
-      const response = await requestPermission(ctx.nc, ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
-      await publishPermissionResolved(ctx.nc, ctx.config, ctx.taskId, response);
+      const response = await requestPermission(ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
 
       if (response === "aborted") {
         await appendAndNotify(ctx, {
@@ -194,9 +192,7 @@ export async function runCommand(taskId: string): Promise<void> {
 
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
-      const confirmed = await requestConfirmation(nc, config, task, taskDir);
-      const resolvedStatus = confirmed ? "confirmed" : "aborted";
-      await publishConfirmResolved(nc, config, taskId, resolvedStatus);
+      const confirmed = await requestConfirmation(config, task, taskDir);
       if (!confirmed) {
         console.log("Task aborted by user.");
         appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "aborted" });
@@ -275,7 +271,7 @@ async function runCommandTriggeredMode(
 
   const child = spawnStreamingCommand(commandStr, {
     cwd: getRunDir(ctx.taskDir, ctx.runId),
-    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId) },
+    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
   });
 
   let linesProcessed = 0;
@@ -408,41 +404,21 @@ async function publishTaskEvent(
   await publishHostEvent(nc, config.hostId, taskId, payload);
 }
 
-/**
- * Notify clients that a confirmation request has been resolved.
- */
-async function publishConfirmResolved(
-  nc: NatsConnection | undefined,
-  config: HostConfig,
-  taskId: string,
-  status: "confirmed" | "aborted",
-): Promise<void> {
-  await publishHostEvent(nc, config.hostId, taskId, {
-    event_type: "confirm-resolved",
-    host_id: config.hostId,
-    status,
-  });
-}
 
 async function requestPermission(
-  nc: NatsConnection | undefined,
   config: HostConfig,
   task: ParsedTask,
   taskDir: string,
   requiredPermissions: RequiredPermission[],
 ): Promise<"granted" | "granted_all" | "aborted"> {
-  const currentStatus = readTaskStatus(taskDir)!;
-  writeTaskStatus(taskDir, { ...currentStatus, pending_permission: requiredPermissions });
-
-  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
-    event_type: "permission-request",
-    host_id: config.hostId,
-    required_permissions: requiredPermissions,
-    name: task.frontmatter.name,
+  const port = config.httpPort ?? 7400;
+  const params = new URLSearchParams({
+    taskId: task.frontmatter.id,
+    taskName: task.frontmatter.name,
+    permissions: JSON.stringify(requiredPermissions),
   });
-
-  const userInput = await waitForUserInput(taskDir);
-  const response = userInput[0] as "granted" | "granted_all" | "aborted";
+  const res = await fetch(`http://localhost:${port}/request-permission?${params}`);
+  const { response } = await res.json() as { response: "granted" | "granted_all" | "aborted" };
   writeTaskStatus(taskDir, {
     running_state: response === "aborted" ? "aborted" : "started",
     time_stamp: Date.now(),
@@ -450,35 +426,19 @@ async function requestPermission(
   return response;
 }
 
-async function publishPermissionResolved(
-  nc: NatsConnection | undefined,
-  config: HostConfig,
-  taskId: string,
-  status: "granted" | "granted_all" | "aborted",
-): Promise<void> {
-  await publishHostEvent(nc, config.hostId, taskId, {
-    event_type: "permission-resolved",
-    host_id: config.hostId,
-    status,
-  });
-}
 
 async function requestConfirmation(
-  nc: NatsConnection | undefined,
   config: HostConfig,
   task: ParsedTask,
   taskDir: string,
 ): Promise<boolean> {
-  const currentStatus = readTaskStatus(taskDir)!;
-  writeTaskStatus(taskDir, { ...currentStatus, pending_confirmation: true });
-
-  await publishHostEvent(nc, config.hostId, task.frontmatter.id, {
-    event_type: "confirm-request",
-    host_id: config.hostId,
+  const port = config.httpPort ?? 7400;
+  const params = new URLSearchParams({
+    taskId: task.frontmatter.id,
+    taskName: task.frontmatter.name,
   });
-
-  const userInput = await waitForUserInput(taskDir);
-  const confirmed = userInput[0] === "confirmed";
+  const res = await fetch(`http://localhost:${port}/request-confirmation?${params}`);
+  const { confirmed } = await res.json() as { confirmed: boolean };
   writeTaskStatus(taskDir, {
     running_state: confirmed ? "started" : "aborted",
     time_stamp: Date.now(),

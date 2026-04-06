@@ -4,6 +4,7 @@ import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
+import { startHttpTransport } from "../transports/http-transport.js";
 import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
@@ -78,7 +79,7 @@ async function checkStaleTasks(
 }
 
 /**
- * Start the persistent RPC handler (NATS only).
+ * Start the persistent RPC handler (NATS + HTTP).
  */
 export async function serveCommand(): Promise<void> {
   const config = loadConfig();
@@ -107,5 +108,13 @@ export async function serveCommand(): Promise<void> {
   }, POLL_INTERVAL_MS);
 
   const handleRpc = createRpcHandler(config, nc);
-  await startNatsTransport(config, handleRpc, nc);
+  const httpPort = config.httpPort ?? 7400;
+
+  // Start NATS transport (loops forever, fire-and-forget)
+  if (nc) {
+    startNatsTransport(config, handleRpc, nc);
+  }
+
+  // Start HTTP transport (loops forever)
+  await startHttpTransport(config, handleRpc, httpPort, nc);
 }

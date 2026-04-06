@@ -10,18 +10,21 @@ A Node.js CLI that lets you dispatch your own AI agents from your phone. It runs
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 
-## Connection Modes
+## Access Modes
 
-The host supports two independent connection modes, enabled during `palmier init`. Both can be active at the same time.
+The serve daemon always runs a local HTTP server. Three access modes are available:
 
-| Mode | Transport | PWA URL | Features |
-|------|-----------|---------|----------|
-| **Server** | Cloud relay (NATS) | `https://app.palmier.me` | Push notifications, remote access |
-| **LAN** | HTTP (direct, on-demand) | `http://<host-ip>:7400` | Low-latency, no external server needed |
+| Mode | Transport | URL | Pairing | Features |
+|------|-----------|-----|---------|----------|
+| **Local** | HTTP (localhost) | `http://localhost:<port>` | Not required | Full access from the host machine, no internet needed |
+| **LAN** | HTTP (direct) | `http://<host-ip>:<port>` | Required | Access from other devices on the local network |
+| **Server** | Cloud relay (NATS) | `https://app.palmier.me` | Required | Push notifications, remote access from anywhere |
 
-**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io), a lightweight messaging system). All features including push notifications are available. The PWA is served over HTTPS.
+**Local mode** is always available. The PWA is served at `http://localhost:<port>` and works without pairing or internet. The daemon binds to `127.0.0.1` by default.
 
-**LAN mode** is started on-demand via `palmier lan`. It runs a local HTTP server that reverse-proxies PWA assets from `app.palmier.me` and serves API endpoints locally. The browser accesses everything at `http://<host-ip>:<port>` (same-origin). Push notifications are not available in LAN mode.
+**LAN mode** is enabled during `palmier init`. The daemon binds to `0.0.0.0` instead, making the PWA and API endpoints accessible from the local network at `http://<host-ip>:<port>`. Devices must pair via OTP to access. Push notifications are not available.
+
+**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io), a lightweight messaging system). All features including push notifications are available. The PWA is served over HTTPS. Server mode and LAN mode can be active at the same time.
 
 ## Prerequisites
 
@@ -42,8 +45,7 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 | Command | Description |
 |---|---|
 | `palmier init` | Interactive setup wizard |
-| `palmier pair` | Generate an OTP code to pair a new device (server mode) |
-| `palmier lan` | Start an on-demand LAN server with built-in pairing |
+| `palmier pair` | Generate an OTP code to pair a new device |
 | `palmier sessions list` | List active session tokens |
 | `palmier sessions revoke <token>` | Revoke a specific session token |
 | `palmier sessions revoke-all` | Revoke all session tokens |
@@ -51,8 +53,6 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
-| `palmier notify` | Send a push notification to paired devices |
-| `palmier request-input` | Request input from the user during task execution |
 
 ## Setup
 
@@ -60,14 +60,15 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 
 1. Install the host: `npm install -g palmier`
 2. Run `palmier init` in your Palmier root directory (e.g., `~/palmier`).
-3. The wizard detects installed agents, registers with the Palmier server, installs a background daemon, and generates a pairing code.
-4. Enter the pairing code in the Palmier PWA to connect your device.
+3. The wizard detects installed agents, configures access modes, registers with the Palmier server, and installs a background daemon.
+4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
+5. To access from other devices, pair via `palmier pair` (run automatically after init).
 
-### Pairing additional devices
+### Pairing devices
 
-**Server mode:** Run `palmier pair` on the host to generate a new OTP code. Enter it in the PWA at `https://app.palmier.me`.
+Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
-**LAN mode:** Run `palmier lan` — it displays both the URL and a pairing code. Open the URL on your device and enter the code.
+For LAN or server mode, run `palmier pair` on the host to generate an OTP code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or `https://app.palmier.me` (server mode).
 
 ### Managing sessions
 
@@ -123,7 +124,7 @@ palmier restart
 ## How It Works
 
 - The host runs as a **background daemon** (systemd user service on Linux, Registry Run key on Windows), staying alive via `palmier serve`.
-- **Paired devices** communicate with the host via NATS (server mode) and/or direct HTTP (LAN mode). Each paired device gets a session token that authenticates all requests.
+- **Device access** — localhost is always trusted (no pairing needed). LAN and server mode devices communicate via direct HTTP or NATS respectively, and must pair via OTP to get a session token.
 - **Tasks** are stored locally as Markdown files in a `tasks/` directory. Each task has a name, prompt, execution plan, and optional schedules (cron schedules or one-time dates).
 - **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
 - **Schedules** are backed by systemd timers (Linux) or Task Scheduler (Windows). You can enable/disable them without deleting the task, and any task can still be run manually at any time.
@@ -132,8 +133,8 @@ palmier restart
 - **Task confirmation** — tasks can optionally require your approval before running. You'll get a push notification (server mode) or a prompt in the PWA to confirm or abort.
 - **Conversational run history** — each run gets its own directory (`tasks/<id>/<timestamp>/`) with a `TASKRUN.md` file containing a conversational thread: assistant messages (agent output), user messages (input responses, permission grants, confirmations), and status entries (started, finished, failed, aborted, stopped). The agent runs inside the run directory, so each run's session files and artifacts are isolated. The PWA displays runs as a chat-like thread with follow-up support.
 - **Follow-up messages** — after a task run completes, users can send follow-up messages from the run detail view. The agent is invoked inline by the serve daemon (no new process spawning), and the response is appended to the same conversation thread.
-- **Real-time updates** — task status changes and result updates are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (LAN mode). The run detail view live-updates as the agent produces output. Events are scoped to specific runs.
-- **Agent CLI commands** — `palmier notify` and `palmier request-input` allow agents to send push notifications and request user input during task execution without requiring MCP support.
+- **Real-time updates** — task status changes and result updates are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (local/LAN mode). The run detail view live-updates as the agent produces output. Events are scoped to specific runs.
+- **Agent HTTP endpoints** — the serve daemon exposes localhost-only endpoints (`/notify`, `/request-input`) that agents call to send push notifications and request user input during task execution.
 
 ## NATS Subjects
 
@@ -156,7 +157,7 @@ src/
   spawn-command.ts    # Shared helper for spawning CLI tools
   task.ts             # Task file management
   types.ts            # Shared type definitions
-  lan-lock.ts         # LAN lockfile path and port reader
+  pending-requests.ts # In-memory registry for held HTTP connections (confirmation, permission, input)
   events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
   agents/
     agent.ts          # AgentTool interface, registry, and agent detection
@@ -170,15 +171,12 @@ src/
   commands/
     init.ts           # Interactive setup wizard (auto-pair)
     pair.ts           # OTP code generation and pairing handler
-    lan.ts            # On-demand LAN server
     sessions.ts       # Session token management CLI (list, revoke, revoke-all)
     info.ts           # Print host connection info
 
-    serve.ts          # Transport selection, startup, and crash detection polling
+    serve.ts          # NATS + HTTP transport startup, crash detection polling
     restart.ts        # Daemon restart (cross-platform)
     run.ts            # Single task execution
-    notify.ts         # Send push notification to paired devices
-    request-input.ts  # Request user input during task execution
   platform/
     platform.ts       # PlatformService interface
     index.ts          # Platform factory (Linux vs Windows)
@@ -189,16 +187,16 @@ src/
     http-transport.ts # HTTP server with RPC, SSE, PWA reverse proxy, and internal event endpoints
 ```
 
-## Agent CLI Commands
+## Agent HTTP Endpoints
 
-These commands are available to agents during task execution. They are included in the agent's system prompt automatically.
+The serve daemon exposes localhost-only HTTP endpoints for agents during task execution. The port is baked into the agent's system prompt automatically.
 
-| Command | Flags | Description |
+| Endpoint | Method | Description |
 |---|---|---|
-| `palmier notify` | `--title <title>` `--body <body>` | Send a push notification to all paired devices |
-| `palmier request-input` | `--description <desc...>` | Request input from the user; blocks until a response is provided |
+| `/notify` | GET | Send a push notification (requires server mode) |
+| `/request-input` | GET | Request user input; blocks until a response is provided |
 
-Push notifications require server mode to be enabled. `request-input` requires the `PALMIER_TASK_ID` environment variable (set automatically during task execution).
+See [agent-instructions.md](src/agents/agent-instructions.md) for usage examples.
 
 ## Uninstalling
 

@@ -9,11 +9,8 @@ import { initCommand } from "./commands/init.js";
 import { infoCommand } from "./commands/info.js";
 import { runCommand } from "./commands/run.js";
 import { serveCommand } from "./commands/serve.js";
-import { notifyCommand } from "./commands/notify.js";
-import { requestInputCommand } from "./commands/request-input.js";
 
 import { pairCommand } from "./commands/pair.js";
-import { lanCommand } from "./commands/lan.js";
 import { restartCommand } from "./commands/restart.js";
 import { sessionsListCommand, sessionsRevokeCommand, sessionsRevokeAllCommand } from "./commands/sessions.js";
 
@@ -62,22 +59,6 @@ program
     await restartCommand();
   });
 
-program
-  .command("notify")
-  .description("Send a push notification to the user")
-  .requiredOption("--title <title>", "Notification title")
-  .requiredOption("--body <body>", "Notification body text")
-  .action(async (opts: { title: string; body: string }) => {
-    await notifyCommand(opts);
-  });
-
-program
-  .command("request-input")
-  .description("Request input from the user (requires PALMIER_TASK_ID env var)")
-  .requiredOption("--description <desc...>", "Input descriptions to show the user")
-  .action(async (opts: { description: string[] }) => {
-    await requestInputCommand(opts);
-  });
 
 program
   .command("pair")
@@ -86,13 +67,6 @@ program
     await pairCommand();
   });
 
-program
-  .command("lan")
-  .description("Start an on-demand LAN server for direct HTTP connections")
-  .option("-p, --port <port>", "Port to listen on", "7400")
-  .action(async (opts: { port: string }) => {
-    await lanCommand({ port: parseInt(opts.port, 10) });
-  });
 
 const sessionsCmd = program
   .command("sessions")

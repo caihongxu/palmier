@@ -3,7 +3,6 @@ import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addSession } from "../session-store.js";
-import { getLanPort } from "../lan-lock.js";
 import type { HostConfig } from "../types.js";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
@@ -26,9 +25,9 @@ function buildPairResponse(config: HostConfig, label?: string) {
 }
 
 /**
- * POST to the running LAN server and long-poll until paired or expired.
+ * POST to the running serve daemon and long-poll until paired or expired.
  */
-function lanPairRegister(port: number, code: string): Promise<boolean> {
+function httpPairRegister(port: number, code: string): Promise<boolean> {
   const body = JSON.stringify({ code, expiryMs: PAIRING_EXPIRY_MS });
 
   return new Promise((resolve) => {
@@ -36,7 +35,7 @@ function lanPairRegister(port: number, code: string): Promise<boolean> {
       {
         hostname: "127.0.0.1",
         port,
-        path: "/internal/pair-register",
+        path: "/pair-register",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         timeout: PAIRING_EXPIRY_MS + 5000,
@@ -63,11 +62,12 @@ function lanPairRegister(port: number, code: string): Promise<boolean> {
 
 /**
  * Generate an OTP code and wait for a PWA client to pair.
- * Listens on NATS always, and also on the LAN server if `palmier lan` is running.
+ * Listens on NATS (server mode) and HTTP (via serve daemon) in parallel.
  */
 export async function pairCommand(): Promise<void> {
   const config = loadConfig();
   const code = generatePairingCode();
+  const httpPort = config.httpPort ?? 7400;
 
   let paired = false;
 
@@ -86,7 +86,7 @@ export async function pairCommand(): Promise<void> {
   console.log("");
   console.log("Code expires in 5 minutes.");
 
-  // NATS pairing (always active)
+  // NATS pairing (server mode)
   const nc = await connectNats(config);
   const sc = StringCodec();
   const subject = `pair.${code}`;
@@ -116,14 +116,11 @@ export async function pairCommand(): Promise<void> {
     }
   })();
 
-  // LAN pairing — if `palmier lan` is running, also register with it
-  const lanPort = getLanPort();
-  if (lanPort) {
-    (async () => {
-      const result = await lanPairRegister(lanPort, code);
-      if (result) onPaired();
-    })();
-  }
+  // HTTP pairing — register with serve daemon's /pair-register endpoint
+  (async () => {
+    const result = await httpPairRegister(httpPort, code);
+    if (result) onPaired();
+  })();
 
   // Wait for pairing or timeout
   const start = Date.now();

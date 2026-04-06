@@ -1,13 +1,13 @@
 import { StringCodec, type NatsConnection } from "nats";
-import { getLanPort } from "./lan-lock.js";
+import { loadConfig } from "./config.js";
 
 const sc = StringCodec();
 
 /**
- * Broadcast an event to connected clients via NATS and HTTP SSE (if LAN server is running).
+ * Broadcast an event to connected clients via NATS and HTTP SSE.
  *
  * - NATS: publishes to `host-event.{hostId}.{taskId}`
- * - HTTP: POSTs to the LAN server's `/internal/event` endpoint (auto-detected via lockfile)
+ * - HTTP: POSTs to the serve daemon's `/event` endpoint
  */
 export async function publishHostEvent(
   nc: NatsConnection | undefined,
@@ -22,17 +22,16 @@ export async function publishHostEvent(
     console.log(`[nats] ${subject} →`, payload);
   }
 
-  const lanPort = getLanPort();
-  if (lanPort) {
-    try {
-      await fetch(`http://localhost:${lanPort}/internal/event`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: taskId, ...payload }),
-      });
-      console.log(`[http] host-event: ${taskId} →`, payload);
-    } catch {
-      // LAN server may have shut down — ignore
-    }
+  const config = loadConfig();
+  const port = config.httpPort ?? 7400;
+  try {
+    await fetch(`http://localhost:${port}/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId, ...payload }),
+    });
+    console.log(`[http] host-event: ${taskId} →`, payload);
+  } catch {
+    // Serve HTTP may not be ready yet — ignore
   }
 }

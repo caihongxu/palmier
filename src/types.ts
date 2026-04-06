@@ -8,6 +8,11 @@ export interface HostConfig {
 
   // Detected agent CLIs
   agents?: Array<{ key: string; label: string }>;
+
+  // HTTP server port (default 7400)
+  httpPort?: number;
+  // Whether to accept non-localhost HTTP connections
+  lanEnabled?: boolean;
 }
 
 export interface TaskFrontmatter {
@@ -33,8 +38,6 @@ export interface ParsedTask {
 }
 
 /**
- * State machine: started → (pending_confirmation | pending_permission | pending_input) → finished | aborted | failed
- *
  * - `started`: task is actively running
  * - `finished`: agent completed successfully
  * - `aborted`: user declined confirmation, permission, or input
@@ -43,26 +46,15 @@ export interface ParsedTask {
 export type TaskRunningState = "started" | "finished" | "aborted" | "failed";
 
 /**
- * Persisted to `status.json` in the task directory. Updated by the run process
- * and read by the RPC handler + PWA to track live task state.
- *
- * Interactive request flow: the run process sets a `pending_*` field and waits
- * for `user_input` to be populated by an RPC call (task.user_input). Only one
- * `pending_*` field is set at a time.
+ * Persisted to `status.json` in the task directory. Used for crash detection
+ * (checkStaleTasks) and abort signalling. Interactive request flows (confirmation,
+ * permission, input) are handled via held HTTP connections on the serve daemon.
  */
 export interface TaskStatus {
   running_state: TaskRunningState;
   time_stamp: number;
   /** PID of the palmier run process (used on Windows to kill the process tree). */
   pid?: number;
-  /** Set when the task has `requires_confirmation` and is awaiting user approval. */
-  pending_confirmation?: boolean;
-  /** Set when the agent requests permissions not yet granted. Contains the permissions needed. */
-  pending_permission?: RequiredPermission[];
-  /** Set when the agent requests user input. Contains descriptions of each requested value. */
-  pending_input?: string[];
-  /** Written by the RPC handler to deliver the user's response to the waiting run process. */
-  user_input?: string[];
 }
 
 export interface HistoryEntry {
@@ -87,4 +79,6 @@ export interface RpcMessage {
   method: string;
   params: Record<string, unknown>;
   sessionToken?: string;
+  /** Trusted localhost request — skip session validation. */
+  localhost?: boolean;
 }

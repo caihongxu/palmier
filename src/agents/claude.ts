@@ -1,7 +1,7 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
 import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
-import { AGENT_INSTRUCTIONS } from "./shared-prompt.js";
+import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
 export class ClaudeAgent implements AgentTool {
@@ -13,8 +13,8 @@ export class ClaudeAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
-    const args = ["--permission-mode", "acceptEdits", "-p"];
+    const prompt = getAgentInstructions(task.frontmatter.id) + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
+    const args = ["--permission-mode", "acceptEdits", "-p", "--allowedTools", "WebFetch"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
     for (const p of allPerms) {

@@ -20,20 +20,13 @@ If the task fails because a tool was denied or you lack the required permissions
 [PALMIER_PERMISSION] Bash(npm test) | Run the test suite via npm
 [PALMIER_PERMISSION] Write | Write generated output files
 
-## CLI Commands
+## HTTP Endpoints
 
-You have access to the following palmier CLI commands:
+The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution.
 
-**Requesting user input** — If you need any information you do not have (credentials, configuration values, preferences, clarifications, etc.) or the task explicitly asks you to get input from the user, do NOT fail the task. Instead, request it:
-```
-palmier request-input --description "What is the database connection string?" --description "What is the API key?"
-```
-The command blocks until the user responds and prints each value on its own line. If the user aborts, the command exits with a non-zero status.
+**Requesting user input** — If you need any information you do not have (credentials, configuration values, preferences, clarifications, etc.) or the task explicitly asks you to get input from the user, do NOT fail the task. Instead, GET `/request-input?taskId={{TASK_ID}}&descriptions=question+1&descriptions=question+2`. The request blocks until the user responds. The response is `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user chooses to abort.
 
-**Sending push notifications** — If you need to send a push notification to the user:
-```
-palmier notify --title "Task Complete" --body "The deployment finished successfully."
-```
+**Sending push notifications** — GET `/notify?title=...&body=...` to send a push notification to the user's devices.
 
 ---
 

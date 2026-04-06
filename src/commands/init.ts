@@ -3,6 +3,7 @@ import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
+import { detectLanIp } from "../transports/http-transport.js";
 import type { HostConfig } from "../types.js";
 
 type AskFn = (q: string) => Promise<string>;
@@ -39,6 +40,36 @@ export async function initCommand(): Promise<void> {
 
     console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}\n`);
 
+    // LAN mode
+    const lanAnswer = await ask("Enable LAN access (direct HTTP from local network)? (y/N): ");
+    const lanEnabled = lanAnswer.trim().toLowerCase() === "y";
+
+    let httpPort = 7400;
+    const portLabel = lanEnabled ? "HTTP port for local and LAN access" : "HTTP port for local access";
+    const portAnswer = await ask(`${portLabel} (default ${httpPort}): `);
+    const parsed = parseInt(portAnswer.trim(), 10);
+    if (parsed > 0 && parsed < 65536) httpPort = parsed;
+
+    // Display summary and ask for confirmation before making any changes
+    console.log(`\n${bold("Setup summary:")}\n`);
+    console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
+    console.log(`                  All tasks and execution data will be stored here.\n`);
+    console.log(`  ${dim("Local access:")}   ${cyan(`http://localhost:${httpPort}`)}`);
+    console.log(`                  Always available — no internet required.\n`);
+    if (lanEnabled) {
+      const ip = detectLanIp();
+      console.log(`  ${dim("LAN access:")}     ${cyan(`http://${ip}:${httpPort}`)}`);
+      console.log(`                  Accessible from other devices on your local network. Pairing required.\n`);
+    }
+    console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
+
+    const confirm = await ask("Proceed? (Y/n): ");
+    if (confirm.trim().toLowerCase() === "n") {
+      console.log("\nSetup cancelled.");
+      rl.close();
+      return;
+    }
+
     // Register with server
     let existingHostId: string | undefined;
     try { existingHostId = loadConfig().hostId; } catch { /* first init */ }
@@ -63,7 +94,7 @@ export async function initCommand(): Promise<void> {
       }
     }
 
-    // Build config
+    // Build and save config
     const config: HostConfig = {
       hostId: registerResponse.hostId,
       projectRoot: process.cwd(),
@@ -71,11 +102,11 @@ export async function initCommand(): Promise<void> {
       natsWsUrl: registerResponse.natsWsUrl,
       natsToken: registerResponse.natsToken,
       agents,
+      httpPort,
+      lanEnabled,
     };
 
     saveConfig(config);
-
-    console.log(`\n${green("Host provisioned")} ID: ${cyan(config.hostId)}`);
     console.log(`Config saved to ${dim("~/.config/palmier/host.json")}`);
 
     getPlatform().installDaemon(config);

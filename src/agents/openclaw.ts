@@ -1,7 +1,7 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
 import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
-import { AGENT_INSTRUCTIONS } from "./shared-prompt.js";
+import { getAgentInstructions } from "./shared-prompt.js";
 
 export class OpenClawAgent implements AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine {
@@ -12,7 +12,7 @@ export class OpenClawAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
+    const prompt = getAgentInstructions(task.frontmatter.id) + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
     // OpenClaw does not support stdin as prompt.
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];
 
