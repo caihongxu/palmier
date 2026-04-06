@@ -2,16 +2,18 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
+import crossSpawn from "cross-spawn";
 import { getAgent } from "./agents/agent.js";
 import { validateSession } from "./session-store.js";
 import { publishHostEvent } from "./events.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
+import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,21 +39,25 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   const messages = parseConversationMessages(fmMatch[2]);
 
-  // Derive running_state, start_time, end_time from status messages
+  // Derive state from status messages — just look at the last one
   const statusMessages = messages.filter((m: ConversationMessage) => m.role === "status");
+  const lastStatus = statusMessages[statusMessages.length - 1];
   const startedMsg = statusMessages.find((m: ConversationMessage) => m.type === "started");
   const terminalStates = ["finished", "failed", "aborted"];
   const terminalMsg = [...statusMessages].reverse().find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
 
-  // Detect follow-up in progress: last non-status message is a user message with no assistant response
-  const nonStatusMessages = messages.filter((m: ConversationMessage) => m.role !== "status");
-  const lastNonStatus = nonStatusMessages[nonStatusMessages.length - 1];
-  const followupRunning = lastNonStatus?.role === "user" && terminalMsg !== undefined;
+  // If last status is "started", determine if it's a task run or follow-up
+  let runningState: string | undefined;
+  if (lastStatus?.type === "started") {
+    runningState = terminalMsg ? "followup" : "started";
+  } else {
+    runningState = lastStatus?.type;
+  }
 
   return {
     messages,
     task_name: meta.task_name,
-    running_state: followupRunning ? "followup" : (terminalMsg?.type ?? (startedMsg ? "started" : undefined)),
+    running_state: runningState,
     start_time: startedMsg?.time || undefined,
     end_time: terminalMsg?.time || undefined,
   };
@@ -133,6 +139,9 @@ async function generatePlan(
   }
   return { name, body };
 }
+
+/** Active follow-up child processes, keyed by "taskId:runId". */
+const activeFollowups = new Map<string, ChildProcess>();
 
 /**
  * Create a transport-agnostic RPC handler bound to the given config.
@@ -346,28 +355,120 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.run_id || !params.message?.trim()) {
           return { error: "run_id and message are required" };
         }
-        const followupTaskDir = getTaskDir(config.projectRoot, params.id);
+        const followupKey = `${params.id}:${params.run_id}`;
+        if (activeFollowups.has(followupKey)) {
+          return { error: "A follow-up is already running for this run" };
+        }
 
-        // Append user message to RESULT file (no status entries — follow-ups don't affect task status)
+        const followupTaskDir = getTaskDir(config.projectRoot, params.id);
+        const followupTask = parseTaskFile(followupTaskDir);
+        const followupRunDir = getRunDir(followupTaskDir, params.run_id);
+
+        // Append user message + started status
         appendRunMessage(followupTaskDir, params.run_id, {
           role: "user",
           time: Date.now(),
           content: params.message,
         });
-
-        // Broadcast so UI updates (shows typing indicator based on unanswered user message)
+        appendRunMessage(followupTaskDir, params.run_id, {
+          role: "status",
+          time: Date.now(),
+          content: "",
+          type: "started",
+        });
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
 
-        // Spawn `palmier run <id>` as detached process — it will detect
-        // the existing RESULT file and use the last user message as continuation prompt
-        const followupScript = process.argv[1] || "palmier";
-        const followupChild = spawn(process.execPath, [followupScript, "run", params.id], {
-          detached: true,
-          stdio: "ignore",
+        // Fire-and-forget: invoke agent inline as a child of the serve process
+        const followupAgent = getAgent(followupTask.frontmatter.agent);
+        const { command: cmd, args: cmdArgs, stdin } = followupAgent.getTaskRunCommandLine(
+          followupTask, params.message, followupTask.frontmatter.permissions,
+        );
+
+        // Spawn directly via crossSpawn so we can track and kill the child
+        const child = crossSpawn(cmd, cmdArgs, {
+          cwd: followupRunDir,
+          stdio: [stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
+          env: { ...process.env, PALMIER_TASK_ID: params.id },
           windowsHide: true,
         });
-        followupChild.unref();
+        if (stdin != null) child.stdin!.end(stdin);
+        activeFollowups.set(followupKey, child);
 
+        // Collect output
+        const chunks: Buffer[] = [];
+        child.stdout?.on("data", (d: Buffer) => chunks.push(d));
+        child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
+
+        child.on("close", async (code: number | null) => {
+          activeFollowups.delete(followupKey);
+          // If killed by stop_followup, the stopped status is already written
+          if (child.killed) return;
+
+          const output = Buffer.concat(chunks).toString("utf-8");
+          const outcome = code !== 0 ? "failed" : parseTaskOutcome(output);
+          const reportFiles = parseReportFiles(output);
+
+          appendRunMessage(followupTaskDir, params.run_id, {
+            role: "assistant",
+            time: Date.now(),
+            content: stripPalmierMarkers(output),
+            attachments: reportFiles.length > 0 ? reportFiles : undefined,
+          });
+          appendRunMessage(followupTaskDir, params.run_id, {
+            role: "status",
+            time: Date.now(),
+            content: "",
+            type: outcome,
+          });
+          await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
+        });
+
+        child.on("error", async (err: Error) => {
+          activeFollowups.delete(followupKey);
+          console.error(`Follow-up failed for ${followupKey}:`, err);
+          appendRunMessage(followupTaskDir, params.run_id, {
+            role: "status",
+            time: Date.now(),
+            content: "",
+            type: "failed",
+          });
+          await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
+        });
+
+        return { ok: true, task_id: params.id, run_id: params.run_id };
+      }
+
+      case "task.stop_followup": {
+        const params = request.params as { id: string; run_id: string };
+        if (!params.run_id) {
+          return { error: "run_id is required" };
+        }
+        const stopKey = `${params.id}:${params.run_id}`;
+        const child = activeFollowups.get(stopKey);
+        if (!child) {
+          return { error: "No active follow-up for this run" };
+        }
+
+        // Kill the child process tree
+        if (process.platform === "win32" && child.pid) {
+          try {
+            const { execFileSync } = await import("child_process");
+            execFileSync("taskkill", ["/pid", String(child.pid), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
+          } catch { /* may have already exited */ }
+        } else {
+          child.kill();
+        }
+
+        // Append stopped status (child.killed prevents the close handler from writing)
+        const stopTaskDir = getTaskDir(config.projectRoot, params.id);
+        appendRunMessage(stopTaskDir, params.run_id, {
+          role: "status",
+          time: Date.now(),
+          content: "",
+          type: "stopped",
+        });
+        activeFollowups.delete(stopKey);
+        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
         return { ok: true, task_id: params.id, run_id: params.run_id };
       }
 

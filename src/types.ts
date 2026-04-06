@@ -79,7 +79,7 @@ export interface ConversationMessage {
   role: "assistant" | "user" | "status";
   time: number;
   content: string;
-  type?: "input" | "permission" | "confirmation" | "started" | "finished" | "failed" | "aborted";
+  type?: "input" | "permission" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped";
   attachments?: string[];
 }
 

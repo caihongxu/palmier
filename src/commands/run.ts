@@ -45,15 +45,14 @@ interface InvocationResult {
 async function invokeAgentWithRetry(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
-  continuationPrompt?: string,
 ): Promise<InvocationResult> {
-  let retryPrompt: string | undefined = continuationPrompt;
+  let retryPrompt: string | undefined;
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, retryPrompt, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_ID: ctx.runId },
+      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -119,7 +118,7 @@ async function invokeAgentWithRetry(
 /**
  * Strip [PALMIER_*] marker lines from agent output.
  */
-function stripPalmierMarkers(output: string): string {
+export function stripPalmierMarkers(output: string): string {
   return output.split("\n").filter((l) => !l.startsWith("[PALMIER")).join("\n").trim();
 }
 
@@ -135,30 +134,17 @@ async function appendAndNotify(
 }
 
 /**
- * Find an active run directory — one whose TASKRUN.md has no terminal status,
- * or has messages after the last terminal status (e.g. a follow-up user message).
+ * Find the latest run dir that has no status messages yet (just created by the RPC handler).
  */
-function findActiveRunId(taskDir: string): string | null {
-  const terminalTypes = new Set(["finished", "failed", "aborted"]);
+function findLatestPendingRunId(taskDir: string): string | null {
   const dirs = fs.readdirSync(taskDir)
     .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
     .sort();
-
-  // Check latest first
-  for (let i = dirs.length - 1; i >= 0; i--) {
-    const runId = dirs[i];
-    const messages = readRunMessages(taskDir, runId);
-    if (messages.length === 0) return runId; // empty = just created
-
-    const lastStatus = [...messages].reverse().find((m) => m.role === "status");
-    if (!lastStatus || !terminalTypes.has(lastStatus.type ?? "")) return runId;
-
-    // If there are non-status messages after the last terminal status, it's a follow-up
-    const lastTerminalIdx = messages.lastIndexOf(lastStatus);
-    const hasMessagesAfter = messages.slice(lastTerminalIdx + 1).some((m) => m.role !== "status");
-    if (hasMessagesAfter) return runId;
-  }
-  return null;
+  if (dirs.length === 0) return null;
+  const latest = dirs[dirs.length - 1];
+  const messages = readRunMessages(taskDir, latest);
+  const hasStatus = messages.some((m) => m.role === "status");
+  return hasStatus ? null : latest;
 }
 
 /**
@@ -183,19 +169,11 @@ export async function runCommand(taskId: string): Promise<void> {
   let nc: NatsConnection | undefined;
   const taskName = task.frontmatter.name;
 
-  // Check for an existing active run (created by the RPC handler or task.followup)
-  const existingResult = findActiveRunId(taskDir);
-  const startTime = existingResult ? parseInt(existingResult, 10) : Date.now();
-  const runId = existingResult ?? createRunDir(taskDir, taskName, startTime);
-
-  // Detect continuation: if the last non-status message is a user message, this is a follow-up
-  let continuationPrompt: string | undefined;
-  if (existingResult) {
-    const messages = readRunMessages(taskDir, existingResult);
-    const lastNonStatus = [...messages].reverse().find((m) => m.role !== "status");
-    if (lastNonStatus?.role === "user") {
-      continuationPrompt = lastNonStatus.content;
-    }
+  // Use existing run dir if just created by RPC, otherwise create a new one
+  const existingRunId = findLatestPendingRunId(taskDir);
+  const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now());
+  if (!existingRunId) {
+    appendHistory(config.projectRoot, { task_id: taskId, run_id: runId });
   }
 
   const cleanup = async () => {
@@ -204,19 +182,12 @@ export async function runCommand(taskId: string): Promise<void> {
     }
   };
 
-  if (!existingResult) {
-    appendHistory(config.projectRoot, { task_id: taskId, run_id: runId });
-  }
-
   try {
     nc = await connectNats(config);
 
-    // Follow-ups don't affect task status — skip status updates
-    if (!continuationPrompt) {
-      await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, runId);
-      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "started" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
-    }
+    await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, runId);
+    appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "started" });
+    await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
 
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
@@ -250,10 +221,6 @@ export async function runCommand(taskId: string): Promise<void> {
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (command-triggered).`);
-    } else if (continuationPrompt) {
-      // Follow-up: user message already appended by task.followup RPC, no status side-effects
-      await invokeAgentWithRetry(ctx, task, continuationPrompt);
-      console.log(`Task ${taskId} follow-up completed.`);
     } else {
       // Standard execution — add user prompt as first message
       await appendAndNotify(ctx, {
@@ -305,7 +272,7 @@ async function runCommandTriggeredMode(
 
   const child = spawnStreamingCommand(commandStr, {
     cwd: getRunDir(ctx.taskDir, ctx.runId),
-    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_ID: ctx.runId },
+    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId) },
   });
 
   let linesProcessed = 0;
