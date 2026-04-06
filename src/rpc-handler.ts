@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createResultFile, appendResultMessage } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage } from "./task.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import { getAgent } from "./agents/agent.js";
@@ -308,8 +308,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // Do NOT append to tasks.jsonl — this is a one-off run
 
         // Create initial result file so it appears in runs list immediately
-        const resultFileName = createResultFile(taskDir, name, Date.now());
-        appendHistory(config.projectRoot, { task_id: id, result_file: resultFileName });
+        const runId = createRunDir(taskDir, name, Date.now());
+        appendHistory(config.projectRoot, { task_id: id, run_id: runId });
 
         // Spawn `palmier run <id>` directly as a detached process
         const script = process.argv[1] || "palmier";
@@ -320,7 +320,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
         child.unref();
 
-        return { ok: true, task_id: id, result_file: resultFileName };
+        return { ok: true, task_id: id, run_id: runId };
       }
 
       case "task.run": {
@@ -329,11 +329,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           // Create initial result file so it appears in runs list immediately
           const runTaskDir = getTaskDir(config.projectRoot, params.id);
           const runTask = parseTaskFile(runTaskDir);
-          const runResultFileName = createResultFile(runTaskDir, runTask.frontmatter.name, Date.now());
-          appendHistory(config.projectRoot, { task_id: params.id, result_file: runResultFileName });
+          const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now());
+          appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await getPlatform().startTask(params.id);
-          return { ok: true, task_id: params.id, result_file: runResultFileName };
+          return { ok: true, task_id: params.id, run_id: taskRunId };
         } catch (err: unknown) {
           const e = err as { stderr?: string; message?: string };
           console.error(`task.run failed for ${params.id}: ${e.stderr || e.message}`);
@@ -342,21 +342,21 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       }
 
       case "task.followup": {
-        const params = request.params as { id: string; result_file: string; message: string };
-        if (!params.result_file || !params.message?.trim()) {
-          return { error: "result_file and message are required" };
+        const params = request.params as { id: string; run_id: string; message: string };
+        if (!params.run_id || !params.message?.trim()) {
+          return { error: "run_id and message are required" };
         }
         const followupTaskDir = getTaskDir(config.projectRoot, params.id);
 
         // Append user message to RESULT file (no status entries — follow-ups don't affect task status)
-        appendResultMessage(followupTaskDir, params.result_file, {
+        appendRunMessage(followupTaskDir, params.run_id, {
           role: "user",
           time: Date.now(),
           content: params.message,
         });
 
         // Broadcast so UI updates (shows typing indicator based on unanswered user message)
-        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", result_file: params.result_file });
+        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
 
         // Spawn `palmier run <id>` as detached process — it will detect
         // the existing RESULT file and use the last user message as continuation prompt
@@ -368,7 +368,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
         followupChild.unref();
 
-        return { ok: true, task_id: params.id, result_file: params.result_file };
+        return { ok: true, task_id: params.id, run_id: params.run_id };
       }
 
       case "task.abort": {
@@ -384,14 +384,14 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           time_stamp: Date.now(),
           ...(abortPrevStatus?.pid ? { pid: abortPrevStatus.pid } : {}),
         });
-        // Append aborted status to the active RESULT file
+        // Append aborted status to the latest run
         try {
-          const abortFiles = fs.readdirSync(abortTaskDir)
-            .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
+          const runDirs = fs.readdirSync(abortTaskDir)
+            .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(abortTaskDir, f, "TASKRUN.md")))
             .sort();
-          const activeResult = abortFiles[abortFiles.length - 1];
-          if (activeResult) {
-            appendResultMessage(abortTaskDir, activeResult, {
+          const latestRunId = runDirs[runDirs.length - 1];
+          if (latestRunId) {
+            appendRunMessage(abortTaskDir, latestRunId, {
               role: "status",
               time: Date.now(),
               content: "",
@@ -424,27 +424,28 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       }
 
       case "task.result": {
-        const params = request.params as { id: string; result_file: string };
-        if (!params.result_file) {
-          return { error: "result_file is required" };
+        const params = request.params as { id: string; run_id: string };
+        if (!params.run_id) {
+          return { error: "run_id is required" };
         }
-        const resultPath = path.join(config.projectRoot, "tasks", params.id, params.result_file);
+        const taskrunPath = path.join(config.projectRoot, "tasks", params.id, params.run_id, "TASKRUN.md");
 
         try {
-          const raw = fs.readFileSync(resultPath, "utf-8");
+          const raw = fs.readFileSync(taskrunPath, "utf-8");
           const meta = parseResultFrontmatter(raw);
           return { task_id: params.id, ...meta };
         } catch {
-          return { task_id: params.id, error: "No result file found" };
+          return { task_id: params.id, error: "Run not found" };
         }
       }
 
       case "task.reports": {
-        const params = request.params as { id: string; report_files: string[] };
-        if (!Array.isArray(params.report_files) || params.report_files.length === 0) {
-          return { error: "report_files must be a non-empty array" };
+        const params = request.params as { id: string; run_id: string; report_files: string[] };
+        if (!params.run_id || !Array.isArray(params.report_files) || params.report_files.length === 0) {
+          return { error: "run_id and report_files are required" };
         }
         const reports: Array<{ file: string; content?: string; error?: string }> = [];
+        const runDir = path.join(config.projectRoot, "tasks", params.id, params.run_id);
         for (const file of params.report_files) {
           if (!file.endsWith(".md")) {
             reports.push({ file, error: "must end with .md" });
@@ -455,7 +456,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             reports.push({ file, error: "must be a plain filename" });
             continue;
           }
-          const reportPath = path.join(config.projectRoot, "tasks", params.id, basename);
+          const reportPath = path.join(runDir, basename);
           try {
             const content = fs.readFileSync(reportPath, "utf-8");
             reports.push({ file, content });
@@ -481,7 +482,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         return { ok: true };
       }
 
-      case "activity.list": {
+      case "taskrun.list": {
         const params = request.params as { offset?: number; limit?: number; task_id?: string };
         const { entries, total } = readHistory(config.projectRoot, {
           offset: params.offset ?? 0,
@@ -490,31 +491,30 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
 
         const enriched = entries.map((entry) => {
-          const resultPath = path.join(config.projectRoot, "tasks", entry.task_id, entry.result_file);
+          const taskrunPath = path.join(config.projectRoot, "tasks", entry.task_id, entry.run_id, "TASKRUN.md");
           try {
-            const raw = fs.readFileSync(resultPath, "utf-8");
+            const raw = fs.readFileSync(taskrunPath, "utf-8");
             const meta = parseResultFrontmatter(raw);
-            // Exclude messages from list response
             const { messages: _, ...rest } = meta;
             return { ...entry, ...rest };
           } catch {
-            return { ...entry, error: "Result file not found" };
+            return { ...entry, error: "Run not found" };
           }
         });
 
         return { entries: enriched, total };
       }
 
-      case "activity.delete": {
-        const params = request.params as { task_id: string; result_file: string };
-        if (!params.task_id || !params.result_file) {
-          return { error: "task_id and result_file are required" };
+      case "taskrun.delete": {
+        const params = request.params as { task_id: string; run_id: string };
+        if (!params.task_id || !params.run_id) {
+          return { error: "task_id and run_id are required" };
         }
-        const deleted = deleteHistoryEntry(config.projectRoot, params.task_id, params.result_file);
+        const deleted = deleteHistoryEntry(config.projectRoot, params.task_id, params.run_id);
         if (!deleted) {
           return { error: "History entry not found" };
         }
-        return { ok: true, task_id: params.task_id, result_file: params.result_file };
+        return { ok: true, task_id: params.task_id, run_id: params.run_id };
       }
 
       case "host.update": {

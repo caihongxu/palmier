@@ -67,7 +67,7 @@ export interface TaskStatus {
 
 export interface HistoryEntry {
   task_id: string;
-  result_file: string;
+  run_id: string;
 }
 
 export interface RequiredPermission {

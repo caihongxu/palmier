@@ -4,7 +4,7 @@ import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendResultMessage } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -49,14 +49,14 @@ async function checkStaleTasks(
     const endTime = Date.now();
     writeTaskStatus(taskDir, { running_state: "failed", time_stamp: endTime });
 
-    // Find the existing RESULT file (created by run.ts at start)
-    const resultFile = fs.readdirSync(taskDir)
-      .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
+    // Find the latest run directory (created by run.ts at start)
+    const runId = fs.readdirSync(taskDir)
+      .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
       .sort()
       .pop();
 
-    if (resultFile) {
-      appendResultMessage(taskDir, resultFile, {
+    if (runId) {
+      appendRunMessage(taskDir, runId, {
         role: "status",
         time: endTime,
         content: "",

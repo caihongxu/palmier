@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createResultFile, appendResultMessage, readResultMessages } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -22,7 +22,7 @@ interface InvocationContext {
   agent: AgentTool;
   task: ParsedTask;
   taskDir: string;
-  resultFileName: string;
+  runId: string;
   guiEnv: Record<string, string>;
   nc: NatsConnection | undefined;
   config: HostConfig;
@@ -52,8 +52,8 @@ async function invokeAgentWithRetry(
   while (true) {
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, retryPrompt, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
-      cwd: ctx.taskDir,
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RESULT_FILE: ctx.resultFileName },
+      cwd: getRunDir(ctx.taskDir, ctx.runId),
+      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_ID: ctx.runId },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -128,35 +128,35 @@ function stripPalmierMarkers(output: string): string {
  */
 async function appendAndNotify(
   ctx: InvocationContext,
-  msg: Parameters<typeof appendResultMessage>[2],
+  msg: Parameters<typeof appendRunMessage>[2],
 ): Promise<void> {
-  appendResultMessage(ctx.taskDir, ctx.resultFileName, msg);
-  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", result_file: ctx.resultFileName });
+  appendRunMessage(ctx.taskDir, ctx.runId, msg);
+  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 }
 
 /**
- * Find an active RESULT file — one whose last status message is NOT terminal,
- * or that has messages after the last terminal status (e.g. a follow-up user message).
+ * Find an active run directory — one whose TASKRUN.md has no terminal status,
+ * or has messages after the last terminal status (e.g. a follow-up user message).
  */
-function findActiveResultFile(taskDir: string): string | null {
+function findActiveRunId(taskDir: string): string | null {
   const terminalTypes = new Set(["finished", "failed", "aborted"]);
-  const files = fs.readdirSync(taskDir)
-    .filter((f) => f.startsWith("RESULT-") && f.endsWith(".md"))
+  const dirs = fs.readdirSync(taskDir)
+    .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
     .sort();
 
   // Check latest first
-  for (let i = files.length - 1; i >= 0; i--) {
-    const messages = readResultMessages(taskDir, files[i]);
-    if (messages.length === 0) return files[i]; // empty = just created
+  for (let i = dirs.length - 1; i >= 0; i--) {
+    const runId = dirs[i];
+    const messages = readRunMessages(taskDir, runId);
+    if (messages.length === 0) return runId; // empty = just created
 
-    // Find the last status message
     const lastStatus = [...messages].reverse().find((m) => m.role === "status");
-    if (!lastStatus || !terminalTypes.has(lastStatus.type ?? "")) return files[i];
+    if (!lastStatus || !terminalTypes.has(lastStatus.type ?? "")) return runId;
 
     // If there are non-status messages after the last terminal status, it's a follow-up
     const lastTerminalIdx = messages.lastIndexOf(lastStatus);
     const hasMessagesAfter = messages.slice(lastTerminalIdx + 1).some((m) => m.role !== "status");
-    if (hasMessagesAfter) return files[i];
+    if (hasMessagesAfter) return runId;
   }
   return null;
 }
@@ -183,15 +183,15 @@ export async function runCommand(taskId: string): Promise<void> {
   let nc: NatsConnection | undefined;
   const taskName = task.frontmatter.name;
 
-  // Check for an existing active result file (created by the RPC handler or task.followup)
-  const existingResult = findActiveResultFile(taskDir);
-  const startTime = existingResult ? parseInt(existingResult.replace("RESULT-", "").replace(".md", ""), 10) : Date.now();
-  const resultFileName = existingResult ?? createResultFile(taskDir, taskName, startTime);
+  // Check for an existing active run (created by the RPC handler or task.followup)
+  const existingResult = findActiveRunId(taskDir);
+  const startTime = existingResult ? parseInt(existingResult, 10) : Date.now();
+  const runId = existingResult ?? createRunDir(taskDir, taskName, startTime);
 
   // Detect continuation: if the last non-status message is a user message, this is a follow-up
   let continuationPrompt: string | undefined;
   if (existingResult) {
-    const messages = readResultMessages(taskDir, existingResult);
+    const messages = readRunMessages(taskDir, existingResult);
     const lastNonStatus = [...messages].reverse().find((m) => m.role !== "status");
     if (lastNonStatus?.role === "user") {
       continuationPrompt = lastNonStatus.content;
@@ -205,7 +205,7 @@ export async function runCommand(taskId: string): Promise<void> {
   };
 
   if (!existingResult) {
-    appendHistory(config.projectRoot, { task_id: taskId, result_file: resultFileName });
+    appendHistory(config.projectRoot, { task_id: taskId, run_id: runId });
   }
 
   try {
@@ -213,9 +213,9 @@ export async function runCommand(taskId: string): Promise<void> {
 
     // Follow-ups don't affect task status — skip status updates
     if (!continuationPrompt) {
-      await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, resultFileName);
-      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "started" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", result_file: resultFileName });
+      await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, runId);
+      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "started" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
     }
 
     // If requires_confirmation, notify clients and wait
@@ -225,21 +225,21 @@ export async function runCommand(taskId: string): Promise<void> {
       await publishConfirmResolved(nc, config, taskId, resolvedStatus);
       if (!confirmed) {
         console.log("Task aborted by user.");
-        appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "aborted" });
-        await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, resultFileName);
+        appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "aborted" });
+        await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, runId);
         await cleanup();
         return;
       }
       console.log("Task confirmed by user.");
-      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: "confirmation" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", result_file: resultFileName });
+      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "confirmation" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
     }
 
     // Shared invocation context
     const guiEnv = getPlatform().getGuiEnv();
     const agent = getAgent(task.frontmatter.agent);
     const ctx: InvocationContext = {
-      agent, task, taskDir, resultFileName, guiEnv, nc, config, taskId,
+      agent, task, taskDir, runId, guiEnv, nc, config, taskId,
       transientPermissions: [],
     };
 
@@ -247,8 +247,8 @@ export async function runCommand(taskId: string): Promise<void> {
       // Command-triggered mode
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
-      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
+      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else if (continuationPrompt) {
       // Follow-up: user message already appended by task.followup RPC, no status side-effects
@@ -264,21 +264,21 @@ export async function runCommand(taskId: string): Promise<void> {
 
       const result = await invokeAgentWithRetry(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
-      appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
+      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed.`);
     }
   } catch (err) {
     console.error(`Task ${taskId} failed:`, err);
     const outcome = resolveOutcome(taskDir, "failed");
     const errorMsg = err instanceof Error ? err.message : String(err);
-    appendResultMessage(taskDir, resultFileName, {
+    appendRunMessage(taskDir, runId, {
       role: "assistant",
       time: Date.now(),
       content: errorMsg,
     });
-    appendResultMessage(taskDir, resultFileName, { role: "status", time: Date.now(), content: "", type: outcome });
-    await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, resultFileName);
+    appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
+    await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
     process.exitCode = 1;
   } finally {
     await cleanup();
@@ -304,8 +304,8 @@ async function runCommandTriggeredMode(
   console.log(`[command-triggered] Spawning: ${commandStr}`);
 
   const child = spawnStreamingCommand(commandStr, {
-    cwd: ctx.taskDir,
-    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id },
+    cwd: getRunDir(ctx.taskDir, ctx.runId),
+    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_ID: ctx.runId },
   });
 
   let linesProcessed = 0;
@@ -317,7 +317,7 @@ async function runCommandTriggeredMode(
   let commandExited = false;
   let resolveWhenDone: (() => void) | undefined;
 
-  const logPath = path.join(ctx.taskDir, "command-output.log");
+  const logPath = path.join(getRunDir(ctx.taskDir, ctx.runId), "command-output.log");
   function appendLog(line: string, agentOutput: string, outcome: string) {
     const entry = `[${new Date().toISOString()}] (${outcome}) input: ${line}\n${agentOutput}\n---\n`;
     fs.appendFileSync(logPath, entry, "utf-8");
@@ -424,7 +424,7 @@ async function publishTaskEvent(
   taskId: string,
   eventType: TaskRunningState,
   taskName?: string,
-  resultFile?: string,
+  runId?: string,
 ): Promise<void> {
   writeTaskStatus(taskDir, {
     running_state: eventType,
@@ -434,7 +434,7 @@ async function publishTaskEvent(
 
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: eventType };
   if (taskName) payload.name = taskName;
-  if (resultFile) payload.result_file = resultFile;
+  if (runId) payload.run_id = runId;
   await publishHostEvent(nc, config.hostId, taskId, payload);
 }
 

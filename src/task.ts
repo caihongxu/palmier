@@ -148,26 +148,35 @@ export function readTaskStatus(taskDir: string): TaskStatus | undefined {
 }
 
 /**
- * Create the initial result file when a task starts running.
- * Returns the result file name.
+ * Create a run directory with an initial TASKRUN.md file.
+ * Returns the run ID (timestamp string used as directory name).
  */
-export function createResultFile(
+export function createRunDir(
   taskDir: string,
   taskName: string,
   startTime: number,
 ): string {
-  const resultFileName = `RESULT-${startTime}.md`;
+  const runId = String(startTime);
+  const runDir = path.join(taskDir, runId);
+  fs.mkdirSync(runDir, { recursive: true });
   const content = `---\ntask_name: ${taskName}\n---\n\n`;
-  fs.writeFileSync(path.join(taskDir, resultFileName), content, "utf-8");
-  return resultFileName;
+  fs.writeFileSync(path.join(runDir, "TASKRUN.md"), content, "utf-8");
+  return runId;
 }
 
 /**
- * Append a conversation message to a RESULT file.
+ * Get the path to a run directory.
  */
-export function appendResultMessage(
+export function getRunDir(taskDir: string, runId: string): string {
+  return path.join(taskDir, runId);
+}
+
+/**
+ * Append a conversation message to a run's TASKRUN.md file.
+ */
+export function appendRunMessage(
   taskDir: string,
-  resultFile: string,
+  runId: string,
   msg: ConversationMessage,
 ): void {
   const attrs = [`role="${msg.role}"`, `time="${msg.time}"`];
@@ -176,15 +185,14 @@ export function appendResultMessage(
 
   const delimiter = `<!-- palmier:message ${attrs.join(" ")} -->`;
   const entry = `${delimiter}\n\n${msg.content}\n\n`;
-  fs.appendFileSync(path.join(taskDir, resultFile), entry, "utf-8");
+  fs.appendFileSync(path.join(taskDir, runId, "TASKRUN.md"), entry, "utf-8");
 }
 
-
 /**
- * Read conversation messages from a RESULT file.
+ * Read conversation messages from a run's TASKRUN.md file.
  */
-export function readResultMessages(taskDir: string, resultFile: string): ConversationMessage[] {
-  const raw = fs.readFileSync(path.join(taskDir, resultFile), "utf-8");
+export function readRunMessages(taskDir: string, runId: string): ConversationMessage[] {
+  const raw = fs.readFileSync(path.join(taskDir, runId, "TASKRUN.md"), "utf-8");
   const fmMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
   if (!fmMatch) return [];
 
@@ -226,13 +234,13 @@ export function appendHistory(projectRoot: string, entry: HistoryEntry): void {
 }
 
 /**
- * Delete a history entry and its associated result/task-snapshot files.
+ * Delete a history entry and its associated run directory.
  * Returns true if the entry was found and removed.
  */
 export function deleteHistoryEntry(
   projectRoot: string,
   taskId: string,
-  resultFile: string,
+  runId: string,
 ): boolean {
   const historyPath = path.join(projectRoot, "history.jsonl");
   if (!fs.existsSync(historyPath)) return false;
@@ -244,9 +252,9 @@ export function deleteHistoryEntry(
   for (const line of lines) {
     try {
       const entry = JSON.parse(line) as HistoryEntry;
-      if (entry.task_id === taskId && entry.result_file === resultFile) {
+      if (entry.task_id === taskId && entry.run_id === runId) {
         found = true;
-        continue; // skip this entry
+        continue;
       }
     } catch { /* keep malformed lines */ }
     remaining.push(line);
@@ -254,13 +262,12 @@ export function deleteHistoryEntry(
 
   if (!found) return false;
 
-  // Rewrite history.jsonl without the deleted entry
   fs.writeFileSync(historyPath, remaining.length > 0 ? remaining.join("\n") + "\n" : "", "utf-8");
 
-  // Delete the result file
-  const resultPath = path.join(projectRoot, "tasks", taskId, resultFile);
-  if (fs.existsSync(resultPath)) {
-    fs.unlinkSync(resultPath);
+  // Delete the run directory
+  const runDir = path.join(projectRoot, "tasks", taskId, runId);
+  if (fs.existsSync(runDir)) {
+    fs.rmSync(runDir, { recursive: true, force: true });
   }
 
   return true;
