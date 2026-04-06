@@ -70,8 +70,8 @@ async function invokeAgentWithContinuation(
       attachments: reportFiles.length > 0 ? reportFiles : undefined,
     });
 
-    // Permission retry
-    if (outcome === "failed" && requiredPermissions.length > 0) {
+    // Permission handling — agent requested permissions
+    if (requiredPermissions.length > 0) {
       const response = await requestPermission(ctx.nc, ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
       await publishPermissionResolved(ctx.nc, ctx.config, ctx.taskId, response);
 
@@ -106,8 +106,11 @@ async function invokeAgentWithContinuation(
         ctx.transientPermissions = [...ctx.transientPermissions, ...newPerms];
       }
 
-      followupPrompt = "Permissions granted, please continue.";
-      continue;
+      // If the agent actually failed, retry with the new permissions
+      if (outcome === "failed") {
+        followupPrompt = "Permissions granted, please continue.";
+        continue;
+      }
     }
 
     // Normal completion (success or terminal failure)
