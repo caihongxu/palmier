@@ -20,10 +20,10 @@ export interface AgentTool {
   /** Return the command and args used to generate a plan from a prompt. */
   getPlanGenerationCommandLine(prompt: string): CommandLine;
 
-  /** Return the command and args used to run a task. If retryPrompt is provided, use it instead of the task's prompt,
+  /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
    *  and treat it as a continuation of the original run (reuse the same session, etc). extraPermissions are transient
    *  permissions granted for this run only (not persisted in frontmatter). */
-  getTaskRunCommandLine(task: ParsedTask, retryPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine;
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine;
 
   /** Detect whether the agent CLI is available and perform any agent-specific
    *  initialization. Returns true if the agent was detected and initialized successfully. */

@@ -12,8 +12,8 @@ export class CodexAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, retryPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (retryPrompt ?? (task.body || task.frontmatter.user_prompt));
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
+    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
     // Using danger-full-access until workspace-write is fixed: https://github.com/openai/codex/issues/12572
     const args = ["exec", "--full-auto", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
 
@@ -24,7 +24,7 @@ export class CodexAgent implements AgentTool {
     }
     args.push("-"); // read prompt from stdin
 
-    if (retryPrompt) {args.push("resume", "--last");} // continue mode for retries
+    if (followupPrompt) {args.push("resume", "--last");} // continue mode for followups
     return { command: "codex", args, stdin: prompt };
   }
 

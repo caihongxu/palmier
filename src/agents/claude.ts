@@ -12,8 +12,8 @@ export class ClaudeAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, retryPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (retryPrompt ?? (task.body || task.frontmatter.user_prompt));
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
+    const prompt = AGENT_INSTRUCTIONS + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
     const args = ["--permission-mode", "acceptEdits", "-p"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
@@ -21,7 +21,7 @@ export class ClaudeAgent implements AgentTool {
       args.push("--allowedTools", p.name);
     }
 
-    if (retryPrompt) {args.push("-c");} // continue mode for retries
+    if (followupPrompt) {args.push("-c");} // continue mode for followups
     return { command: "claude", args, stdin: prompt };
   }
 

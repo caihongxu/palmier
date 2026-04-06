@@ -12,8 +12,8 @@ export class GeminiAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, retryPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = retryPrompt ?? (task.body || task.frontmatter.user_prompt);
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
+    const prompt = followupPrompt ?? (task.body || task.frontmatter.user_prompt);
     const fullPrompt = AGENT_INSTRUCTIONS + "\n\n" + prompt;
     const args = ["--prompt", "-"];
 
@@ -25,7 +25,7 @@ export class GeminiAgent implements AgentTool {
       }
     }
 
-    if (retryPrompt) {args.push("--resume");} // continue mode for retries
+    if (followupPrompt) {args.push("--resume");} // continue mode for followups
     return { command: "gemini", args, stdin: fullPrompt };
   }
 

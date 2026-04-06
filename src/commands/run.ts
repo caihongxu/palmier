@@ -36,20 +36,20 @@ interface InvocationResult {
 }
 
 /**
- * Invoke the agent CLI with a retry loop for permissions and user input.
+ * Invoke the agent CLI with a continuation loop for permissions and user input.
  *
  * Both standard and command-triggered execution use this.
  * The `invokeTask` is the ParsedTask whose prompt is passed to the agent
  * (for command-triggered mode this is the per-line augmented task).
  */
-async function invokeAgentWithRetry(
+async function invokeAgentWithContinuation(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
 ): Promise<InvocationResult> {
-  let retryPrompt: string | undefined;
+  let followupPrompt: string | undefined;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, retryPrompt, ctx.transientPermissions);
+    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, followupPrompt, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
       env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId) },
@@ -106,11 +106,11 @@ async function invokeAgentWithRetry(
         ctx.transientPermissions = [...ctx.transientPermissions, ...newPerms];
       }
 
-      retryPrompt = "Permissions granted, please continue.";
+      followupPrompt = "Permissions granted, please continue.";
       continue;
     }
 
-    // Normal completion (success or non-retryable failure)
+    // Normal completion (success or terminal failure)
     return { outcome };
   }
 }
@@ -229,7 +229,7 @@ export async function runCommand(taskId: string): Promise<void> {
         content: task.body || task.frontmatter.user_prompt,
       });
 
-      const result = await invokeAgentWithRetry(ctx, task);
+      const result = await invokeAgentWithContinuation(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
@@ -316,7 +316,7 @@ async function runCommandTriggeredMode(
       body: "",
     };
 
-    const result = await invokeAgentWithRetry(ctx, perLineTask);
+    const result = await invokeAgentWithContinuation(ctx, perLineTask);
     if (result.outcome === "finished") {
       invocationsSucceeded++;
     } else {

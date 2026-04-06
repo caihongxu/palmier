@@ -149,10 +149,22 @@ const activeFollowups = new Map<string, ChildProcess>();
 export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
+    const status = readTaskStatus(taskDir);
+    // For running tasks, find the latest run dir so the UI can link directly
+    let active_run_id: string | undefined;
+    if (status?.running_state === "started") {
+      try {
+        const dirs = fs.readdirSync(taskDir)
+          .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
+          .sort();
+        active_run_id = dirs[dirs.length - 1];
+      } catch { /* ignore */ }
+    }
     return {
       ...task.frontmatter,
       body: task.body,
-      status: readTaskStatus(taskDir),
+      status,
+      active_run_id,
     };
   }
 
