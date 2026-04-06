@@ -130,8 +130,9 @@ palmier restart
 - **Task execution** uses the system scheduler on both platforms — `systemctl --user start` on Linux, `schtasks /run` on Windows. On Windows, tasks run via a VBS wrapper (`wscript.exe`) to avoid visible console windows. The daemon polls every 30 seconds to detect crashed tasks (processes that exited without updating status) and marks them as failed, broadcasting the failure to connected clients.
 - **Command-triggered tasks** — optionally specify a shell command (e.g., `tail -f /var/log/app.log`). Palmier runs the command continuously and invokes the agent for each line of stdout, passing it alongside your prompt. Useful for log monitoring, event-driven automation, and reactive workflows.
 - **Task confirmation** — tasks can optionally require your approval before running. You'll get a push notification (server mode) or a prompt in the PWA to confirm or abort.
-- **Conversational run history** — each run produces a timestamped `RESULT-{ts}.md` file with a conversational structure: a sequence of assistant messages (agent output), user messages (input responses, permission grants, confirmations), and status entries (started, finished, failed, aborted). Timing and outcome are derived from status messages — no redundant frontmatter. The PWA displays these as a chat-like thread. Reports are attached per-message.
-- **Real-time updates** — task status changes and result updates are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (LAN mode). The run detail view live-updates as the agent produces output.
+- **Conversational run history** — each run gets its own directory (`tasks/<id>/<timestamp>/`) with a `TASKRUN.md` file containing a conversational thread: assistant messages (agent output), user messages (input responses, permission grants, confirmations), and status entries (started, finished, failed, aborted, stopped). The agent runs inside the run directory, so each run's session files and artifacts are isolated. The PWA displays runs as a chat-like thread with follow-up support.
+- **Follow-up messages** — after a task run completes, users can send follow-up messages from the run detail view. The agent is invoked inline by the serve daemon (no new process spawning), and the response is appended to the same conversation thread.
+- **Real-time updates** — task status changes and result updates are pushed to connected PWA clients via NATS pub/sub (server mode) and/or SSE (LAN mode). The run detail view live-updates as the agent produces output. Events are scoped to specific runs.
 - **Agent CLI commands** — `palmier notify` and `palmier request-input` allow agents to send push notifications and request user input during task execution without requiring MCP support.
 
 ## NATS Subjects
@@ -139,7 +140,7 @@ palmier restart
 | Subject | Direction | Description |
 |---|---|---|
 | `host.<hostId>.rpc.<method>` | Client → Host | RPC request/reply (e.g., `task.list`, `task.create`) |
-| `host-event.<hostId>.<taskId>` | Host → Client | Real-time task events (`running-state`, `confirm-request`, `permission-request`, `input-request`) |
+| `host-event.<hostId>.<taskId>` | Host → Client | Real-time task events (`running-state`, `result-updated`, `confirm-request`, `permission-request`, `input-request`) |
 | `host.<hostId>.push.send` | Host → Server | Request server to deliver a push notification |
 | `pair.<code>` | Client → Host | OTP pairing request/reply |
 
