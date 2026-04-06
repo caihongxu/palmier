@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskOutcome, parseReportFiles, parsePermissions, parseInputRequests } from "../src/commands/run.js";
+import { parseTaskOutcome, parseReportFiles, parsePermissions } from "../src/commands/run.js";
 
 describe("parseTaskOutcome", () => {
   it("returns 'finished' for success marker", () => {
@@ -59,16 +59,3 @@ describe("parsePermissions", () => {
   });
 });
 
-describe("parseInputRequests", () => {
-  it("extracts input descriptions", () => {
-    const output = "[PALMIER_INPUT] What is the API key?\n[PALMIER_INPUT] Database connection string?";
-    assert.deepEqual(parseInputRequests(output), [
-      "What is the API key?",
-      "Database connection string?",
-    ]);
-  });
-
-  it("returns empty array when no inputs", () => {
-    assert.deepEqual(parseInputRequests("no inputs"), []);
-  });
-});
