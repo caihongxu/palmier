@@ -41,7 +41,7 @@ interface InvocationResult {
  * The `invokeTask` is the ParsedTask whose prompt is passed to the agent
  * (for command-triggered mode this is the per-line augmented task).
  */
-async function invokeAgentWithContinuation(
+async function invokeAgentWithRetries(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
 ): Promise<InvocationResult> {
@@ -226,7 +226,7 @@ export async function runCommand(taskId: string): Promise<void> {
         content: task.body || task.frontmatter.user_prompt,
       });
 
-      const result = await invokeAgentWithContinuation(ctx, task);
+      const result = await invokeAgentWithRetries(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
@@ -313,7 +313,7 @@ async function runCommandTriggeredMode(
       body: "",
     };
 
-    const result = await invokeAgentWithContinuation(ctx, perLineTask);
+    const result = await invokeAgentWithRetries(ctx, perLineTask);
     if (result.outcome === "finished") {
       invocationsSucceeded++;
     } else {
