@@ -45,10 +45,9 @@ async function invokeAgentWithContinuation(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
 ): Promise<InvocationResult> {
-  let followupPrompt: string | undefined;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, followupPrompt, ctx.transientPermissions);
+    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, undefined, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
       env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
@@ -106,7 +105,6 @@ async function invokeAgentWithContinuation(
 
       // If the agent actually failed, retry with the new permissions
       if (outcome === "failed") {
-        followupPrompt = "Permissions granted, please continue.";
         continue;
       }
     }
