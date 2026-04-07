@@ -18,7 +18,6 @@ export class GeminiAgent implements AgentTool {
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
     if (allPerms.length > 0) {
-      args.push("--allowed-tools");
       for (const p of allPerms) {
         args.push(p.name);
       }
