@@ -147,42 +147,6 @@ palmier restart
 | `host.<hostId>.push.send` | Host → Server | Request server to deliver a push notification |
 | `pair.<code>` | Client → Host | OTP pairing request/reply |
 
-## Project Structure
-
-```
-src/
-  index.ts            # CLI entrypoint (commander setup)
-  config.ts           # Host configuration (read/write ~/.config/palmier)
-  rpc-handler.ts      # Transport-agnostic RPC handler (with session validation)
-  session-store.ts    # Session token management (~/.config/palmier/sessions.json)
-  nats-client.ts      # NATS connection helper
-  spawn-command.ts    # Shared helper for spawning CLI tools
-  task.ts             # Task file management
-  types.ts            # Shared type definitions
-  pending-requests.ts # In-memory registry for held HTTP connections (confirmation, permission, input)
-  events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
-  agents/
-    agent.ts          # AgentTool interface, registry, and agent detection
-    shared-prompt.ts  # Agent instructions template (injects port and task ID)
-    agent-instructions.md  # System prompt injected into every agent invocation
-    *.ts              # Per-agent implementations (Claude, Gemini, Codex, etc.)
-  commands/
-    init.ts           # Interactive setup wizard (auto-pair)
-    pair.ts           # OTP code generation and pairing handler
-    sessions.ts       # Session token management CLI (list, revoke, revoke-all)
-    info.ts           # Print host connection info
-    serve.ts          # NATS + HTTP transport startup, crash detection polling
-    restart.ts        # Daemon restart (cross-platform)
-    run.ts            # Single task execution
-  platform/
-    platform.ts       # PlatformService interface
-    index.ts          # Platform factory (Linux vs Windows)
-    linux.ts          # Linux: systemd daemon, timers, systemctl task control
-    windows.ts        # Windows: Registry Run key, Task Scheduler, schtasks-based task control
-  transports/
-    nats-transport.ts # NATS subscription loop (host.<hostId>.rpc.>)
-    http-transport.ts # HTTP server with RPC, SSE, PWA proxy, agent endpoints, and pairing
-```
 
 ## Agent HTTP Endpoints
 
