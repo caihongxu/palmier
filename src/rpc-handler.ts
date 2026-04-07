@@ -58,6 +58,7 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
   return {
     messages,
     task_name: meta.task_name,
+    agent: meta.agent,
     running_state: runningState,
     start_time: startedMsg?.time || undefined,
     end_time: terminalMsg?.time || undefined,
@@ -318,7 +319,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // Do NOT append to tasks.jsonl — this is a one-off run
 
         // Create initial result file so it appears in runs list immediately
-        const runId = createRunDir(taskDir, name, Date.now());
+        const runId = createRunDir(taskDir, name, Date.now(), params.agent);
         appendHistory(config.projectRoot, { task_id: id, run_id: runId });
 
         // Spawn `palmier run <id>` directly as a detached process
@@ -339,7 +340,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           // Create initial result file so it appears in runs list immediately
           const runTaskDir = getTaskDir(config.projectRoot, params.id);
           const runTask = parseTaskFile(runTaskDir);
-          const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now());
+          const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await getPlatform().startTask(params.id);

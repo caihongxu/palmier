@@ -172,7 +172,7 @@ export async function runCommand(taskId: string): Promise<void> {
 
   // Use existing run dir if just created by RPC, otherwise create a new one
   const existingRunId = findLatestPendingRunId(taskDir);
-  const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now());
+  const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now(), task.frontmatter.agent);
   if (!existingRunId) {
     appendHistory(config.projectRoot, { task_id: taskId, run_id: runId });
   }

@@ -155,11 +155,13 @@ export function createRunDir(
   taskDir: string,
   taskName: string,
   startTime: number,
+  agent?: string,
 ): string {
   const runId = String(startTime);
   const runDir = path.join(taskDir, runId);
   fs.mkdirSync(runDir, { recursive: true });
-  const content = `---\ntask_name: ${taskName}\n---\n\n`;
+  const agentLine = agent ? `\nagent: ${agent}` : "";
+  const content = `---\ntask_name: ${taskName}${agentLine}\n---\n\n`;
   fs.writeFileSync(path.join(runDir, "TASKRUN.md"), content, "utf-8");
   return runId;
 }
