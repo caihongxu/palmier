@@ -22,11 +22,18 @@ If the task fails because a tool was denied or you lack the required permissions
 
 ## HTTP Endpoints
 
-The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution.
+The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution. Use curl to call them.
 
-**Requesting user input** — If the task needs any information it does not have (credentials, configuration values, preferences, clarifications, etc.) or just needs to ask the user questions or get input from the user, do NOT fail the task. Instead, use curl to POST to `/request-input` with JSON body `{"taskId":"{{TASK_ID}}","descriptions":["question 1","question 2"]}`. The request blocks until the user responds. The response is `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user chooses to abort.
+**Requesting user input** — When you need information from the user (credentials, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout. Instead, POST to `/request-input` with:
+```json
+{"taskId":"{{TASK_ID}}","descriptions":["question 1","question 2"]}
+```
+The request blocks until the user responds. Response: `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user declines.
 
-**Sending push notifications** — If the task needs to send a push notification, use curl to POST to `/notify` with JSON body `{"title":"...","body":"..."}`. This will send a push notification with the specified title and body to the user's devices.
+**Sending push notifications** — To notify the user, POST to `/notify` with:
+```json
+{"title":"...","body":"..."}
+```
 
 ---
 
