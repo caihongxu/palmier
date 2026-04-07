@@ -165,17 +165,12 @@ src/
     agent.ts          # AgentTool interface, registry, and agent detection
     shared-prompt.ts  # Agent instructions template (injects port and task ID)
     agent-instructions.md  # System prompt injected into every agent invocation
-    claude.ts         # Claude Code agent implementation
-    gemini.ts         # Gemini CLI agent implementation
-    codex.ts          # Codex CLI agent implementation
-    copilot.ts        # GitHub Copilot agent implementation
-    openclaw.ts       # OpenClaw agent implementation
+    *.ts              # Per-agent implementations (Claude, Gemini, Codex, etc.)
   commands/
     init.ts           # Interactive setup wizard (auto-pair)
     pair.ts           # OTP code generation and pairing handler
     sessions.ts       # Session token management CLI (list, revoke, revoke-all)
     info.ts           # Print host connection info
-
     serve.ts          # NATS + HTTP transport startup, crash detection polling
     restart.ts        # Daemon restart (cross-platform)
     run.ts            # Single task execution
