@@ -16,11 +16,8 @@ export class CopilotAgent implements AgentTool {
     const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["-p", prompt];
 
-    const allPerms = [{name: "web_fetch"}, ...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-    if (allPerms.length > 0) {
-      args.push(`--allow-tool='${allPerms.map((p) => p.name).join(",")}'`);;
-    }
-
+    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+    args.push(`--allow-tool=${["web_fetch", ...allPerms.map((p) => p.name)].join(",")}`);
     if (followupPrompt) { args.push("--continue"); }
     return { command: "copilot", args};
   }
