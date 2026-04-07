@@ -22,9 +22,9 @@ export class CodexAgent implements AgentTool {
       args.push("--config");
       args.push(`apps.${p.name}.default_tools_approval_mode="approve"`);
     }
+    if (followupPrompt) {args.push("resume", "--last");} // continue mode for followups
     args.push("-"); // read prompt from stdin
 
-    if (followupPrompt) {args.push("resume", "--last");} // continue mode for followups
     return { command: "codex", args, stdin: prompt };
   }
 
