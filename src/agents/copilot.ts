@@ -14,9 +14,9 @@ export class CopilotAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
     const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
-    const args = ["-p", prompt, "--allowed-tools", "web_fetch"];
+    const args = ["-p", prompt];
 
-    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+    const allPerms = [{name: "web_fetch"}, ...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
     if (allPerms.length > 0) {
       args.push(`--allow-tool='${allPerms.map((p) => p.name).join(",")}'`);;
     }
