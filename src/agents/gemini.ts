@@ -13,8 +13,7 @@ export class GeminiAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = followupPrompt ?? (task.body || task.frontmatter.user_prompt);
-    const fullPrompt = getAgentInstructions(task.frontmatter.id) + "\n\n" + prompt;
+    const fullPrompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["--prompt", "--allowed-tools", "web_fetch", "-"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];

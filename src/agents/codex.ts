@@ -13,7 +13,7 @@ export class CodexAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = getAgentInstructions(task.frontmatter.id) + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     // Using danger-full-access until workspace-write is fixed: https://github.com/openai/codex/issues/12572
     const args = ["exec", "--full-auto", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
 

@@ -13,7 +13,7 @@ export class ClaudeAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = getAgentInstructions(task.frontmatter.id) + "\n\n" + (followupPrompt ?? (task.body || task.frontmatter.user_prompt));
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["--permission-mode", "acceptEdits", "-p", "--allowedTools", "WebFetch"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];

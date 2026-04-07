@@ -13,8 +13,6 @@ task_name: <concise label, 3-6 words>
 ## Plan Body Guidelines
 
 - Write a numbered sequence of concrete, actionable steps.
-- Each step must be unambiguous — the agent should not need to interpret intent.
-- Include conditional branches where behavior may vary (e.g., "If the file exists, update it. Otherwise, create it.").
 - If the task produces formatted output (report, email, summary, etc.), specify the structure, sections, and tone.
 - Relative times in the task description (e.g., "yesterday", "last week") refer to execution time, not plan generation time.
 
