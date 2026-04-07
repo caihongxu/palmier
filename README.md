@@ -193,8 +193,8 @@ The serve daemon exposes localhost-only HTTP endpoints for agents during task ex
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/notify` | GET | Send a push notification (requires server mode) |
-| `/request-input` | GET | Request user input; blocks until a response is provided |
+| `/notify` | POST | Send a push notification (requires server mode) |
+| `/request-input` | POST | Request user input; blocks until a response is provided |
 
 See [agent-instructions.md](src/agents/agent-instructions.md) for usage examples.
 

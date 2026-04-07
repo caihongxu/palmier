@@ -412,12 +412,15 @@ async function requestPermission(
   requiredPermissions: RequiredPermission[],
 ): Promise<"granted" | "granted_all" | "aborted"> {
   const port = config.httpPort ?? 7400;
-  const params = new URLSearchParams({
-    taskId: task.frontmatter.id,
-    taskName: task.frontmatter.name,
-    permissions: JSON.stringify(requiredPermissions),
+  const res = await fetch(`http://localhost:${port}/request-permission`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      taskId: task.frontmatter.id,
+      taskName: task.frontmatter.name,
+      permissions: requiredPermissions,
+    }),
   });
-  const res = await fetch(`http://localhost:${port}/request-permission?${params}`);
   const { response } = await res.json() as { response: "granted" | "granted_all" | "aborted" };
   writeTaskStatus(taskDir, {
     running_state: response === "aborted" ? "aborted" : "started",
@@ -433,11 +436,11 @@ async function requestConfirmation(
   taskDir: string,
 ): Promise<boolean> {
   const port = config.httpPort ?? 7400;
-  const params = new URLSearchParams({
-    taskId: task.frontmatter.id,
-    taskName: task.frontmatter.name,
+  const res = await fetch(`http://localhost:${port}/request-confirmation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ taskId: task.frontmatter.id, taskName: task.frontmatter.name }),
   });
-  const res = await fetch(`http://localhost:${port}/request-confirmation?${params}`);
   const { confirmed } = await res.json() as { confirmed: boolean };
   writeTaskStatus(taskDir, {
     running_state: confirmed ? "started" : "aborted",

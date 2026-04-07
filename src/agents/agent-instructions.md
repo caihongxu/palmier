@@ -24,9 +24,9 @@ If the task fails because a tool was denied or you lack the required permissions
 
 The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution.
 
-**Requesting user input** — If you need any information you do not have (credentials, configuration values, preferences, clarifications, etc.) or the task explicitly asks you to get input from the user, do NOT fail the task. Instead, GET `/request-input?taskId={{TASK_ID}}&descriptions=question+1&descriptions=question+2`. The request blocks until the user responds. The response is `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user chooses to abort.
+**Requesting user input** — If the task needs any information it does not have (credentials, configuration values, preferences, clarifications, etc.) or just needs to ask the user questions or get input from the user, do NOT fail the task. Instead, use curl to POST to `/request-input` with JSON body `{"taskId":"{{TASK_ID}}","descriptions":["question 1","question 2"]}`. The request blocks until the user responds. The response is `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user chooses to abort.
 
-**Sending push notifications** — GET `/notify?title=...&body=...` to send a push notification to the user's devices.
+**Sending push notifications** — If the task needs to send a push notification, use curl to POST to `/notify` with JSON body `{"title":"...","body":"..."}`. This will send a push notification with the specified title and body to the user's devices.
 
 ---
 

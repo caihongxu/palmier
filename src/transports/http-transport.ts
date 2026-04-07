@@ -217,16 +217,16 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── GET /notify — send push notification via NATS ──────────────────
+    // ── POST /notify — send push notification via NATS ─────────────────
 
-    if (req.method === "GET" && pathname === "/notify") {
+    if (req.method === "POST" && pathname === "/notify") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       if (!nc) { sendJson(res, 503, { error: "NATS not connected — push notifications require server mode" }); return; }
 
       try {
-        const title = url.searchParams.get("title");
-        const notifBody = url.searchParams.get("body");
-        if (!title || !notifBody) { sendJson(res, 400, { error: "title and body query params are required" }); return; }
+        const body = await readBody(req);
+        const { title, body: notifBody } = JSON.parse(body) as { title: string; body: string };
+        if (!title || !notifBody) { sendJson(res, 400, { error: "title and body are required" }); return; }
 
         const sc = StringCodec();
         const payload = { hostId: config.hostId, title, body: notifBody };
@@ -245,16 +245,17 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── GET /request-input — held connection until user responds ────────
+    // ── POST /request-input — held connection until user responds ────────
 
-    if (req.method === "GET" && pathname === "/request-input") {
+    if (req.method === "POST" && pathname === "/request-input") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
-        const taskId = url.searchParams.get("taskId");
-        const runId = url.searchParams.get("runId");
-        const descriptions = url.searchParams.getAll("descriptions");
-        if (!taskId || !descriptions.length) {
-          sendJson(res, 400, { error: "taskId and descriptions query params are required" });
+        const body = await readBody(req);
+        const { taskId, runId, descriptions } = JSON.parse(body) as {
+          taskId: string; runId?: string; descriptions: string[];
+        };
+        if (!taskId || !descriptions?.length) {
+          sendJson(res, 400, { error: "taskId and descriptions are required" });
           return;
         }
 
@@ -290,13 +291,14 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── GET /request-confirmation — held connection ─────────────────────
+    // ── POST /request-confirmation — held connection ────────────────────
 
-    if (req.method === "GET" && pathname === "/request-confirmation") {
+    if (req.method === "POST" && pathname === "/request-confirmation") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
-        const taskId = url.searchParams.get("taskId");
-        if (!taskId) { sendJson(res, 400, { error: "taskId query param is required" }); return; }
+        const body = await readBody(req);
+        const { taskId } = JSON.parse(body) as { taskId: string };
+        if (!taskId) { sendJson(res, 400, { error: "taskId is required" }); return; }
 
         await publishEvent(taskId, {
           event_type: "confirm-request",
@@ -319,20 +321,17 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── GET /request-permission — held connection ───────────────────────
+    // ── POST /request-permission — held connection ──────────────────────
 
-    if (req.method === "GET" && pathname === "/request-permission") {
+    if (req.method === "POST" && pathname === "/request-permission") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
-        const taskId = url.searchParams.get("taskId");
-        const taskName = url.searchParams.get("taskName");
-        const permissionsRaw = url.searchParams.get("permissions");
-        let permissions: RequiredPermission[] = [];
-        if (permissionsRaw) {
-          try { permissions = JSON.parse(permissionsRaw) as RequiredPermission[]; } catch { /* ignore */ }
-        }
-        if (!taskId || !permissions.length) {
-          sendJson(res, 400, { error: "taskId and permissions query params are required" });
+        const body = await readBody(req);
+        const { taskId, taskName, permissions } = JSON.parse(body) as {
+          taskId: string; taskName?: string; permissions: RequiredPermission[];
+        };
+        if (!taskId || !permissions?.length) {
+          sendJson(res, 400, { error: "taskId and permissions are required" });
           return;
         }
 
