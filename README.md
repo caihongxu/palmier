@@ -85,7 +85,9 @@ palmier sessions revoke-all
 
 The `init` command:
 - Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI, GitHub Copilot) and caches the result
-- Saves host configuration to `~/.config/palmier/host.json`
+- Configures access modes (HTTP port, LAN access)
+- Shows a summary and asks for confirmation before making changes
+- Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
 - Installs a background daemon (systemd user service on Linux, Registry Run key on Windows)
 - Auto-enters pair mode to connect your first device
 
@@ -161,7 +163,7 @@ src/
   events.ts           # Event broadcasting (NATS pub/sub or HTTP SSE)
   agents/
     agent.ts          # AgentTool interface, registry, and agent detection
-    shared-prompt.ts  # Agent instructions loader
+    shared-prompt.ts  # Agent instructions template (injects port and task ID)
     agent-instructions.md  # System prompt injected into every agent invocation
     claude.ts         # Claude Code agent implementation
     gemini.ts         # Gemini CLI agent implementation
@@ -184,7 +186,7 @@ src/
     windows.ts        # Windows: Registry Run key, Task Scheduler, schtasks-based task control
   transports/
     nats-transport.ts # NATS subscription loop (host.<hostId>.rpc.>)
-    http-transport.ts # HTTP server with RPC, SSE, PWA reverse proxy, and internal event endpoints
+    http-transport.ts # HTTP server with RPC, SSE, PWA proxy, agent endpoints, and pairing
 ```
 
 ## Agent HTTP Endpoints
