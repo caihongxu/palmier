@@ -49,8 +49,8 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   // If last status is "started", determine if it's a task run or follow-up
   let runningState: string | undefined;
-  if (lastStatus?.type === "started") {
-    runningState = terminalMsg ? "followup" : "started";
+  if (lastStatus?.type === "started" || lastStatus?.type === "monitoring") {
+    runningState = terminalMsg ? "followup" : (lastStatus?.type ?? "started");
   } else {
     runningState = lastStatus?.type;
   }

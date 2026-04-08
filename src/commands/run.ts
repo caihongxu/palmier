@@ -299,6 +299,9 @@ async function runCommandTriggeredMode(
   const commandStr = ctx.task.frontmatter.command!;
   console.log(`[command-triggered] Spawning: ${commandStr}`);
 
+  appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
+  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+
   const child = spawnStreamingCommand(commandStr, {
     cwd: getRunDir(ctx.taskDir, ctx.runId),
     env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
