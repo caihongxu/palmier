@@ -147,8 +147,9 @@ export class WindowsPlatform implements PlatformService {
     const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" serve", 0, False`;
     fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
 
-    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
-    const child = nodeSpawn(wscript, [DAEMON_VBS_FILE], {
+    // Use `cmd /c start` to break out of the SSH session's job object.
+    // Without this, the daemon is killed when the SSH session disconnects.
+    const child = nodeSpawn("cmd", ["/c", "start", "/b", "wscript.exe", DAEMON_VBS_FILE], {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
