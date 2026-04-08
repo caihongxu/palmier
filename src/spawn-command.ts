@@ -106,7 +106,10 @@ export function spawnCommand(
       chunks.push(d);
       if (opts.echoStdout) process.stdout.write(d);
     });
-    child.stderr!.on("data", (d: Buffer) => process.stderr.write(d));
+    child.stderr!.on("data", (d: Buffer) => {
+      chunks.push(d);
+      process.stderr.write(d);
+    });
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (opts.timeout) {
