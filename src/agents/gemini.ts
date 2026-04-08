@@ -8,13 +8,13 @@ export class GeminiAgent implements AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine {
     return {
       command: "gemini",
-      args: ["--approval-mode", "auto_edit", "--prompt", prompt],
+      args: ["--prompt", prompt],
     };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const fullPrompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
-    const args = ["--allowed-tools", "web_fetch"];
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const args = ["--approval-mode", "auto_edit", "--allowed-tools", "web_fetch"];
 
     const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
     if (allPerms.length > 0) {
@@ -24,9 +24,9 @@ export class GeminiAgent implements AgentTool {
     }
 
     if (followupPrompt) {args.push("--resume");} // continue mode for followups
-    args.push("--prompt", "-"); // read prompt from stdin
+    args.push("--prompt", prompt);
     
-    return { command: "gemini", args, stdin: fullPrompt };
+    return { command: "gemini", args };
   }
 
   async init(): Promise<boolean> {
