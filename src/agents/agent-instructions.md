@@ -24,7 +24,7 @@ If the task fails because a tool was denied or you lack the required permissions
 
 The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution. Use curl to call them.
 
-**Requesting user input** — When you need information from the user (credentials, questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment. Instead, POST to `/request-input` with:
+**Requesting user input** — When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment. Instead, POST to `/request-input` with:
 ```json
 {"taskId":"{{TASK_ID}}","descriptions":["question 1","question 2"]}
 ```
