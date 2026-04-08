@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execFileSync } from "child_process";
-import { spawn as nodeSpawn } from "child_process";
 import type { PlatformService } from "./platform.js";
 import type { HostConfig, ParsedTask } from "../types.js";
 import { CONFIG_DIR, loadConfig } from "../config.js";
@@ -94,13 +93,12 @@ export class WindowsPlatform implements PlatformService {
   installDaemon(config: HostConfig): void {
     const script = process.argv[1] || "palmier";
 
-    // Write a VBS launcher that starts the daemon with no visible console window.
-    // VBS doesn't use backslash escaping — only quotes need doubling ("").
-    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" serve", 0, False`;
-    fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
+    // Create the Task Scheduler entry for the daemon
+    this.ensureDaemonTask(script);
 
-    const regValue = `"${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe" "${DAEMON_VBS_FILE}"`;
-
+    // Registry Run key triggers the Task Scheduler entry on logon,
+    // so the daemon always runs outside any session's job object.
+    const regValue = `schtasks /run /tn "\\Palmier\\${DAEMON_TASK_NAME}"`;
     try {
       execFileSync("reg", [
         "add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
@@ -113,20 +111,19 @@ export class WindowsPlatform implements PlatformService {
     }
 
     // Start the daemon now
-    this.spawnDaemon(script);
+    this.startDaemonTask();
 
     console.log("\nHost initialization complete!");
   }
 
   async restartDaemon(): Promise<void> {
-    const script = process.argv[1] || "palmier";
     const oldPid = fs.existsSync(DAEMON_PID_FILE)
       ? fs.readFileSync(DAEMON_PID_FILE, "utf-8").trim()
       : null;
 
     if (oldPid && oldPid === String(process.pid)) {
       // We ARE the old daemon (auto-update) — spawn replacement then exit.
-      this.spawnDaemon(script);
+      this.startDaemonTask();
       process.exit(0);
     }
 
@@ -139,23 +136,40 @@ export class WindowsPlatform implements PlatformService {
       }
     }
 
-    this.spawnDaemon(script);
+    this.startDaemonTask();
   }
 
-  private spawnDaemon(script: string): void {
-    // Write a VBS launcher that starts the daemon with no visible console window.
+  /** Create or update the Task Scheduler entry for the daemon. */
+  private ensureDaemonTask(script: string): void {
     const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" serve", 0, False`;
     fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
 
-    // Use `cmd /c start` to break out of the SSH session's job object.
-    // Without this, the daemon is killed when the SSH session disconnects.
-    const child = nodeSpawn("cmd", ["/c", "start", "/b", "wscript.exe", DAEMON_VBS_FILE], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.unref();
-    // PID file will be written by the serve command itself when it starts.
+    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
+    const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
+    const tr = `"${wscript}" "${DAEMON_VBS_FILE}"`;
+    const xml = buildTaskXml(tr, [`<TimeTrigger><StartBoundary>2000-01-01T00:00:00</StartBoundary></TimeTrigger>`]);
+    const xmlPath = path.join(CONFIG_DIR, "daemon-task.xml");
+    try {
+      const bom = Buffer.from([0xFF, 0xFE]);
+      fs.writeFileSync(xmlPath, Buffer.concat([bom, Buffer.from(xml, "utf16le")]));
+      execFileSync("schtasks", ["/create", "/tn", tn, "/xml", xmlPath, "/f"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+    } catch (err: unknown) {
+      const e = err as { stderr?: string };
+      console.error(`Failed to create daemon task: ${e.stderr || err}`);
+    } finally {
+      try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
+    }
+  }
+
+  /** Start the daemon via Task Scheduler (runs outside any session's job object). */
+  private startDaemonTask(): void {
+    const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
+    try {
+      execFileSync("schtasks", ["/run", "/tn", tn], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+    } catch (err: unknown) {
+      const e = err as { stderr?: string };
+      console.error(`Failed to start daemon via Task Scheduler: ${e.stderr || err}`);
+    }
     console.log("Palmier daemon started.");
   }
 
