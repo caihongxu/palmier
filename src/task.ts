@@ -191,6 +191,43 @@ export function appendRunMessage(
 }
 
 /**
+ * Begin a streaming assistant message — writes the delimiter only.
+ * Returns a writer that appends content chunks and finalizes the message.
+ */
+export function beginStreamingMessage(
+  taskDir: string,
+  runId: string,
+  time: number,
+): StreamingMessageWriter {
+  const filePath = path.join(taskDir, runId, "TASKRUN.md");
+  const delimiter = `<!-- palmier:message role="assistant" time="${time}" -->`;
+  fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
+  return new StreamingMessageWriter(filePath, delimiter);
+}
+
+export class StreamingMessageWriter {
+  private delimiter: string;
+  constructor(private filePath: string, delimiter: string) {
+    this.delimiter = delimiter;
+  }
+
+  /** Append a chunk of content to the current message. */
+  write(chunk: string): void {
+    fs.appendFileSync(this.filePath, chunk, "utf-8");
+  }
+
+  /** Finalize the message. If attachments are provided, rewrites the delimiter to include them. */
+  end(attachments?: string[]): void {
+    fs.appendFileSync(this.filePath, "\n\n", "utf-8");
+    if (attachments?.length) {
+      const raw = fs.readFileSync(this.filePath, "utf-8");
+      const updated = raw.replace(this.delimiter, `${this.delimiter.slice(0, -4)} attachments="${attachments.join(",")}" -->`);
+      fs.writeFileSync(this.filePath, updated, "utf-8");
+    }
+  }
+}
+
+/**
  * Read conversation messages from a run's TASKRUN.md file.
  */
 export function readRunMessages(taskDir: string, runId: string): ConversationMessage[] {

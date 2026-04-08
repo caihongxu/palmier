@@ -55,6 +55,8 @@ export interface SpawnCommandOptions {
   resolveOnFailure?: boolean;
   /** If provided, write this string to the process's stdin and then close the pipe. */
   stdin?: string;
+  /** Called on each chunk of output (stdout + stderr combined). */
+  onData?: (chunk: string) => void;
 }
 
 /**
@@ -105,10 +107,12 @@ export function spawnCommand(
     child.stdout!.on("data", (d: Buffer) => {
       chunks.push(d);
       if (opts.echoStdout) process.stdout.write(d);
+      if (opts.onData) opts.onData(d.toString("utf-8"));
     });
     child.stderr!.on("data", (d: Buffer) => {
       chunks.push(d);
       process.stderr.write(d);
+      if (opts.onData) opts.onData(d.toString("utf-8"));
     });
 
     let timer: ReturnType<typeof setTimeout> | undefined;

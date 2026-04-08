@@ -95,7 +95,13 @@ export async function serveCommand(): Promise<void> {
   saveConfig(config);
   console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);
 
-  const nc = await connectNats(config);
+  let nc: NatsConnection | undefined;
+  try {
+    nc = await connectNats(config);
+    console.log("[nats] Connected");
+  } catch (err) {
+    console.warn(`[nats] Connection failed (server mode unavailable): ${err}`);
+  }
 
   // Reconcile any tasks stuck from before daemon started
   await checkStaleTasks(config, nc);

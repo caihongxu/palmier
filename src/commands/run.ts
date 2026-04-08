@@ -4,7 +4,7 @@ import * as readline from "readline";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir } from "../task.js";
+import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -47,6 +47,21 @@ async function invokeAgentWithRetries(
 ): Promise<InvocationResult> {
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    // Stream agent output to TASKRUN.md in real-time, throttled to 500ms
+    const writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now());
+    let lineBuf = "";
+    let notifyPending = false;
+    let notifyTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function throttledNotify() {
+      if (notifyPending) return;
+      notifyPending = true;
+      notifyTimer = setTimeout(() => {
+        notifyPending = false;
+        publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+      }, 500);
+    }
+
     const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, undefined, ctx.transientPermissions);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
@@ -54,19 +69,37 @@ async function invokeAgentWithRetries(
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
+      onData: (chunk) => {
+        lineBuf += chunk;
+        const lines = lineBuf.split("\n");
+        lineBuf = lines.pop() ?? "";
+        const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
+        if (filtered.length > 0) {
+          writer.write(filtered.join("\n") + "\n");
+          throttledNotify();
+        }
+      },
     });
+
+    if (notifyTimer) clearTimeout(notifyTimer);
 
     const outcome: TaskRunningState = result.exitCode !== 0 ? "failed" : parseTaskOutcome(result.output);
     const reportFiles = parseReportFiles(result.output);
     const requiredPermissions = parsePermissions(result.output);
 
-    // Append assistant message for this invocation
-    await appendAndNotify(ctx, {
-      role: "assistant",
-      time: Date.now(),
-      content: stripPalmierMarkers(result.output),
-      attachments: reportFiles.length > 0 ? reportFiles : undefined,
-    });
+    // Flush remaining buffered content
+    if (lineBuf && !lineBuf.startsWith("[PALMIER")) {
+      writer.write(lineBuf);
+    }
+
+    // Include permission requests in the assistant message
+    if (requiredPermissions.length > 0) {
+      const permLines = requiredPermissions.map((p) => `- **${p.name}** ${p.description}`).join("\n");
+      writer.write(`\n\n**Permissions requested:**\n${permLines}\n`);
+    }
+
+    writer.end(reportFiles.length > 0 ? reportFiles : undefined);
+    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
     // Permission handling — agent requested permissions
     if (requiredPermissions.length > 0) {
@@ -76,7 +109,7 @@ async function invokeAgentWithRetries(
         await appendAndNotify(ctx, {
           role: "user",
           time: Date.now(),
-          content: "Permissions denied. Task aborted.",
+          content: "Denied",
           type: "permission",
         });
         return { outcome: "failed" };
@@ -87,11 +120,10 @@ async function invokeAgentWithRetries(
           && !ctx.transientPermissions.some((ep) => ep.name === rp.name),
       );
 
-      // Append user message for permission grant
       await appendAndNotify(ctx, {
         role: "user",
         time: Date.now(),
-        content: `Permissions granted: ${newPerms.map((p) => p.name).join(", ")}`,
+        content: response === "granted_all" ? "Granted for all" : "Granted",
         type: "permission",
       });
 
