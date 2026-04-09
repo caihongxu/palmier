@@ -228,6 +228,29 @@ export class StreamingMessageWriter {
 }
 
 /**
+ * Splice a user message into a running assistant stream.
+ * Ends the current assistant block, writes the user message,
+ * then opens a new assistant block — all as direct file appends.
+ * The existing StreamingMessageWriter keeps working because its
+ * write() is just appendFileSync, so subsequent chunks land in
+ * the new assistant block.
+ */
+export function spliceUserMessage(
+  taskDir: string,
+  runId: string,
+  userMsg: ConversationMessage,
+): void {
+  const filePath = path.join(taskDir, runId, "TASKRUN.md");
+  // 1. End the current assistant block
+  fs.appendFileSync(filePath, "\n\n", "utf-8");
+  // 2. Write the user message
+  appendRunMessage(taskDir, runId, userMsg);
+  // 3. Open a new assistant block for subsequent agent output
+  const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" -->`;
+  fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
+}
+
+/**
  * Read conversation messages from a run's TASKRUN.md file.
  */
 export function readRunMessages(taskDir: string, runId: string): ConversationMessage[] {

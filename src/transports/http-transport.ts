@@ -3,7 +3,8 @@ import * as os from "os";
 import { StringCodec, type NatsConnection } from "nats";
 import { validateSession, addSession } from "../session-store.js";
 import { registerPending } from "../pending-requests.js";
-import { getTaskDir, parseTaskFile, appendRunMessage } from "../task.js";
+import * as fs from "node:fs";
+import { getTaskDir, parseTaskFile, spliceUserMessage } from "../task.js";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 
 const PWA_ORIGIN = "https://app.palmier.me";
@@ -97,6 +98,18 @@ export function detectLanIp(): string {
     }
   }
   return "127.0.0.1";
+}
+
+/** Find the latest (highest-numbered) run directory for a task. */
+function findLatestRunId(taskDir: string): string | null {
+  try {
+    const dirs = fs.readdirSync(taskDir)
+      .filter((f) => /^\d+$/.test(f) && fs.statSync(`${taskDir}/${f}`).isDirectory())
+      .sort();
+    return dirs.length > 0 ? dirs[dirs.length - 1] : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -262,6 +275,9 @@ export async function startHttpTransport(
         const taskDir = getTaskDir(config.projectRoot, taskId);
         const task = parseTaskFile(taskDir);
 
+        // Resolve runId: use provided value, otherwise find the latest run directory
+        const effectiveRunId = runId ?? findLatestRunId(taskDir);
+
         const pendingPromise = registerPending(taskId, "input", descriptions);
 
         await publishEvent(taskId, {
@@ -275,15 +291,17 @@ export async function startHttpTransport(
 
         if (response.length === 1 && response[0] === "aborted") {
           await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "aborted" });
-          if (runId) {
-            appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: "Input request aborted.", type: "input" });
+          if (effectiveRunId) {
+            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: "Input request aborted.", type: "input" });
+            await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
           }
           sendJson(res, 200, { aborted: true });
         } else {
           await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "provided" });
-          if (runId) {
+          if (effectiveRunId) {
             const lines = descriptions.map((desc, i) => `**${desc}** ${response[i]}`);
-            appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: lines.join("\n"), type: "input" });
+            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: lines.join("\n"), type: "input" });
+            await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
           }
           sendJson(res, 200, { values: response });
         }
