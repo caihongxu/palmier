@@ -38,6 +38,11 @@ describe("parseReportFiles", () => {
   it("trims whitespace from file names", () => {
     assert.deepEqual(parseReportFiles("[PALMIER_REPORT]   report.md  "), ["report.md"]);
   });
+
+  it("ignores placeholder examples from echoed prompt", () => {
+    const output = "[PALMIER_REPORT] <filename>\n[PALMIER_REPORT] actual-report.md";
+    assert.deepEqual(parseReportFiles(output), ["actual-report.md"]);
+  });
 });
 
 describe("parsePermissions", () => {
@@ -56,6 +61,13 @@ describe("parsePermissions", () => {
 
   it("returns empty array when no permissions", () => {
     assert.deepEqual(parsePermissions("no permissions"), []);
+  });
+
+  it("ignores placeholder examples from echoed prompt", () => {
+    const output = "[PALMIER_PERMISSION] <tool_name> | <description>\n[PALMIER_PERMISSION] Read | Read files";
+    const perms = parsePermissions(output);
+    assert.equal(perms.length, 1);
+    assert.deepEqual(perms[0], { name: "Read", description: "Read files" });
   });
 });
 

@@ -505,7 +505,8 @@ export function parseReportFiles(output: string): string[] {
   let match;
   while ((match = regex.exec(output)) !== null) {
     const name = match[1].trim();
-    if (name) files.push(name);
+    // Skip placeholder examples echoed from the prompt (e.g. "<filename>")
+    if (name && !name.startsWith("<")) files.push(name);
   }
   return files;
 }
@@ -520,6 +521,8 @@ export function parsePermissions(output: string): RequiredPermission[] {
   let match;
   while ((match = regex.exec(output)) !== null) {
     const raw = match[1].trim();
+    // Skip placeholder examples echoed from the prompt (e.g. "<tool_name> | <description>")
+    if (raw.startsWith("<")) continue;
     const sep = raw.indexOf("|");
     if (sep !== -1) {
       perms.push({ name: raw.slice(0, sep).trim(), description: raw.slice(sep + 1).trim() });
