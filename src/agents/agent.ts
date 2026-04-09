@@ -22,9 +22,10 @@ export interface AgentTool {
   getPlanGenerationCommandLine(prompt: string): CommandLine;
 
   /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
-   *  and treat it as a continuation of the original run (reuse the same session, etc). extraPermissions are transient
-   *  permissions granted for this run only (not persisted in frontmatter). */
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine;
+   *  and treat it as a continuation of the original run (reuse the same session, etc).
+   *  extraPermissions: pass an array of RequiredPermission for transient permissions granted for this run only,
+   *  or pass `"yolo"` to enable yolo mode (auto-approve all tools, skip permission instructions). */
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine;
 
   /** Detect whether the agent CLI is available and perform any agent-specific
    *  initialization. Returns true if the agent was detected and initialized successfully. */

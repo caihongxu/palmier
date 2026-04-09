@@ -23,6 +23,7 @@ export interface TaskFrontmatter {
   triggers: Trigger[];
   triggers_enabled: boolean;
   requires_confirmation: boolean;
+  yolo_mode?: boolean;
   permissions?: RequiredPermission[];
   command?: string;
 }

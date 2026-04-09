@@ -12,12 +12,17 @@ export class CopilotAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
+    const yolo = extraPermissions === "yolo";
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["-p", prompt];
 
-    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-    args.push(`--allow-tool=${["web_fetch", ...allPerms.map((p) => p.name)].join(",")}`);
+    if (yolo) {
+      args.push("--yolo");
+    } else {
+      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+      args.push(`--allow-tool=${["web_fetch", ...allPerms.map((p) => p.name)].join(",")}`);
+    }
     if (followupPrompt) { args.push("--continue"); }
     return { command: "copilot", args};
   }

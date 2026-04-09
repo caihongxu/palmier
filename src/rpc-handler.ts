@@ -188,6 +188,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           triggers?: Array<{ type: "cron" | "once"; value: string }>;
           triggers_enabled?: boolean;
           requires_confirmation?: boolean;
+          yolo_mode?: boolean;
           command?: string;
         };
 
@@ -218,6 +219,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             triggers: params.triggers ?? [],
             triggers_enabled: params.triggers_enabled ?? true,
             requires_confirmation: params.requires_confirmation ?? true,
+            ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
           body,
@@ -238,6 +240,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           triggers?: Array<{ type: "cron" | "once"; value: string }>;
           triggers_enabled?: boolean;
           requires_confirmation?: boolean;
+          yolo_mode?: boolean;
           command?: string;
         };
 
@@ -256,6 +259,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (params.triggers_enabled !== undefined) existing.frontmatter.triggers_enabled = params.triggers_enabled;
         if (params.requires_confirmation !== undefined)
           existing.frontmatter.requires_confirmation = params.requires_confirmation;
+        if (params.yolo_mode !== undefined) existing.frontmatter.yolo_mode = params.yolo_mode || undefined;
         if (params.command !== undefined) {
           if (params.command) {
             existing.frontmatter.command = params.command;
@@ -302,6 +306,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           user_prompt: string;
           agent: string;
           requires_confirmation?: boolean;
+          yolo_mode?: boolean;
           command?: string;
         };
 
@@ -317,6 +322,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             triggers: [],
             triggers_enabled: false,
             requires_confirmation: params.requires_confirmation ?? false,
+            ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
           body: "",
@@ -390,7 +396,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // Fire-and-forget: invoke agent inline as a child of the serve process
         const followupAgent = getAgent(followupTask.frontmatter.agent);
         const { command: cmd, args: cmdArgs, stdin } = followupAgent.getTaskRunCommandLine(
-          followupTask, params.message, followupTask.frontmatter.permissions,
+          followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
         );
 
         // Spawn directly via crossSpawn so we can track and kill the child
@@ -564,8 +570,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const reports: Array<{ file: string; content?: string; error?: string }> = [];
         const runDir = path.join(config.projectRoot, "tasks", params.id, params.run_id);
         for (const file of params.report_files) {
-          if (!file.endsWith(".md")) {
-            reports.push({ file, error: "must end with .md" });
+          if (!file.endsWith(".md") && !file.endsWith(".txt")) {
+            reports.push({ file, error: "must end with .md or .txt" });
             continue;
           }
           const basename = path.basename(file);

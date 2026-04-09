@@ -12,14 +12,19 @@ export class GeminiAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
-    const tools = ["run_shell_command", "web_fetch"];
-    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-    for (const p of allPerms) {
-      tools.push(p.name);
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
+    const yolo = extraPermissions === "yolo";
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const args = ["--approval-mode", yolo ? "yolo" : "auto_edit"];
+
+    if (!yolo) {
+      const tools = ["run_shell_command", "web_fetch"];
+      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+      for (const p of allPerms) {
+        tools.push(p.name);
+      }
+      args.push("--allowed-tools", tools.join(","));
     }
-    const args = ["--approval-mode", "auto_edit", "--allowed-tools", tools.join(",")];
 
     if (followupPrompt) {args.push("--resume");} // continue mode for followups
     args.push("--prompt", "-"); // read prompt from stdin to avoid command line length limits

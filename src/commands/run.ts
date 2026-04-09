@@ -62,7 +62,9 @@ async function invokeAgentWithRetries(
       }, 500);
     }
 
-    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(invokeTask, undefined, ctx.transientPermissions);
+    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(
+      invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
+    );
     const truncate = (s: string, max = 100) => s.length > max ? s.slice(0, max) + "…" : s;
     const displayArgs = args.map((a) => truncate(a));
     console.log(`[invoke] ${command} ${displayArgs.join(" ")}${stdin ? ` (stdin: ${truncate(stdin, 100)})` : ""}`);

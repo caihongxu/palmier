@@ -202,27 +202,33 @@ export function beginStreamingMessage(
   const filePath = path.join(taskDir, runId, "TASKRUN.md");
   const delimiter = `<!-- palmier:message role="assistant" time="${time}" -->`;
   fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
-  return new StreamingMessageWriter(filePath, delimiter);
+  return new StreamingMessageWriter(filePath);
 }
 
 export class StreamingMessageWriter {
-  private delimiter: string;
-  constructor(private filePath: string, delimiter: string) {
-    this.delimiter = delimiter;
-  }
+  constructor(private filePath: string) {}
 
   /** Append a chunk of content to the current message. */
   write(chunk: string): void {
     fs.appendFileSync(this.filePath, chunk, "utf-8");
   }
 
-  /** Finalize the message. If attachments are provided, rewrites the delimiter to include them. */
+  /** Finalize the message. If attachments are provided, rewrites the last assistant delimiter to include them. */
   end(attachments?: string[]): void {
     fs.appendFileSync(this.filePath, "\n\n", "utf-8");
     if (attachments?.length) {
       const raw = fs.readFileSync(this.filePath, "utf-8");
-      const updated = raw.replace(this.delimiter, `${this.delimiter.slice(0, -4)} attachments="${attachments.join(",")}" -->`);
-      fs.writeFileSync(this.filePath, updated, "utf-8");
+      // Find the last assistant delimiter (may differ from the original if spliceUserMessage created a new one)
+      const pattern = /<!-- palmier:message role="assistant" time="\d+" -->/g;
+      let lastMatch: RegExpExecArray | null = null;
+      let m;
+      while ((m = pattern.exec(raw)) !== null) lastMatch = m;
+      if (lastMatch) {
+        const before = raw.slice(0, lastMatch.index);
+        const after = raw.slice(lastMatch.index + lastMatch[0].length);
+        const updated = before + `${lastMatch[0].slice(0, -4)} attachments="${attachments.join(",")}" -->` + after;
+        fs.writeFileSync(this.filePath, updated, "utf-8");
+      }
     }
   }
 }
@@ -239,13 +245,19 @@ export function spliceUserMessage(
   taskDir: string,
   runId: string,
   userMsg: ConversationMessage,
+  /** Optional text to append to the current assistant block before ending it. */
+  assistantAppend?: string,
 ): void {
   const filePath = path.join(taskDir, runId, "TASKRUN.md");
-  // 1. End the current assistant block
+  // 1. Optionally append to the current assistant block (e.g. the input questions)
+  if (assistantAppend) {
+    fs.appendFileSync(filePath, assistantAppend, "utf-8");
+  }
+  // 2. End the current assistant block
   fs.appendFileSync(filePath, "\n\n", "utf-8");
-  // 2. Write the user message
+  // 3. Write the user message
   appendRunMessage(taskDir, runId, userMsg);
-  // 3. Open a new assistant block for subsequent agent output
+  // 4. Open a new assistant block for subsequent agent output
   const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" -->`;
   fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
 }

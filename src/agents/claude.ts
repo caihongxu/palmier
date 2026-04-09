@@ -12,13 +12,17 @@ export class ClaudeAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
-    const args = ["--permission-mode", "acceptEdits", "-p", "--allowedTools", "WebFetch"];
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
+    const yolo = extraPermissions === "yolo";
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
 
-    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-    for (const p of allPerms) {
-      args.push("--allowedTools", p.name);
+    if (!yolo) {
+      args.push("--allowedTools", "WebFetch");
+      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+      for (const p of allPerms) {
+        args.push("--allowedTools", p.name);
+      }
     }
 
     if (followupPrompt) {args.push("-c");} // continue mode for followups

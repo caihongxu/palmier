@@ -12,15 +12,18 @@ export class CodexAgent implements AgentTool {
     };
   }
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[]): CommandLine {
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
+    const yolo = extraPermissions === "yolo";
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     // Using danger-full-access until workspace-write is fixed: https://github.com/openai/codex/issues/12572
     const args = ["exec", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
 
-    const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-    for (const p of allPerms) {
-      args.push("--config");
-      args.push(`apps.${p.name}.default_tools_approval_mode="approve"`);
+    if (!yolo) {
+      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
+      for (const p of allPerms) {
+        args.push("--config");
+        args.push(`apps.${p.name}.default_tools_approval_mode="approve"`);
+      }
     }
     if (followupPrompt) {args.push("resume", "--last");} // continue mode for followups
     args.push("-"); // read prompt from stdin

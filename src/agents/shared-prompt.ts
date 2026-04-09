@@ -13,11 +13,15 @@ const AGENT_INSTRUCTIONS_TEMPLATE = fs.readFileSync(
 /**
  * Agent instructions with the serve daemon's HTTP port and task ID baked in.
  */
-export function getAgentInstructions(taskId: string): string {
+export function getAgentInstructions(taskId: string, yoloMode?: boolean): string {
   const port = loadConfig().httpPort ?? 7400;
-  return AGENT_INSTRUCTIONS_TEMPLATE
+  let instructions = AGENT_INSTRUCTIONS_TEMPLATE
     .replace(/\{\{PORT\}\}/g, String(port))
     .replace(/\{\{TASK_ID\}\}/g, taskId);
+  if (yoloMode) {
+    instructions = instructions.replace(/## Permissions\n[\s\S]*?(?=## |\n---)/m, "");
+  }
+  return instructions;
 }
 
 export const TASK_SUCCESS_MARKER = "[PALMIER_TASK_SUCCESS]";

@@ -289,18 +289,19 @@ export async function startHttpTransport(
 
         const response = await pendingPromise;
 
+        const questionsBlock = "\n\n" + descriptions.map((d) => `**${d}**`).join("\n");
+
         if (response.length === 1 && response[0] === "aborted") {
           await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "aborted" });
           if (effectiveRunId) {
-            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: "Input request aborted.", type: "input" });
+            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: "Aborted", type: "input" }, questionsBlock);
             await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
           }
           sendJson(res, 200, { aborted: true });
         } else {
           await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "provided" });
           if (effectiveRunId) {
-            const lines = descriptions.map((desc, i) => `**${desc}** ${response[i]}`);
-            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: lines.join("\n"), type: "input" });
+            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: response.join("\n"), type: "input" }, questionsBlock);
             await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
           }
           sendJson(res, 200, { values: response });
