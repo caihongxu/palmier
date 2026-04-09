@@ -5,6 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
 export class GeminiAgent implements AgentTool {
+  supportsPermissions = true;
   getPlanGenerationCommandLine(prompt: string): CommandLine {
     return {
       command: "gemini",
@@ -14,7 +15,7 @@ export class GeminiAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo || !this.supportsPermissions) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["--approval-mode", yolo ? "yolo" : "auto_edit"];
 
     if (!yolo) {

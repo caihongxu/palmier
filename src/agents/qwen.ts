@@ -5,6 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
 export class QwenAgent implements AgentTool {
+  supportsPermissions = false;
   getPlanGenerationCommandLine(prompt: string): CommandLine {
     return {
       command: "qwen",
@@ -14,17 +15,8 @@ export class QwenAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo || !this.supportsPermissions) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["--approval-mode", yolo ? "yolo" : "auto-edit"];
-
-    if (!yolo) {
-      const tools = ["web_fetch"];
-      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-      for (const p of allPerms) {
-        tools.push(p.name);
-      }
-      args.push("--allowed-tools", ...tools);
-    }
 
     if (followupPrompt) { args.push("-c"); }
     args.push("-p", prompt);

@@ -27,6 +27,10 @@ export interface AgentTool {
    *  or pass `"yolo"` to enable yolo mode (auto-approve all tools, skip permission instructions). */
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine;
 
+  /** Whether this agent supports permission overrides (e.g. --allowedTools).
+   *  If false, the permissions section is omitted from agent instructions. */
+  supportsPermissions: boolean;
+
   /** Detect whether the agent CLI is available and perform any agent-specific
    *  initialization. Returns true if the agent was detected and initialized successfully. */
   init(): Promise<boolean>;
@@ -53,6 +57,7 @@ const agentLabels: Record<string, string> = {
 export interface DetectedAgent {
   key: string;
   label: string;
+  supportsPermissions: boolean;
 }
 
 export async function detectAgents(): Promise<DetectedAgent[]> {
@@ -60,7 +65,7 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
   for (const [key, agent] of Object.entries(agentRegistry)) {
     const label = agentLabels[key] ?? key;
     const ok = await agent.init();
-    if (ok) detected.push({ key, label });
+    if (ok) detected.push({ key, label, supportsPermissions: agent.supportsPermissions });
   }
   return detected;
 }

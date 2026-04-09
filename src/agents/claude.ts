@@ -5,6 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
 export class ClaudeAgent implements AgentTool {
+  supportsPermissions = true;
   getPlanGenerationCommandLine(prompt: string): CommandLine {
     return {
       command: "claude",
@@ -14,7 +15,7 @@ export class ClaudeAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo) + "\n\n" + (task.body || task.frontmatter.user_prompt));
+    const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo || !this.supportsPermissions) + "\n\n" + (task.body || task.frontmatter.user_prompt));
     const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
 
     if (!yolo) {
