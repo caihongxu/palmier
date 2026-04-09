@@ -259,7 +259,10 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (params.triggers_enabled !== undefined) existing.frontmatter.triggers_enabled = params.triggers_enabled;
         if (params.requires_confirmation !== undefined)
           existing.frontmatter.requires_confirmation = params.requires_confirmation;
-        if (params.yolo_mode !== undefined) existing.frontmatter.yolo_mode = params.yolo_mode || undefined;
+        if (params.yolo_mode !== undefined) {
+          existing.frontmatter.yolo_mode = params.yolo_mode || undefined;
+          if (params.yolo_mode) delete existing.frontmatter.permissions;
+        }
         if (params.command !== undefined) {
           if (params.command) {
             existing.frontmatter.command = params.command;
