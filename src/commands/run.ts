@@ -531,8 +531,14 @@ export function parsePermissions(output: string): RequiredPermission[] {
  */
 export function parseTaskOutcome(output: string): TaskRunningState {
   const lastChunk = output.slice(-500);
-  if (lastChunk.includes(TASK_FAILURE_MARKER)) return "failed";
-  if (lastChunk.includes(TASK_SUCCESS_MARKER)) return "finished";
+  const regex = new RegExp(`^\\${TASK_FAILURE_MARKER}$|^\\${TASK_SUCCESS_MARKER}$`, "gm");
+  let last: string | null = null;
+  let match;
+  while ((match = regex.exec(lastChunk)) !== null) {
+    last = match[0];
+  }
+  if (last === TASK_FAILURE_MARKER) return "failed";
+  if (last === TASK_SUCCESS_MARKER) return "finished";
   return "finished";
 }
 
