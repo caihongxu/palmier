@@ -60,6 +60,8 @@ describe("buildTaskXml", () => {
     const xml = buildTaskXml(tr, triggers);
 
     assert.ok(xml.includes('<?xml version="1.0" encoding="UTF-16"?>'), "should have XML declaration");
+    assert.ok(xml.includes("<LogonType>S4U</LogonType>"), "should use S4U logon type");
+    assert.ok(xml.includes("<RunLevel>LeastPrivilege</RunLevel>"), "should use least privilege");
     assert.ok(xml.includes("<MultipleInstancesPolicy>StopExisting</MultipleInstancesPolicy>"), "should set StopExisting");
     assert.ok(xml.includes("<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>"), "should allow on battery");
     assert.ok(xml.includes("<Command>C:\\Program Files\\nodejs\\node.exe</Command>"), "should extract command");

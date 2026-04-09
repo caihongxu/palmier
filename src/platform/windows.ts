@@ -10,7 +10,6 @@ import { getTaskDir, readTaskStatus } from "../task.js";
 const TASK_PREFIX = "\\Palmier\\PalmierTask-";
 const DAEMON_TASK_NAME = "PalmierDaemon";
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
-const DAEMON_VBS_FILE = path.join(CONFIG_DIR, "daemon.vbs");
 
 
 const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -68,6 +67,12 @@ export function buildTaskXml(tr: string, triggers: string[]): string {
   return [
     `<?xml version="1.0" encoding="UTF-16"?>`,
     `<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">`,
+    `  <Principals>`,
+    `    <Principal>`,
+    `      <LogonType>S4U</LogonType>`,
+    `      <RunLevel>LeastPrivilege</RunLevel>`,
+    `    </Principal>`,
+    `  </Principals>`,
     `  <Settings>`,
     `    <MultipleInstancesPolicy>StopExisting</MultipleInstancesPolicy>`,
     `    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>`,
@@ -93,22 +98,16 @@ export class WindowsPlatform implements PlatformService {
   installDaemon(config: HostConfig): void {
     const script = process.argv[1] || "palmier";
 
-    // Create the Task Scheduler entry for the daemon
+    // Create the Task Scheduler entry for the daemon (BootTrigger starts it at system boot)
     this.ensureDaemonTask(script);
 
-    // Registry Run key triggers the Task Scheduler entry on logon,
-    // so the daemon always runs outside any session's job object.
-    const regValue = `schtasks /run /tn "\\Palmier\\${DAEMON_TASK_NAME}"`;
+    // Remove old Registry Run key if upgrading
     try {
       execFileSync("reg", [
-        "add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        "/v", DAEMON_TASK_NAME, "/t", "REG_SZ", "/d", regValue, "/f",
+        "delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "/v", DAEMON_TASK_NAME, "/f",
       ], { encoding: "utf-8", stdio: "pipe" });
-      console.log(`Registry Run key "${DAEMON_TASK_NAME}" installed (runs at logon).`);
-    } catch (err) {
-      console.error(`Warning: failed to install registry run entry: ${err}`);
-      console.error("You may need to start palmier serve manually.");
-    }
+    } catch { /* key may not exist */ }
 
     // Start the daemon now
     this.startDaemonTask();
@@ -152,26 +151,30 @@ export class WindowsPlatform implements PlatformService {
     this.startDaemonTask();
   }
 
-  /** Create or update the Task Scheduler entry for the daemon. */
+  /** Create or update the Task Scheduler entry for the daemon (requires elevation for S4U). */
   private ensureDaemonTask(script: string): void {
-    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" serve", 0, False`;
-    fs.writeFileSync(DAEMON_VBS_FILE, vbs, "utf-8");
-
-    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
-    const tr = `"${wscript}" "${DAEMON_VBS_FILE}"`;
-    const xml = buildTaskXml(tr, [`<TimeTrigger><StartBoundary>2000-01-01T00:00:00</StartBoundary></TimeTrigger>`]);
+    const tr = `"${process.execPath}" "${script}" serve`;
+    const xml = buildTaskXml(tr, [`<BootTrigger><Enabled>true</Enabled></BootTrigger>`]);
     const xmlPath = path.join(CONFIG_DIR, "daemon-task.xml");
     try {
       const bom = Buffer.from([0xFF, 0xFE]);
       fs.writeFileSync(xmlPath, Buffer.concat([bom, Buffer.from(xml, "utf16le")]));
-      execFileSync("schtasks", ["/create", "/tn", tn, "/xml", xmlPath, "/f"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+      // S4U LogonType requires elevation — spawn schtasks via RunAs
+      const args = `/create /tn "${tn}" /xml "${xmlPath}" /f`;
+      execFileSync("powershell", [
+        "-Command", `Start-Process -Verb RunAs -Wait -FilePath schtasks -ArgumentList '${args}'`,
+      ], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
     } catch (err: unknown) {
       const e = err as { stderr?: string };
       console.error(`Failed to create daemon task: ${e.stderr || err}`);
     } finally {
       try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
     }
+
+    // Cleanup old VBS launcher if upgrading
+    const oldVbs = path.join(CONFIG_DIR, "daemon.vbs");
+    try { fs.unlinkSync(oldVbs); } catch { /* ignore */ }
   }
 
   /** Start the daemon via Task Scheduler (runs outside any session's job object). */
@@ -190,14 +193,7 @@ export class WindowsPlatform implements PlatformService {
     const taskId = task.frontmatter.id;
     const tn = schtasksTaskName(taskId);
     const script = process.argv[1] || "palmier";
-
-    // Write a VBS launcher so the task runs without a visible console window
-    const vbsPath = path.join(CONFIG_DIR, `task-${taskId}.vbs`);
-    const vbs = `CreateObject("WScript.Shell").Run """${process.execPath}"" ""${script}"" run ${taskId}", 0, True`;
-    fs.writeFileSync(vbsPath, vbs, "utf-8");
-
-    const wscript = `${process.env.SYSTEMROOT || "C:\\Windows"}\\System32\\wscript.exe`;
-    const tr = `"${wscript}" "${vbsPath}"`;
+    const tr = `"${process.execPath}" "${script}" run ${taskId}`;
 
     // Build trigger XML elements
     const triggerElements: string[] = [];
@@ -217,6 +213,8 @@ export class WindowsPlatform implements PlatformService {
 
     // Write XML and register via schtasks — gives us full control over
     // settings like MultipleInstancesPolicy that schtasks flags don't expose.
+    // S4U LogonType ensures no console window. Works without elevation
+    // because the daemon (which calls this) runs elevated.
     const xml = buildTaskXml(tr, triggerElements);
     const xmlPath = path.join(CONFIG_DIR, `task-${taskId}.xml`);
     try {
@@ -232,6 +230,9 @@ export class WindowsPlatform implements PlatformService {
     } finally {
       try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
     }
+
+    // Cleanup old VBS launcher if upgrading
+    try { fs.unlinkSync(path.join(CONFIG_DIR, `task-${taskId}.vbs`)); } catch { /* ignore */ }
   }
 
   removeTaskTimer(taskId: string): void {
@@ -241,7 +242,6 @@ export class WindowsPlatform implements PlatformService {
     } catch {
       // Task might not exist — that's fine
     }
-    try { fs.unlinkSync(path.join(CONFIG_DIR, `task-${taskId}.vbs`)); } catch { /* ignore */ }
   }
 
   async startTask(taskId: string): Promise<void> {
