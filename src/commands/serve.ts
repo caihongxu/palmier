@@ -114,7 +114,7 @@ export async function serveCommand(): Promise<void> {
   }, POLL_INTERVAL_MS);
 
   const handleRpc = createRpcHandler(config, nc);
-  const httpPort = config.httpPort ?? 7400;
+  const httpPort = config.httpPort ?? 9966;
 
   // Start NATS transport (loops forever, fire-and-forget)
   if (nc) {

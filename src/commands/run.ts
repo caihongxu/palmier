@@ -70,7 +70,7 @@ async function invokeAgentWithRetries(
     console.log(`[invoke] ${command} ${displayArgs.join(" ")}${stdin ? ` (stdin: ${truncate(stdin, 100)})` : ""}`);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
+      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -309,7 +309,7 @@ async function runCommandTriggeredMode(
 
   const child = spawnStreamingCommand(commandStr, {
     cwd: getRunDir(ctx.taskDir, ctx.runId),
-    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7400) },
+    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
   });
 
   let linesProcessed = 0;
@@ -449,7 +449,7 @@ async function requestPermission(
   taskDir: string,
   requiredPermissions: RequiredPermission[],
 ): Promise<"granted" | "granted_all" | "aborted"> {
-  const port = config.httpPort ?? 7400;
+  const port = config.httpPort ?? 9966;
   const res = await fetch(`http://localhost:${port}/request-permission`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -477,7 +477,7 @@ async function requestConfirmation(
   task: ParsedTask,
   taskDir: string,
 ): Promise<boolean> {
-  const port = config.httpPort ?? 7400;
+  const port = config.httpPort ?? 9966;
   const res = await fetch(`http://localhost:${port}/request-confirmation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

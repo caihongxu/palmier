@@ -23,7 +23,7 @@ export async function publishHostEvent(
   }
 
   const config = loadConfig();
-  const port = config.httpPort ?? 7400;
+  const port = config.httpPort ?? 9966;
   try {
     await fetch(`http://localhost:${port}/event`, {
       method: "POST",

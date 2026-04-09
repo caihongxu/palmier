@@ -11,7 +11,7 @@ const template = fs.readFileSync(templatePath, "utf-8");
 /** Minimal replica of getAgentInstructions that doesn't need host.json */
 function buildInstructions(taskId: string, skipPermissions?: boolean): string {
   let instructions = template
-    .replace(/\{\{PORT\}\}/g, "7400")
+    .replace(/\{\{PORT\}\}/g, "9966")
     .replace(/\{\{TASK_ID\}\}/g, taskId);
   if (skipPermissions) {
     instructions = instructions.replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");

@@ -44,7 +44,7 @@ export async function initCommand(): Promise<void> {
     const lanAnswer = await ask("Enable LAN access (direct HTTP from local network)? (y/N): ");
     const lanEnabled = lanAnswer.trim().toLowerCase() === "y";
 
-    let httpPort = 7400;
+    let httpPort = 9966;
     const portLabel = lanEnabled ? "HTTP port for local and LAN access" : "HTTP port for local access";
     const portAnswer = await ask(`${portLabel} (default ${httpPort}): `);
     const parsed = parseInt(portAnswer.trim(), 10);

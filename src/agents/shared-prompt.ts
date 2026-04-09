@@ -14,7 +14,7 @@ const AGENT_INSTRUCTIONS_TEMPLATE = fs.readFileSync(
  * Agent instructions with the serve daemon's HTTP port and task ID baked in.
  */
 export function getAgentInstructions(taskId: string, skipPermissions?: boolean): string {
-  const port = loadConfig().httpPort ?? 7400;
+  const port = loadConfig().httpPort ?? 9966;
   let instructions = AGENT_INSTRUCTIONS_TEMPLATE
     .replace(/\{\{PORT\}\}/g, String(port))
     .replace(/\{\{TASK_ID\}\}/g, taskId);
