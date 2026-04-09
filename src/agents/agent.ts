@@ -5,6 +5,7 @@ import { CodexAgent } from "./codex.js";
 import { OpenClawAgent } from "./openclaw.js";
 import { CopilotAgent } from "./copilot.js";
 import { QwenAgent } from "./qwen.js";
+import { KimiAgent } from "./kimi.js";
 
 export interface CommandLine {
   command: string;
@@ -43,6 +44,7 @@ const agentRegistry: Record<string, AgentTool> = {
   openclaw: new OpenClawAgent(),
   copilot: new CopilotAgent(),
   qwen: new QwenAgent(),
+  kimi: new KimiAgent(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -52,6 +54,7 @@ const agentLabels: Record<string, string> = {
   openclaw: "OpenClaw",
   copilot: "Copilot CLI",
   qwen: "Qwen Code",
+  kimi: "Kimi Code",
 };
 
 export interface DetectedAgent {
