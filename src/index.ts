@@ -13,6 +13,7 @@ import { serveCommand } from "./commands/serve.js";
 import { pairCommand } from "./commands/pair.js";
 import { restartCommand } from "./commands/restart.js";
 import { clientsListCommand, clientsRevokeCommand, clientsRevokeAllCommand } from "./commands/clients.js";
+import { uninstallCommand } from "./commands/uninstall.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
@@ -91,6 +92,13 @@ clientsCmd
   .description("Revoke all clients")
   .action(async () => {
     await clientsRevokeAllCommand();
+  });
+
+program
+  .command("uninstall")
+  .description("Stop the daemon and remove all scheduled tasks")
+  .action(async () => {
+    await uninstallCommand();
   });
 
 // No subcommand → default to serve

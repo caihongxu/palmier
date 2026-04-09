@@ -4,6 +4,7 @@ import { detectAgents } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectLanIp } from "../transports/http-transport.js";
+import { listTasks } from "../task.js";
 import type { HostConfig } from "../types.js";
 
 type AskFn = (q: string) => Promise<string>;
@@ -63,6 +64,16 @@ export async function initCommand(): Promise<void> {
     }
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
+    // Check for existing tasks to recover
+    const existingTasks = listTasks(process.cwd());
+    if (existingTasks.length > 0) {
+      console.log(`  ${dim("Recover tasks:")}  ${existingTasks.length} existing task(s) found:`);
+      for (const t of existingTasks) {
+        console.log(`                  - ${t.frontmatter.name || t.frontmatter.user_prompt.slice(0, 50)}`);
+      }
+      console.log();
+    }
+
     const confirm = await ask("Proceed? (Y/n): ");
     if (confirm.trim().toLowerCase() === "n") {
       console.log("\nSetup cancelled.");
@@ -110,6 +121,9 @@ export async function initCommand(): Promise<void> {
     console.log(`Config saved to ${dim("~/.config/palmier/host.json")}`);
 
     getPlatform().installDaemon(config);
+
+    // Task recovery happens in the daemon (palmier serve) on startup,
+    // since the daemon runs elevated and can create S4U scheduled tasks.
 
     console.log("\nStarting pairing...");
     rl.close();

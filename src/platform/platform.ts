@@ -11,6 +11,9 @@ export interface PlatformService {
   /** Restart the `palmier serve` daemon. */
   restartDaemon(): Promise<void>;
 
+  /** Stop the daemon and remove all scheduled tasks/timers. */
+  uninstallDaemon(): void;
+
   /** Install a scheduled trigger (timer) for a task. */
   installTaskTimer(config: HostConfig, task: ParsedTask): void;
 

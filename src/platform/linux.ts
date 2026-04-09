@@ -121,6 +121,32 @@ WantedBy=default.target
     console.log("\nHost initialization complete!");
   }
 
+  uninstallDaemon(): void {
+    try {
+      execSync("systemctl --user stop palmier.service 2>/dev/null", { stdio: "pipe" });
+      execSync("systemctl --user disable palmier.service 2>/dev/null", { stdio: "pipe" });
+    } catch { /* service may not exist */ }
+
+    // Remove daemon service file
+    const servicePath = path.join(UNIT_DIR, "palmier.service");
+    try { fs.unlinkSync(servicePath); } catch { /* ignore */ }
+
+    // Remove all task timers and services
+    try {
+      const files = fs.readdirSync(UNIT_DIR).filter((f) => f.startsWith("palmier-task-"));
+      for (const f of files) {
+        const unit = f.replace(/\.(timer|service)$/, "");
+        try { execSync(`systemctl --user stop ${f} 2>/dev/null`, { stdio: "pipe" }); } catch { /* ignore */ }
+        try { execSync(`systemctl --user disable ${f} 2>/dev/null`, { stdio: "pipe" }); } catch { /* ignore */ }
+        try { fs.unlinkSync(path.join(UNIT_DIR, f)); } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+
+    try { execSync("systemctl --user daemon-reload", { stdio: "pipe" }); } catch { /* ignore */ }
+
+    console.log("Palmier daemon and tasks uninstalled.");
+  }
+
   async restartDaemon(): Promise<void> {
     // If called from a user's terminal, save the current PATH for future use.
     // If called from the daemon (auto-update), read the saved PATH instead.

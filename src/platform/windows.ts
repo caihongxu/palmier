@@ -9,7 +9,6 @@ import { getTaskDir, readTaskStatus } from "../task.js";
 
 const TASK_PREFIX = "\\Palmier\\PalmierTask-";
 const DAEMON_TASK_NAME = "PalmierDaemon";
-const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
 
 
 const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -101,53 +100,53 @@ export class WindowsPlatform implements PlatformService {
     // Create the Task Scheduler entry for the daemon (BootTrigger starts it at system boot)
     this.ensureDaemonTask(script);
 
-    // Remove old Registry Run key if upgrading
-    try {
-      execFileSync("reg", [
-        "delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        "/v", DAEMON_TASK_NAME, "/f",
-      ], { encoding: "utf-8", stdio: "pipe" });
-    } catch { /* key may not exist */ }
-
     // Start the daemon now
     this.startDaemonTask();
 
     console.log("\nHost initialization complete!");
   }
 
-  async restartDaemon(): Promise<void> {
-    const oldPid = fs.existsSync(DAEMON_PID_FILE)
-      ? fs.readFileSync(DAEMON_PID_FILE, "utf-8").trim()
-      : null;
+  uninstallDaemon(): void {
+    const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
 
-    if (oldPid && oldPid === String(process.pid)) {
-      // We ARE the old daemon (auto-update) — spawn replacement then exit.
-      this.startDaemonTask();
-      process.exit(0);
-    }
-
-    // Kill old daemon by PID
-    if (oldPid) {
-      try {
-        execFileSync("taskkill", ["/pid", oldPid, "/f", "/t"], { windowsHide: true, stdio: "pipe" });
-      } catch {
-        // Process may have already exited
-      }
-    }
-
-    // Also kill any stale palmier serve processes (e.g. leftover from a previous daemon)
+    // Stop the daemon via Task Scheduler
     try {
-      const out = execFileSync("wmic", ["process", "where", `CommandLine like '%palmier%serve%' and ProcessId != '${process.pid}'`, "get", "ProcessId"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+      execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+    } catch { /* task may not be running */ }
+
+    // Remove daemon scheduled task (elevated — S4U task requires elevation to delete)
+    try {
+      execFileSync("powershell", [
+        "-Command", `Start-Process -Verb RunAs -Wait -FilePath schtasks -ArgumentList '/delete /tn "${tn}" /f'`,
+      ], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+      console.log("Daemon task removed.");
+    } catch { /* task may not exist */ }
+
+    // Remove all Palmier task timers
+    try {
+      const out = execFileSync("schtasks", ["/query", "/fo", "CSV", "/nh"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
       for (const line of out.split("\n")) {
-        const pid = line.trim();
-        if (pid && /^\d+$/.test(pid)) {
-          try { execFileSync("taskkill", ["/pid", pid, "/f", "/t"], { windowsHide: true, stdio: "pipe" }); } catch {}
+        const match = line.match(/"(\\Palmier\\PalmierTask-[^"]+)"/);
+        if (match) {
+          try { execFileSync("schtasks", ["/end", "/tn", match[1]], { encoding: "utf-8", windowsHide: true, stdio: "pipe" }); } catch { /* ignore */ }
+          try { execFileSync("schtasks", ["/delete", "/tn", match[1], "/f"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" }); } catch { /* ignore */ }
         }
       }
-    } catch {
-      // wmic may not be available on all Windows versions
-    }
+      console.log("Task timers removed.");
+    } catch { /* ignore */ }
 
+    console.log("Palmier daemon and tasks uninstalled.");
+  }
+
+  async restartDaemon(): Promise<void> {
+    const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
+
+    // Stop the daemon via Task Scheduler
+    try {
+      execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+    } catch { /* task may not be running */ }
+
+    // Start it again
     this.startDaemonTask();
   }
 
@@ -172,9 +171,6 @@ export class WindowsPlatform implements PlatformService {
       try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
     }
 
-    // Cleanup old VBS launcher if upgrading
-    const oldVbs = path.join(CONFIG_DIR, "daemon.vbs");
-    try { fs.unlinkSync(oldVbs); } catch { /* ignore */ }
   }
 
   /** Start the daemon via Task Scheduler (runs outside any session's job object). */
@@ -231,8 +227,6 @@ export class WindowsPlatform implements PlatformService {
       try { fs.unlinkSync(xmlPath); } catch { /* ignore */ }
     }
 
-    // Cleanup old VBS launcher if upgrading
-    try { fs.unlinkSync(path.join(CONFIG_DIR, `task-${taskId}.vbs`)); } catch { /* ignore */ }
   }
 
   removeTaskTimer(taskId: string): void {

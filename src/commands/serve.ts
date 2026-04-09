@@ -5,7 +5,7 @@ import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
 import { startHttpTransport } from "../transports/http-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage, listTasks } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -105,6 +105,17 @@ export async function serveCommand(): Promise<void> {
 
   // Reconcile any tasks stuck from before daemon started
   await checkStaleTasks(config, nc);
+
+  // Ensure all tasks have their scheduler entries (recovery after init/reinstall)
+  const platform = getPlatform();
+  const allTasks = listTasks(config.projectRoot);
+  for (const task of allTasks) {
+    try {
+      platform.installTaskTimer(config, task);
+    } catch (err) {
+      console.error(`Warning: failed to install timer for task ${task.frontmatter.id}: ${err}`);
+    }
+  }
 
   // Poll for crashed tasks every 30 seconds
   setInterval(() => {

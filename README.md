@@ -53,6 +53,7 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
+| `palmier uninstall` | Stop daemon and remove all scheduled tasks |
 
 ## Setup
 
@@ -84,12 +85,14 @@ palmier clients revoke-all
 ```
 
 The `init` command:
-- Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI, GitHub Copilot) and caches the result
+- Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI, GitHub Copilot, Qwen Code, Kimi Code, OpenClaw) and caches the result
 - Configures access modes (HTTP port, LAN access)
-- Shows a summary and asks for confirmation before making changes
+- Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
-- Installs a background daemon (systemd user service on Linux, Registry Run key on Windows)
+- Installs a background daemon (systemd user service on Linux, Task Scheduler on Windows)
 - Auto-enters pair mode to connect your first device
+
+The daemon automatically recovers existing tasks by reinstalling their system timers on startup.
 
 Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
 
@@ -125,7 +128,7 @@ palmier restart
 
 ## How It Works
 
-- The host runs as a **background daemon** (systemd user service on Linux, Registry Run key on Windows), staying alive via `palmier serve`.
+- The host runs as a **background daemon** (systemd user service on Linux, Task Scheduler on Windows), staying alive via `palmier serve`.
 - **Device access** — localhost is always trusted (no pairing needed). LAN and server mode devices communicate via direct HTTP or NATS respectively, and must pair via OTP to get a client token.
 - **Tasks** are stored locally as Markdown files in a `tasks/` directory. Each task has a name, prompt, execution plan, and optional schedules (cron schedules or one-time dates).
 - **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
@@ -139,43 +142,30 @@ To fully remove Palmier from a machine:
 
 1. **Unpair your device** in the PWA (via the host menu).
 
-2. **Stop and remove the daemon:**
+2. **Stop the daemon and remove all scheduled tasks:**
+
+   ```bash
+   palmier uninstall
+   ```
+
+3. **Uninstall the package:**
+
+   ```bash
+   npm uninstall -g palmier
+   ```
+
+4. **(Optional) Remove configuration and task data:**
 
    **Linux:**
-   ```bash
-   systemctl --user stop palmier.service
-   systemctl --user disable palmier.service
-   rm ~/.config/systemd/user/palmier.service
-   ```
-
-   **Windows (PowerShell):**
-   ```powershell
-   # Kill the daemon process
-   Get-Content "$env:USERPROFILE\.config\palmier\daemon.pid" | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-   # Remove the Registry Run key
-   Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "PalmierDaemon" -ErrorAction SilentlyContinue
-   ```
-
-3. **Remove any task timers:**
-
-   **Linux:**
-   ```bash
-   systemctl --user stop palmier-task-*.timer palmier-task-*.service 2>/dev/null
-   systemctl --user disable palmier-task-*.timer 2>/dev/null
-   rm -f ~/.config/systemd/user/palmier-task-*.timer ~/.config/systemd/user/palmier-task-*.service
-   systemctl --user daemon-reload
-   ```
-
-   **Windows (PowerShell):**
-   ```powershell
-   schtasks /delete /tn "PalmierTask-*" /f 2>$null
-   ```
-
-4. **Remove configuration and task data:**
-
    ```bash
    rm -rf ~/.config/palmier
-   rm -rf tasks/   # from your Palmier root directory
+   rm -rf ~/palmier   # or wherever your Palmier root directory is
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   Remove-Item -Recurse -Force "$env:USERPROFILE\.config\palmier"
+   Remove-Item -Recurse -Force "$env:USERPROFILE\palmier"   # or wherever your Palmier root directory is
    ```
 
 ## Disclaimer
