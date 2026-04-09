@@ -454,7 +454,11 @@ async function requestPermission(
       permissions: requiredPermissions,
     }),
   });
-  const { response } = await res.json() as { response: "granted" | "granted_all" | "aborted" };
+  const body = await res.json() as { response?: string; error?: string };
+  const response = body.response as "granted" | "granted_all" | "aborted" | undefined;
+  if (!response || !["granted", "granted_all", "aborted"].includes(response)) {
+    throw new Error(`Permission request failed: ${body.error ?? `unexpected response: ${JSON.stringify(body)}`}`);
+  }
   writeTaskStatus(taskDir, {
     running_state: response === "aborted" ? "aborted" : "started",
     time_stamp: Date.now(),
@@ -474,7 +478,11 @@ async function requestConfirmation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ taskId: task.frontmatter.id, taskName: task.frontmatter.name }),
   });
-  const { confirmed } = await res.json() as { confirmed: boolean };
+  const body = await res.json() as { confirmed?: boolean; error?: string };
+  if (typeof body.confirmed !== "boolean") {
+    throw new Error(`Confirmation request failed: ${body.error ?? `unexpected response: ${JSON.stringify(body)}`}`);
+  }
+  const { confirmed } = body;
   writeTaskStatus(taskDir, {
     running_state: confirmed ? "started" : "aborted",
     time_stamp: Date.now(),

@@ -127,13 +127,26 @@ export class WindowsPlatform implements PlatformService {
       process.exit(0);
     }
 
-    // Kill old daemon first, then spawn new one.
+    // Kill old daemon by PID
     if (oldPid) {
       try {
         execFileSync("taskkill", ["/pid", oldPid, "/f", "/t"], { windowsHide: true, stdio: "pipe" });
       } catch {
         // Process may have already exited
       }
+    }
+
+    // Also kill any stale palmier serve processes (e.g. leftover from a previous daemon)
+    try {
+      const out = execFileSync("wmic", ["process", "where", `CommandLine like '%palmier%serve%' and ProcessId != '${process.pid}'`, "get", "ProcessId"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
+      for (const line of out.split("\n")) {
+        const pid = line.trim();
+        if (pid && /^\d+$/.test(pid)) {
+          try { execFileSync("taskkill", ["/pid", pid, "/f", "/t"], { windowsHide: true, stdio: "pipe" }); } catch {}
+        }
+      }
+    } catch {
+      // wmic may not be available on all Windows versions
     }
 
     this.startDaemonTask();
