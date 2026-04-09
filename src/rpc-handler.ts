@@ -11,7 +11,7 @@ import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
 import { getAgent } from "./agents/agent.js";
-import { validateSession } from "./session-store.js";
+import { validateClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
@@ -166,8 +166,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   }
 
   async function handleRpc(request: RpcMessage): Promise<unknown> {
-    // Session token validation: skip for trusted localhost requests
-    if (!request.localhost && (!request.sessionToken || !validateSession(request.sessionToken))) {
+    // Client token validation: skip for trusted localhost requests
+    if (!request.localhost && (!request.clientToken || !validateClient(request.clientToken))) {
       return { error: "Unauthorized" };
     }
 

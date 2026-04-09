@@ -46,9 +46,9 @@ All `palmier` commands should be run from a dedicated Palmier root directory (e.
 |---|---|
 | `palmier init` | Interactive setup wizard |
 | `palmier pair` | Generate an OTP code to pair a new device |
-| `palmier sessions list` | List active session tokens |
-| `palmier sessions revoke <token>` | Revoke a specific session token |
-| `palmier sessions revoke-all` | Revoke all session tokens |
+| `palmier clients list` | List active client tokens |
+| `palmier clients revoke <token>` | Revoke a specific client token |
+| `palmier clients revoke-all` | Revoke all client tokens |
 | `palmier info` | Show host connection info (address, mode) |
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
@@ -70,17 +70,17 @@ Local access (`http://localhost:<port>`) works immediately — no pairing needed
 
 For LAN or server mode, run `palmier pair` on the host to generate an OTP code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or `https://app.palmier.me` (server mode).
 
-### Managing sessions
+### Managing clients
 
 ```bash
 # List all paired devices
-palmier sessions list
+palmier clients list
 
 # Revoke a specific device's access
-palmier sessions revoke <token>
+palmier clients revoke <token>
 
-# Revoke all sessions (unpair all devices)
-palmier sessions revoke-all
+# Revoke all clients (unpair all devices)
+palmier clients revoke-all
 ```
 
 The `init` command:
@@ -126,7 +126,7 @@ palmier restart
 ## How It Works
 
 - The host runs as a **background daemon** (systemd user service on Linux, Registry Run key on Windows), staying alive via `palmier serve`.
-- **Device access** — localhost is always trusted (no pairing needed). LAN and server mode devices communicate via direct HTTP or NATS respectively, and must pair via OTP to get a session token.
+- **Device access** — localhost is always trusted (no pairing needed). LAN and server mode devices communicate via direct HTTP or NATS respectively, and must pair via OTP to get a client token.
 - **Tasks** are stored locally as Markdown files in a `tasks/` directory. Each task has a name, prompt, execution plan, and optional schedules (cron schedules or one-time dates).
 - **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
 - **Schedules** are backed by systemd timers (Linux) or Task Scheduler (Windows). You can enable/disable them without deleting the task, and any task can still be run manually at any time.

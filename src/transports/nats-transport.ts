@@ -50,15 +50,15 @@ export async function startNatsTransport(
       }
     }
 
-    // Extract sessionToken from params (PWA includes it in the payload)
-    const sessionToken = typeof params.sessionToken === "string" ? params.sessionToken : undefined;
-    delete params.sessionToken;
+    // Extract clientToken from params (PWA includes it in the payload)
+    const clientToken = typeof params.clientToken === "string" ? params.clientToken : undefined;
+    delete params.clientToken;
 
     console.log(`[nats] RPC: ${method}`);
 
     let response: unknown;
     try {
-      response = await handleRpc({ method, params, sessionToken });
+      response = await handleRpc({ method, params, clientToken });
     } catch (err) {
       console.error(`[nats] RPC error (${method}):`, err);
       response = { error: String(err) };

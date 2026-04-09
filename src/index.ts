@@ -12,7 +12,7 @@ import { serveCommand } from "./commands/serve.js";
 
 import { pairCommand } from "./commands/pair.js";
 import { restartCommand } from "./commands/restart.js";
-import { sessionsListCommand, sessionsRevokeCommand, sessionsRevokeAllCommand } from "./commands/sessions.js";
+import { clientsListCommand, clientsRevokeCommand, clientsRevokeAllCommand } from "./commands/clients.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
@@ -68,29 +68,29 @@ program
   });
 
 
-const sessionsCmd = program
-  .command("sessions")
-  .description("Manage paired client sessions");
+const clientsCmd = program
+  .command("clients")
+  .description("Manage paired clients");
 
-sessionsCmd
+clientsCmd
   .command("list")
-  .description("List active sessions")
+  .description("List active clients")
   .action(async () => {
-    await sessionsListCommand();
+    await clientsListCommand();
   });
 
-sessionsCmd
+clientsCmd
   .command("revoke <token>")
-  .description("Revoke a session by token")
+  .description("Revoke a client by token")
   .action(async (token: string) => {
-    await sessionsRevokeCommand(token);
+    await clientsRevokeCommand(token);
   });
 
-sessionsCmd
+clientsCmd
   .command("revoke-all")
-  .description("Revoke all sessions")
+  .description("Revoke all clients")
   .action(async () => {
-    await sessionsRevokeAllCommand();
+    await clientsRevokeAllCommand();
   });
 
 // No subcommand → default to serve

@@ -79,7 +79,7 @@ export interface ConversationMessage {
 export interface RpcMessage {
   method: string;
   params: Record<string, unknown>;
-  sessionToken?: string;
-  /** Trusted localhost request — skip session validation. */
+  clientToken?: string;
+  /** Trusted localhost request — skip client validation. */
   localhost?: boolean;
 }

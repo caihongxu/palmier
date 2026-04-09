@@ -1,7 +1,7 @@
 import * as http from "node:http";
 import * as os from "os";
 import { StringCodec, type NatsConnection } from "nats";
-import { validateSession, addSession } from "../session-store.js";
+import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
 import { getTaskDir, parseTaskFile, spliceUserMessage } from "../task.js";
@@ -145,10 +145,10 @@ export async function startHttpTransport(
   function checkAuth(req: http.IncomingMessage): boolean {
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith("Bearer ")) return false;
-    return validateSession(auth.slice(7));
+    return validateClient(auth.slice(7));
   }
 
-  function extractSessionToken(req: http.IncomingMessage): string | undefined {
+  function extractClientToken(req: http.IncomingMessage): string | undefined {
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith("Bearer ")) return undefined;
     return auth.slice(7);
@@ -394,11 +394,11 @@ export async function startHttpTransport(
         const pending = pendingPairs.get(code);
         if (!pending) { sendJson(res, 401, { error: "Invalid code" }); return; }
 
-        const session = addSession(label);
+        const client = addClient(label);
         const ip = detectLanIp();
         const response: Record<string, unknown> = {
           hostId: config.hostId,
-          sessionToken: session.token,
+          clientToken: client.token,
           directUrl: `http://${ip}:${port}`,
         };
 
@@ -476,11 +476,11 @@ export async function startHttpTransport(
         }
       } catch { sendJson(res, 400, { error: "Invalid JSON" }); return; }
 
-      const sessionToken = extractSessionToken(req);
+      const clientToken = extractClientToken(req);
       console.log(`[http] RPC: ${method}`);
 
       try {
-        const response = await handleRpc({ method, params, sessionToken, localhost: isLocalhost(req) });
+        const response = await handleRpc({ method, params, clientToken, localhost: isLocalhost(req) });
         console.log(`[http] RPC done: ${method}`, JSON.stringify(response).slice(0, 200));
         sendJson(res, 200, response);
       } catch (err) {

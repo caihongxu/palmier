@@ -1,12 +1,12 @@
 import { loadConfig } from "../config.js";
-import { loadSessions } from "../session-store.js";
+import { loadClients } from "../client-store.js";
 
 /**
  * Print host connection info for setting up clients.
  */
 export async function infoCommand(): Promise<void> {
   const config = loadConfig();
-  const sessions = loadSessions();
+  const clients = loadClients();
 
   console.log(`Host ID:      ${config.hostId}`);
   console.log(`Project root: ${config.projectRoot}`);
@@ -18,10 +18,10 @@ export async function infoCommand(): Promise<void> {
     console.log(`Agents:       (none detected — run \`palmier agents\`)`);
   }
 
-  // Sessions
-  console.log(`Sessions:     ${sessions.length} active`);
+  // Clients
+  console.log(`Clients:      ${clients.length} active`);
 
-  if (sessions.length === 0) {
+  if (clients.length === 0) {
     console.log("");
     console.log("No paired clients. Run `palmier pair` to connect a device.");
   }
