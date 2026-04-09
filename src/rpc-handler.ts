@@ -151,10 +151,17 @@ const activeFollowups = new Map<string, ChildProcess>();
 export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
+    const status = readTaskStatus(taskDir);
+    const pending = getPending(task.frontmatter.id);
     return {
       ...task.frontmatter,
       body: task.body,
-      status: readTaskStatus(taskDir),
+      status: status ? {
+        ...status,
+        ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
+        ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
+        ...(pending?.type === "input" ? { pending_input: pending.params } : {}),
+      } : undefined,
     };
   }
 

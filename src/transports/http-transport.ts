@@ -262,6 +262,8 @@ export async function startHttpTransport(
         const taskDir = getTaskDir(config.projectRoot, taskId);
         const task = parseTaskFile(taskDir);
 
+        const pendingPromise = registerPending(taskId, "input", descriptions);
+
         await publishEvent(taskId, {
           event_type: "input-request",
           host_id: config.hostId,
@@ -269,7 +271,7 @@ export async function startHttpTransport(
           name: task.frontmatter.name,
         });
 
-        const response = await registerPending(taskId, "input", descriptions);
+        const response = await pendingPromise;
 
         if (response.length === 1 && response[0] === "aborted") {
           await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "aborted" });
@@ -300,12 +302,14 @@ export async function startHttpTransport(
         const { taskId } = JSON.parse(body) as { taskId: string };
         if (!taskId) { sendJson(res, 400, { error: "taskId is required" }); return; }
 
+        const pendingPromise = registerPending(taskId, "confirmation");
+
         await publishEvent(taskId, {
           event_type: "confirm-request",
           host_id: config.hostId,
         });
 
-        const response = await registerPending(taskId, "confirmation");
+        const response = await pendingPromise;
         const confirmed = response[0] === "confirmed";
 
         await publishEvent(taskId, {
@@ -335,6 +339,8 @@ export async function startHttpTransport(
           return;
         }
 
+        const pendingPromise = registerPending(taskId, "permission", permissions);
+
         await publishEvent(taskId, {
           event_type: "permission-request",
           host_id: config.hostId,
@@ -342,7 +348,7 @@ export async function startHttpTransport(
           name: taskName,
         });
 
-        const response = await registerPending(taskId, "permission", permissions);
+        const response = await pendingPromise;
         const status = response[0] as "granted" | "granted_all" | "aborted";
 
         await publishEvent(taskId, {
