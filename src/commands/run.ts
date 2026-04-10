@@ -123,7 +123,7 @@ async function invokeAgentWithRetries(
         await appendAndNotify(ctx, {
           role: "user",
           time: Date.now(),
-          content: "Denied",
+          content: "Deny & Abort Task",
           type: "permission",
         });
         return { outcome: "failed" };
@@ -137,7 +137,7 @@ async function invokeAgentWithRetries(
       await appendAndNotify(ctx, {
         role: "user",
         time: Date.now(),
-        content: response === "granted_all" ? "Granted for all" : "Granted",
+        content: response === "granted_all" ? "Allow Always" : "Allow Once",
         type: "permission",
       });
 
