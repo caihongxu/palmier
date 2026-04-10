@@ -110,7 +110,6 @@ export function spawnCommand(
       if (opts.onData) opts.onData(d.toString("utf-8"));
     });
     child.stderr!.on("data", (d: Buffer) => {
-      chunks.push(d);
       process.stderr.write(d);
       if (opts.onData) opts.onData(d.toString("utf-8"));
     });
