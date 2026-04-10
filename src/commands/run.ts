@@ -237,14 +237,20 @@ export async function runCommand(taskId: string): Promise<void> {
     // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
       const confirmed = await requestConfirmation(config, task, taskDir);
+      const confirmPrompt = `**Task Confirmation**\n\nRun task "${taskName || task.frontmatter.user_prompt}"?`;
+      appendRunMessage(taskDir, runId, { role: "assistant", time: Date.now(), content: confirmPrompt, type: "confirmation" });
+      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+
       if (!confirmed) {
         console.log("Task aborted by user.");
+        appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: "Aborted", type: "confirmation" });
         appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "aborted" });
         await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, runId);
         await cleanup();
         return;
       }
       console.log("Task confirmed by user.");
+      appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: "Confirmed", type: "confirmation" });
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "confirmation" });
       await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
     }
