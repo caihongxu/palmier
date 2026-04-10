@@ -22,7 +22,7 @@ The serve daemon always runs a local HTTP server. Three access modes are availab
 
 **Local mode** is always available. The PWA is served at `http://localhost:<port>` and works without pairing or internet. The daemon binds to `127.0.0.1` by default.
 
-**LAN mode** is enabled during `palmier init`. The daemon binds to `0.0.0.0` instead, making the PWA and API endpoints accessible from the local network at `http://<host-ip>:<port>`. Devices must pair via OTP to access. Push notifications are not available.
+**LAN mode** can be enabled during `palmier init`. The daemon binds to `0.0.0.0` instead, making the PWA and API endpoints accessible from the local network at `http://<host-ip>:<port>`. Devices must pair via OTP to access. Push notifications are not available.
 
 **Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io), a lightweight messaging system). All features including push notifications are available. The PWA is served over HTTPS. Server mode and LAN mode can be active at the same time.
 
