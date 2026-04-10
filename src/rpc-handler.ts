@@ -182,6 +182,17 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         };
       }
 
+      case "task.get": {
+        const params = request.params as { id: string };
+        const taskDir = getTaskDir(config.projectRoot, params.id);
+        try {
+          const task = parseTaskFile(taskDir);
+          return flattenTask(task);
+        } catch {
+          return { error: "Task not found" };
+        }
+      }
+
       case "task.create": {
         const params = request.params as {
           user_prompt: string;
