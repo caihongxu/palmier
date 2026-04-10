@@ -16,8 +16,7 @@ export class CodexAgent implements AgentTool {
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
     const prompt = followupPrompt ?? (getAgentInstructions(task.frontmatter.id, yolo || !this.supportsPermissions) + "\n\n" + (task.body || task.frontmatter.user_prompt));
-    // Using danger-full-access until workspace-write is fixed: https://github.com/openai/codex/issues/12572
-    const args = ["exec", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
+    const args = ["exec", "--skip-git-repo-check", "--sandbox", yolo ? "danger-full-access" : "workspace-write"];
 
     if (!yolo) {
       const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
