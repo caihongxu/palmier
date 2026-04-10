@@ -178,6 +178,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
           version: currentVersion,
+          host_platform: process.platform,
         };
       }
 
@@ -189,6 +190,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           triggers_enabled?: boolean;
           requires_confirmation?: boolean;
           yolo_mode?: boolean;
+          foreground_mode?: boolean;
           command?: string;
         };
 
@@ -220,6 +222,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             triggers_enabled: params.triggers_enabled ?? true,
             requires_confirmation: params.requires_confirmation ?? true,
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
+            ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
           body,
@@ -241,6 +244,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           triggers_enabled?: boolean;
           requires_confirmation?: boolean;
           yolo_mode?: boolean;
+          foreground_mode?: boolean;
           command?: string;
         };
 
@@ -263,6 +267,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           existing.frontmatter.yolo_mode = params.yolo_mode || undefined;
           if (params.yolo_mode) delete existing.frontmatter.permissions;
         }
+        if (params.foreground_mode !== undefined) existing.frontmatter.foreground_mode = params.foreground_mode || undefined;
         if (params.command !== undefined) {
           if (params.command) {
             existing.frontmatter.command = params.command;
@@ -310,6 +315,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           agent: string;
           requires_confirmation?: boolean;
           yolo_mode?: boolean;
+          foreground_mode?: boolean;
           command?: string;
         };
 
@@ -326,6 +332,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             triggers_enabled: false,
             requires_confirmation: params.requires_confirmation ?? false,
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
+            ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
           body: "",

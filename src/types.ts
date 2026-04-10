@@ -24,6 +24,7 @@ export interface TaskFrontmatter {
   triggers_enabled: boolean;
   requires_confirmation: boolean;
   yolo_mode?: boolean;
+  foreground_mode?: boolean;
   permissions?: RequiredPermission[];
   command?: string;
 }

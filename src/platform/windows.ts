@@ -58,7 +58,7 @@ export function triggerToXml(trigger: { type: string; value: string }): string {
 /**
  * Build a complete Task Scheduler XML definition.
  */
-export function buildTaskXml(tr: string, triggers: string[]): string {
+export function buildTaskXml(tr: string, triggers: string[], foreground?: boolean): string {
   const [command, ...argParts] = tr.match(/"[^"]*"|[^\s]+/g) ?? [];
   const commandStr = command?.replace(/"/g, "") ?? "";
   const argsStr = argParts.map((a) => a.replace(/"/g, "")).join(" ");
@@ -68,7 +68,7 @@ export function buildTaskXml(tr: string, triggers: string[]): string {
     `<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">`,
     `  <Principals>`,
     `    <Principal>`,
-    `      <LogonType>S4U</LogonType>`,
+    `      <LogonType>${foreground ? "InteractiveToken" : "S4U"}</LogonType>`,
     `      <RunLevel>LeastPrivilege</RunLevel>`,
     `    </Principal>`,
     `  </Principals>`,
@@ -209,9 +209,9 @@ export class WindowsPlatform implements PlatformService {
 
     // Write XML and register via schtasks — gives us full control over
     // settings like MultipleInstancesPolicy that schtasks flags don't expose.
-    // S4U LogonType ensures no console window. Works without elevation
-    // because the daemon (which calls this) runs elevated.
-    const xml = buildTaskXml(tr, triggerElements);
+    // S4U LogonType ensures no console window (unless foreground_mode is set).
+    // Works without elevation because the daemon (which calls this) runs elevated.
+    const xml = buildTaskXml(tr, triggerElements, task.frontmatter.foreground_mode);
     const xmlPath = path.join(CONFIG_DIR, `task-${taskId}.xml`);
     try {
       // schtasks /xml requires UTF-16LE with BOM
