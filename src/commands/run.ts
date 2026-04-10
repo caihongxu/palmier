@@ -106,6 +106,15 @@ async function invokeAgentWithRetries(
     writer.end(reportFiles.length > 0 ? reportFiles : undefined);
     await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
+    if (reportFiles.length > 0) {
+      await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, {
+        event_type: "report-generated",
+        run_id: ctx.runId,
+        name: ctx.task.frontmatter.name,
+        report_files: reportFiles,
+      });
+    }
+
     // Permission handling — agent requested permissions
     if (requiredPermissions.length > 0) {
       const response = await requestPermission(ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
