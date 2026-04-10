@@ -52,7 +52,10 @@ function parseResultFrontmatter(raw: string): Record<string, unknown> {
   const activeStates = ["started", "monitoring", "confirmation"];
   let runningState: string | undefined;
   if (lastStatus?.type === "monitoring") {
-    runningState = "monitoring";
+    // Only show monitoring if no assistant/user message came after it
+    const lastStatusIdx = messages.lastIndexOf(lastStatus);
+    const hasMessageAfter = messages.slice(lastStatusIdx + 1).some((m: ConversationMessage) => m.role === "assistant" || m.role === "user");
+    runningState = hasMessageAfter ? "started" : "monitoring";
   } else if (activeStates.includes(lastStatus?.type ?? "")) {
     runningState = terminalMsg ? "followup" : "started";
   } else {
