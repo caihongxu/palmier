@@ -375,6 +375,10 @@ async function runCommandTriggeredMode(
       invocationsFailed++;
     }
     appendLog(line, "", result.outcome);
+
+    // Append monitoring status so the UI shows the task is waiting for more input
+    appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
+    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
   }
 
   async function drainQueue(): Promise<void> {
