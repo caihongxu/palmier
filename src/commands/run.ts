@@ -499,6 +499,8 @@ async function requestConfirmation(
  * Extract report file names from agent output.
  * Looks for lines matching: [PALMIER_REPORT] <filename>
  */
+const ALLOWED_REPORT_EXT = [".md", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
+
 export function parseReportFiles(output: string): string[] {
   const regex = new RegExp(`^\\${TASK_REPORT_PREFIX}\\s+(.+)$`, "gm");
   const files: string[] = [];
@@ -506,7 +508,10 @@ export function parseReportFiles(output: string): string[] {
   while ((match = regex.exec(output)) !== null) {
     const name = match[1].trim();
     // Skip placeholder examples echoed from the prompt (e.g. "<filename>")
-    if (name && !name.startsWith("<")) files.push(name);
+    if (!name || name.startsWith("<")) continue;
+    const ext = name.lastIndexOf(".") >= 0 ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
+    if (!ALLOWED_REPORT_EXT.includes(ext)) continue;
+    files.push(name);
   }
   return files;
 }

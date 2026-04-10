@@ -577,11 +577,14 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.run_id || !Array.isArray(params.report_files) || params.report_files.length === 0) {
           return { error: "run_id and report_files are required" };
         }
-        const reports: Array<{ file: string; content?: string; error?: string }> = [];
+        const ALLOWED_EXT = [".md", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
+        const IMAGE_EXT = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
+        const reports: Array<{ file: string; content?: string; data_url?: string; error?: string }> = [];
         const runDir = path.join(config.projectRoot, "tasks", params.id, params.run_id);
         for (const file of params.report_files) {
-          if (!file.endsWith(".md") && !file.endsWith(".txt")) {
-            reports.push({ file, error: "must end with .md or .txt" });
+          const ext = path.extname(file).toLowerCase();
+          if (!ALLOWED_EXT.includes(ext)) {
+            reports.push({ file, error: `unsupported file type: ${ext}` });
             continue;
           }
           const basename = path.basename(file);
@@ -591,8 +594,14 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
           const reportPath = path.join(runDir, basename);
           try {
-            const content = fs.readFileSync(reportPath, "utf-8");
-            reports.push({ file, content });
+            if (IMAGE_EXT.includes(ext)) {
+              const buf = fs.readFileSync(reportPath);
+              const mime = ext === ".svg" ? "image/svg+xml" : `image/${ext.slice(1).replace("jpg", "jpeg")}`;
+              reports.push({ file, data_url: `data:${mime};base64,${buf.toString("base64")}` });
+            } else {
+              const content = fs.readFileSync(reportPath, "utf-8");
+              reports.push({ file, content });
+            }
           } catch {
             reports.push({ file, error: "Report file not found" });
           }
