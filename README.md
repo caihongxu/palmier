@@ -55,6 +55,16 @@ Local always works. Enable LAN and/or Server mode during `palmier init`.
 
 **Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io)). All features including push notifications are available. Server mode and LAN mode can be active at the same time.
 
+## Security & Privacy
+
+**Local mode** — all traffic stays on `127.0.0.1`. No data leaves your machine.
+
+**LAN mode** — traffic stays on your local network. Devices must pair with a one-time pairing code before they can access the host. Unpaired requests are rejected.
+
+**Server mode** — communication between your device and host is relayed through the Palmier cloud server over TLS-encrypted NATS connections. The server acts as a passthrough relay only — it does not store, log, or inspect any user data, task content, or agent output. The only data the server persists is a host registration ID used for message routing and Web Push subscription info for delivering notifications. See the [Privacy Policy](https://www.palmier.me/privacy) for full details.
+
+In all modes, client tokens are generated and validated entirely on your host. The Palmier server never sees or stores them.
+
 ## Setup Details
 
 ### Pairing Devices
