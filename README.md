@@ -49,7 +49,7 @@ Local always works. Enable LAN and/or Server mode during `palmier init`.
 |------|-----------|-----|---------|----------|
 | **Local** | HTTP (localhost) | `http://localhost:<port>` | Not required | Full access from the host machine, no internet needed |
 | **LAN** | HTTP (direct) | `http://<host-ip>:<port>` | Required | Access from other devices on the local network |
-| **Server** | Cloud relay (NATS) | [app.palmier.me](https://app.palmier.me) | Required | Push notifications, remote access from anywhere |
+| **Server** | Cloud relay (NATS) | [https://app.palmier.me](https://app.palmier.me) | Required | Push notifications, remote access from anywhere |
 
 **LAN mode** binds the daemon to `0.0.0.0` so the PWA is accessible from other devices on your network. Devices must pair with a pairing code.
 
@@ -61,7 +61,7 @@ Local always works. Enable LAN and/or Server mode during `palmier init`.
 
 Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
-For LAN or server mode, run `palmier pair` on the host to generate a pairing code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or [app.palmier.me](https://app.palmier.me) (server mode).
+For LAN or server mode, run `palmier pair` on the host to generate a pairing code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or [https://app.palmier.me](https://app.palmier.me) (server mode).
 
 ### Managing Clients
 
