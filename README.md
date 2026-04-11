@@ -13,7 +13,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## Quick Start
 
-1. Install a supported agent CLI — [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), or [others](https://www.palmier.me/agents).
+1. Install a supported agent CLI — [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents).
 2. Install Palmier:
    ```bash
    npm install -g palmier
