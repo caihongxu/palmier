@@ -6,13 +6,49 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
 
-A Node.js CLI that lets you dispatch your own AI agents from your phone. It runs on your machine as a persistent daemon, letting you create, schedule, and monitor agent tasks from any device via a cloud relay (NATS) and/or direct HTTP.
+You have AI agents on your machine. But you have to sit at your desk to use them. Palmier lets you dispatch, schedule, and monitor them from your phone — or anywhere.
+
+It runs on your machine as a background daemon and connects to a mobile-friendly PWA, so you can create tasks, approve permissions, and check results without being at your computer.
+
+<p align="center">
+  <img src="screenshot.png" alt="Palmier task list" width="260" />
+</p>
 
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 
+## Quick Start
+
+1. Install a supported agent CLI — [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), or [others](https://www.palmier.me/agents).
+2. Install Palmier:
+   ```bash
+   npm install -g palmier
+   ```
+3. Run the setup wizard from your Palmier root directory (e.g., `~/palmier`):
+   ```bash
+   palmier init
+   ```
+   This detects your agents, configures access, installs the background daemon, and starts pairing.
+4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
+5. To access from other devices, enter the OTP code shown after init into the PWA.
+
+### Prerequisites
+
+- **Node.js 24+**
+- **Linux with systemd** or **Windows 10/11** (macOS coming soon)
+- At least one supported agent CLI
+
+## How It Works
+
+- The host runs as a **background daemon** (systemd user service on Linux, Task Scheduler on Windows), staying alive via `palmier serve`.
+- **Tasks** are stored locally as Markdown files. Each task has a prompt, execution plan, and optional schedules.
+- **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
+- **Schedules** are backed by systemd timers (Linux) or Task Scheduler (Windows). You can enable/disable them without deleting the task, and any task can still be run manually at any time.
+- **Command-triggered tasks** — optionally specify a shell command (e.g., `tail -f /var/log/app.log`). Palmier runs the command continuously and invokes the agent for each line of stdout, passing it alongside your prompt. Useful for log monitoring, event-driven automation, and reactive workflows.
+- **Agent HTTP endpoints** — the daemon exposes localhost-only endpoints (`/notify`, `/request-input`) that agents call to send push notifications and request user input during task execution.
+
 ## Access Modes
 
-The serve daemon always runs a local HTTP server. Three access modes are available:
+Local always works. Enable LAN and/or Server mode during `palmier init`.
 
 | Mode | Transport | URL | Pairing | Features |
 |------|-----------|-----|---------|----------|
@@ -20,58 +56,19 @@ The serve daemon always runs a local HTTP server. Three access modes are availab
 | **LAN** | HTTP (direct) | `http://<host-ip>:<port>` | Required | Access from other devices on the local network |
 | **Server** | Cloud relay (NATS) | `https://app.palmier.me` | Required | Push notifications, remote access from anywhere |
 
-**Local mode** is always available. The PWA is served at `http://localhost:<port>` and works without pairing or internet. The daemon binds to `127.0.0.1` by default.
+**LAN mode** binds the daemon to `0.0.0.0` so the PWA is accessible from other devices on your network. Devices must pair via OTP.
 
-**LAN mode** can be enabled during `palmier init`. The daemon binds to `0.0.0.0` instead, making the PWA and API endpoints accessible from the local network at `http://<host-ip>:<port>`. Devices must pair via OTP to access. Push notifications are not available.
+**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io)). All features including push notifications are available. Server mode and LAN mode can be active at the same time.
 
-**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io), a lightweight messaging system). All features including push notifications are available. The PWA is served over HTTPS. Server mode and LAN mode can be active at the same time.
+## Setup Details
 
-## Prerequisites
-
-- **Node.js 24+**
-- An agent CLI tool for task execution (e.g., Claude Code, Gemini CLI, OpenAI Codex, GitHub Copilot)
-- **Linux with systemd** or **Windows 10/11**
-
-## Installation
-
-```bash
-npm install -g palmier
-```
-
-All `palmier` commands should be run from a dedicated Palmier root directory (e.g., `~/palmier`). This is where tasks, configuration, and execution data are stored.
-
-## CLI Commands
-
-| Command | Description |
-|---|---|
-| `palmier init` | Interactive setup wizard |
-| `palmier pair` | Generate an OTP code to pair a new device |
-| `palmier clients list` | List active client tokens |
-| `palmier clients revoke <token>` | Revoke a specific client token |
-| `palmier clients revoke-all` | Revoke all client tokens |
-| `palmier info` | Show host connection info (address, mode) |
-| `palmier serve` | Run the persistent RPC handler (default command) |
-| `palmier restart` | Restart the palmier serve daemon |
-| `palmier run <task-id>` | Execute a specific task |
-| `palmier uninstall` | Stop daemon and remove all scheduled tasks |
-
-## Setup
-
-### Quick Start
-
-1. Install the host: `npm install -g palmier`
-2. Run `palmier init` in your Palmier root directory (e.g., `~/palmier`).
-3. The wizard detects installed agents, configures access modes, registers with the Palmier server, and installs a background daemon.
-4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
-5. To access from other devices, pair via `palmier pair` (run automatically after init).
-
-### Pairing devices
+### Pairing Devices
 
 Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
 For LAN or server mode, run `palmier pair` on the host to generate an OTP code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or `https://app.palmier.me` (server mode).
 
-### Managing clients
+### Managing Clients
 
 ```bash
 # List all paired devices
@@ -84,8 +81,10 @@ palmier clients revoke <token>
 palmier clients revoke-all
 ```
 
-The `init` command:
-- Detects installed agent CLIs (Claude Code, Gemini CLI, Codex CLI, GitHub Copilot, Qwen Code, Kimi Code, OpenClaw) and caches the result
+### The `init` Command
+
+The wizard:
+- Detects installed agent CLIs and caches the result
 - Configures access modes (HTTP port, LAN access)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
@@ -126,15 +125,20 @@ Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.Command
 palmier restart
 ```
 
-## How It Works
+## CLI Reference
 
-- The host runs as a **background daemon** (systemd user service on Linux, Task Scheduler on Windows), staying alive via `palmier serve`.
-- **Device access** — localhost is always trusted (no pairing needed). LAN and server mode devices communicate via direct HTTP or NATS respectively, and must pair via OTP to get a client token.
-- **Tasks** are stored locally as Markdown files in a `tasks/` directory. Each task has a name, prompt, execution plan, and optional schedules (cron schedules or one-time dates).
-- **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
-- **Schedules** are backed by systemd timers (Linux) or Task Scheduler (Windows). You can enable/disable them without deleting the task, and any task can still be run manually at any time.
-- **Command-triggered tasks** — optionally specify a shell command (e.g., `tail -f /var/log/app.log`). Palmier runs the command continuously and invokes the agent for each line of stdout, passing it alongside your prompt. Useful for log monitoring, event-driven automation, and reactive workflows.
-- **Agent HTTP endpoints** — the serve daemon exposes localhost-only endpoints (`/notify`, `/request-input`) that agents call to send push notifications and request user input during task execution.
+| Command | Description |
+|---|---|
+| `palmier init` | Interactive setup wizard |
+| `palmier pair` | Generate an OTP code to pair a new device |
+| `palmier clients list` | List active client tokens |
+| `palmier clients revoke <token>` | Revoke a specific client token |
+| `palmier clients revoke-all` | Revoke all client tokens |
+| `palmier info` | Show host connection info (address, mode) |
+| `palmier serve` | Run the persistent RPC handler (default command) |
+| `palmier restart` | Restart the palmier serve daemon |
+| `palmier run <task-id>` | Execute a specific task |
+| `palmier uninstall` | Stop daemon and remove all scheduled tasks |
 
 ## Uninstalling
 
