@@ -14,8 +14,8 @@ task_name: <concise label, 3-6 words>
 
 - Write a numbered sequence of concrete, actionable steps.
 - If the task produces formatted output (report, email, summary, etc.), specify the structure, sections, and tone.
-- When a step requires user input, simply state what information is needed from the user. Do not specify how to obtain it — the agent has its own tool for requesting user input.
-- Relative times in the task description (e.g., "today", "yesterday", "last week") refer to execution time, not plan generation time. Keep them as-is in the plan — do not convert them to specific dates.
+- When a step requires user input, simply state what information is needed from the user. Do **not** specify how to obtain it — the agent has its own tool for requesting user input.
+- Preserve relative time expressions (e.g., "today", "yesterday", "last week") exactly as written — do **not** resolve them to specific dates. The plan may be executed on a different day than it was generated.
 
 ## Task Description
 
