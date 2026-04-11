@@ -9,6 +9,7 @@ import { QwenAgent } from "./qwen.js";
 import { KimiAgent } from "./kimi.js";
 import { GooseAgent } from "./goose.js";
 import { OpenCodeAgent } from "./opencode.js";
+import { DeepAgents } from "./deepagents.js";
 
 export interface CommandLine {
   command: string;
@@ -53,6 +54,7 @@ const agentRegistry: Record<string, AgentTool> = {
   droid: new DroidAgent(),
   goose: new GooseAgent(),
   opencode: new OpenCodeAgent(),
+  deepagents: new DeepAgents(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -66,6 +68,7 @@ const agentLabels: Record<string, string> = {
   kimi: "Kimi Code",
   goose: "Goose CLI",
   opencode: "OpenCode",
+  deepagents: "DeepAgents",
 };
 
 export interface DetectedAgent {
