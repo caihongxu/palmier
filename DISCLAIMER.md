@@ -4,7 +4,7 @@
 
 ## AI Agent Execution
 
-Palmier spawns third-party AI agent CLIs (such as Claude Code, Gemini CLI, and Codex CLI) that can:
+Palmier spawns third-party AI agent CLIs (such as Claude Code, Gemini CLI, Codex CLI, GitHub Copilot, and others) that can:
 
 - **Read, create, modify, and delete files** on your machine
 - **Execute arbitrary shell commands** with your user permissions
@@ -23,7 +23,7 @@ Tasks can be configured to run on schedules (cron) or in response to events with
 
 ## Third-Party Services
 
-Task prompts and execution data may be transmitted to third-party AI service providers (Anthropic, Google, OpenAI, etc.) according to their respective terms and privacy policies. Palmier does not control how these services process your data.
+Task prompts and execution data may be transmitted to third-party AI service providers (Anthropic, Google, OpenAI, etc.) according to their respective terms and privacy policies. Palmier does not install and has no control over how these services process your data.
 
 When using server mode, communication between your device and the host is relayed through the Palmier server. See the [Privacy Policy](https://www.palmier.me/privacy) for details on what data is collected.
 
