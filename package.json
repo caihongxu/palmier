@@ -1,6 +1,6 @@
 {
   "name": "palmier",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Palmier host CLI - provisions, executes tasks, and serves NATS RPC",
   "license": "Apache-2.0",
   "author": "Hongxu Cai",
