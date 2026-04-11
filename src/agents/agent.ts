@@ -2,6 +2,7 @@ import type { ParsedTask, RequiredPermission } from "../types.js";
 import { ClaudeAgent } from "./claude.js";
 import { GeminiAgent } from "./gemini.js";
 import { CodexAgent } from "./codex.js";
+import { DroidAgent } from "./droid.js";
 import { OpenClawAgent } from "./openclaw.js";
 import { CopilotAgent } from "./copilot.js";
 import { QwenAgent } from "./qwen.js";
@@ -45,12 +46,14 @@ const agentRegistry: Record<string, AgentTool> = {
   copilot: new CopilotAgent(),
   qwen: new QwenAgent(),
   kimi: new KimiAgent(),
+  droid: new DroidAgent()
 };
 
 const agentLabels: Record<string, string> = {
   claude: "Claude Code",
   gemini: "Gemini CLI",
   codex: "Codex CLI",
+  droid: "Droid CLI",
   openclaw: "OpenClaw",
   copilot: "Copilot CLI",
   qwen: "Qwen Code",
