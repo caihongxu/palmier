@@ -41,6 +41,26 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 - **Command-triggered tasks** — optionally specify a shell command (e.g., `tail -f /var/log/app.log`). Palmier runs the command continuously and invokes the agent for each line of stdout, passing it alongside your prompt. Useful for log monitoring, event-driven automation, and reactive workflows.
 - **Agent HTTP endpoints** — the daemon exposes localhost-only endpoints (`/notify`, `/request-input`) that agents call to send push notifications and request user input during task execution.
 
+## Architecture
+
+```
+┌──────────────┐         HTTP          ┌──────────────────┐
+│              │◄──────────────────────│                  │
+│  Host Daemon │                       │   PWA (Browser)  │
+│              │◄──────┐               │                  │
+└──────┬───────┘       │               └──────────────────┘
+       │               │                        │
+       ▼               │  NATS (TLS)            │ NATS (TLS)
+┌──────────────┐       │               ┌────────┴─────────┐
+│  Agent CLIs  │       └───────────────│  Relay Server    │
+│  (Claude,    │                       │  (passthrough,   │
+│   Gemini,    │                       │   push notify)   │
+│   Codex ...) │                       └──────────────────┘
+└──────────────┘
+        Local / LAN: direct HTTP
+        Server mode: via relay server
+```
+
 ## Access Modes
 
 Local always works. Enable LAN and/or Server mode during `palmier init`.
