@@ -6,7 +6,7 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
 
-You have AI agents on your machine. But you have to sit at your desk to use them. Palmier lets you dispatch, schedule, and monitor them from your phone — or anywhere.
+You have AI agents on your machine. But you have to sit at your desk to use them. Palmier lets you dispatch, schedule, and monitor them from anywhere, on any device.
 
 It runs on your machine as a background daemon and connects to a mobile-friendly PWA, so you can create tasks, approve permissions, and check results without being at your computer.
 > **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
