@@ -14,6 +14,7 @@ import { Aider } from "./aider.js";
 import { OpenHands } from "./openhands.js";
 import { Cursor } from "./cursor.js";
 import { Kiro } from "./kiro.js";
+import { Cline } from "./cline.js";
 
 export interface CommandLine {
   command: string;
@@ -63,6 +64,7 @@ const agentRegistry: Record<string, AgentTool> = {
   openhands: new OpenHands(),
   cursor: new Cursor(),
   kiro: new Kiro(),
+  cline: new Cline(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -81,6 +83,7 @@ const agentLabels: Record<string, string> = {
   openhands: "OpenHands",
   cursor: "Cursor CLI",
   kiro: "Kiro",
+  cline: "Cline",
 };
 
 export interface DetectedAgent {
