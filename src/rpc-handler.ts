@@ -124,13 +124,14 @@ async function generatePlan(
 ): Promise<{ name: string; body: string }> {
   const fullPrompt = PLAN_GENERATION_PROMPT + userPrompt;
   const planAgent = getAgent(agentName);
-  const { command, args, stdin } = planAgent.getPlanGenerationCommandLine(fullPrompt);
+  const { command, args, stdin, env: agentEnv } = planAgent.getPlanGenerationCommandLine(fullPrompt);
   console.log(`[generatePlan] Running: ${command} ${args.join(" ")}`);
 
   const { output } = await spawnCommand(command, args, {
     cwd: projectRoot,
     timeout: 120_000,
     stdin,
+    ...(agentEnv ? { env: agentEnv } : {}),
   });
 
   let name = "";
@@ -423,7 +424,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         // Fire-and-forget: invoke agent inline as a child of the serve process
         const followupAgent = getAgent(followupTask.frontmatter.agent);
-        const { command: cmd, args: cmdArgs, stdin } = followupAgent.getTaskRunCommandLine(
+        const { command: cmd, args: cmdArgs, stdin, env: followupAgentEnv } = followupAgent.getTaskRunCommandLine(
           followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
         );
 
@@ -431,7 +432,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const child = crossSpawn(cmd, cmdArgs, {
           cwd: followupRunDir,
           stdio: [stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
-          env: { ...process.env, PALMIER_TASK_ID: params.id },
+          env: { ...process.env, ...followupAgentEnv, PALMIER_TASK_ID: params.id },
           windowsHide: true,
         });
         if (stdin != null) child.stdin!.end(stdin);

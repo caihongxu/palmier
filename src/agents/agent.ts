@@ -7,12 +7,15 @@ import { OpenClawAgent } from "./openclaw.js";
 import { CopilotAgent } from "./copilot.js";
 import { QwenAgent } from "./qwen.js";
 import { KimiAgent } from "./kimi.js";
+import { GooseAgent } from "./goose.js";
 
 export interface CommandLine {
   command: string;
   args: string[];
   /** If provided, the string is written to the process's stdin and then the pipe is closed. */
   stdin?: string;
+  /** Additional environment variables to set for the spawned process. */
+  env?: Record<string, string>;
 }
 
 /**
@@ -46,7 +49,8 @@ const agentRegistry: Record<string, AgentTool> = {
   copilot: new CopilotAgent(),
   qwen: new QwenAgent(),
   kimi: new KimiAgent(),
-  droid: new DroidAgent()
+  droid: new DroidAgent(),
+  goose: new GooseAgent(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -58,6 +62,7 @@ const agentLabels: Record<string, string> = {
   copilot: "Copilot CLI",
   qwen: "Qwen Code",
   kimi: "Kimi Code",
+  goose: "Goose CLI",
 };
 
 export interface DetectedAgent {

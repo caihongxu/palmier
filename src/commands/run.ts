@@ -62,7 +62,7 @@ async function invokeAgentWithRetries(
       }, 500);
     }
 
-    const { command, args, stdin } = ctx.agent.getTaskRunCommandLine(
+    const { command, args, stdin, env: agentEnv } = ctx.agent.getTaskRunCommandLine(
       invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
     );
     const truncate = (s: string, max = 100) => s.length > max ? s.slice(0, max) + "…" : s;
@@ -70,7 +70,7 @@ async function invokeAgentWithRetries(
     console.log(`[invoke] ${command} ${displayArgs.join(" ")}${stdin ? ` (stdin: ${truncate(stdin, 100)})` : ""}`);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
+      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
