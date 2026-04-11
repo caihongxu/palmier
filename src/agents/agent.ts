@@ -14,6 +14,7 @@ import { Aider } from "./aider.js";
 import { Cursor } from "./cursor.js";
 import { Kiro } from "./kiro.js";
 import { Cline } from "./cline.js";
+import { Qoder } from "./qoder.js";
 
 export interface CommandLine {
   command: string;
@@ -63,6 +64,7 @@ const agentRegistry: Record<string, AgentTool> = {
   cursor: new Cursor(),
   kiro: new Kiro(),
   cline: new Cline(),
+  qoder: new Qoder(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -81,6 +83,7 @@ const agentLabels: Record<string, string> = {
   cursor: "Cursor CLI",
   kiro: "Kiro",
   cline: "Cline",
+  qoder: "Qoder",
 };
 
 export interface DetectedAgent {
