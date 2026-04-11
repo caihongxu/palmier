@@ -74,7 +74,7 @@ const agentLabels: Record<string, string> = {
   kimi: "Kimi Code",
   goose: "Goose CLI",
   opencode: "OpenCode",
-  deepagents: "DeepAgents",
+  deepagents: "Deep Agents CLI",
   aider: "Aider",
   openhands: "OpenHands",
   cursor: "Cursor CLI",
