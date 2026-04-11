@@ -20,7 +20,7 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc && node -e \"require('fs').cpSync('src/commands/plan-generation.md','dist/commands/plan-generation.md');require('fs').cpSync('src/agents/agent-instructions.md','dist/agents/agent-instructions.md')\"",
+    "build": "tsc && node -e \"const fs=require('fs');fs.cpSync('src/commands/plan-generation.md','dist/commands/plan-generation.md');fs.cpSync('src/agents/agent-instructions.md','dist/agents/agent-instructions.md');const p=process.env.PALMIER_PWA_DIST||'../palmier-server/pwa/dist';fs.cpSync(p,'dist/pwa',{recursive:true})\"",
     "test": "tsx --test test/**/*.test.ts",
     "prepare": "npm run build",
     "start": "node dist/index.js"

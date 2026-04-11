@@ -1,5 +1,6 @@
 import * as http from "node:http";
 import * as os from "os";
+import * as path from "node:path";
 import { StringCodec, type NatsConnection } from "nats";
 import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
@@ -7,9 +8,7 @@ import * as fs from "node:fs";
 import { getTaskDir, parseTaskFile, spliceUserMessage } from "../task.js";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 
-const PWA_ORIGIN = "https://app.palmier.me";
-
-// ── On-the-fly PWA asset cache ──────────────────────────────────────────
+// ── Bundled PWA asset serving ───────────────────────────────────────────
 
 interface CachedAsset {
   data: Buffer;
@@ -17,8 +16,8 @@ interface CachedAsset {
 }
 
 const assetCache = new Map<string, CachedAsset>();
-/** Paths currently being fetched (dedup concurrent requests). */
-const assetInflight = new Map<string, Promise<CachedAsset | null>>();
+
+const PWA_DIR = path.join(import.meta.dirname, "..", "pwa");
 
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -30,6 +29,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
   ".woff": "font/woff",
   ".svg": "image/svg+xml",
+  ".webmanifest": "application/manifest+json",
 };
 
 function guessContentType(urlPath: string): string {
@@ -38,45 +38,32 @@ function guessContentType(urlPath: string): string {
   return CONTENT_TYPES[ext] ?? "application/octet-stream";
 }
 
-async function fetchBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
-  return Buffer.from(await res.arrayBuffer());
-}
-
 /**
- * Fetch a PWA asset on-the-fly, caching in memory.
- * Returns null if the asset cannot be fetched.
+ * Read a PWA asset from the bundled pwa/ directory, caching in memory.
+ * Returns null if the file does not exist.
  */
-async function getAsset(urlPath: string): Promise<CachedAsset | null> {
+function getAsset(urlPath: string): CachedAsset | null {
   const cached = assetCache.get(urlPath);
   if (cached) return cached;
 
-  // Dedup concurrent requests for the same path
-  const inflight = assetInflight.get(urlPath);
-  if (inflight) return inflight;
+  const filePath = path.join(PWA_DIR, urlPath === "/" ? "index.html" : urlPath);
 
-  const promise = (async () => {
-    try {
-      let data = await fetchBuffer(`${PWA_ORIGIN}${urlPath}`);
-      // Inject LAN mode marker into index HTML so the PWA can detect it's served by palmier
-      if (urlPath === "/") {
-        const html = data.toString("utf-8").replace("</head>", "<script>window.__PALMIER_SERVE__=true</script></head>");
-        data = Buffer.from(html, "utf-8");
-      }
-      const asset: CachedAsset = { data, contentType: guessContentType(urlPath) };
-      assetCache.set(urlPath, asset);
-      return asset;
-    } catch (err) {
-      console.warn(`[pwa] Failed to fetch ${urlPath}: ${err}`);
-      return null;
-    } finally {
-      assetInflight.delete(urlPath);
+  // Prevent path traversal
+  if (!filePath.startsWith(PWA_DIR)) return null;
+
+  try {
+    let data = fs.readFileSync(filePath);
+    // Inject marker into index HTML so the PWA can detect it's served by palmier
+    if (urlPath === "/") {
+      const html = data.toString("utf-8").replace("</head>", "<script>window.__PALMIER_SERVE__=true</script></head>");
+      data = Buffer.from(html, "utf-8");
     }
-  })();
-
-  assetInflight.set(urlPath, promise);
-  return promise;
+    const asset: CachedAsset = { data, contentType: guessContentType(urlPath) };
+    assetCache.set(urlPath, asset);
+    return asset;
+  } catch {
+    return null;
+  }
 }
 
 type SseClient = http.ServerResponse;
@@ -421,9 +408,9 @@ export async function startHttpTransport(
       if (SKIP.has(pathname)) { sendJson(res, 404, { error: "Not found" }); return; }
 
       // Try exact path, then fall back to index.html (SPA routing)
-      let asset = await getAsset(pathname);
+      let asset = getAsset(pathname);
       if (!asset && pathname !== "/") {
-        asset = await getAsset("/");
+        asset = getAsset("/");
       }
 
       if (asset) {
