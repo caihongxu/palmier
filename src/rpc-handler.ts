@@ -27,7 +27,7 @@ const PLAN_GENERATION_PROMPT = fs.readFileSync(
 /**
  * Parse RESULT frontmatter and conversation messages.
  */
-function parseResultFrontmatter(raw: string): Record<string, unknown> {
+export function parseResultFrontmatter(raw: string): Record<string, unknown> {
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!fmMatch) return { messages: [] };
 
