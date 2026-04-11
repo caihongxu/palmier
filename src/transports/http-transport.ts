@@ -225,11 +225,12 @@ export async function startHttpTransport(
 
       try {
         const body = await readBody(req);
-        const { title, body: notifBody } = JSON.parse(body) as { title: string; body: string };
+        const { taskId: notifTaskId, title, body: notifBody } = JSON.parse(body) as { taskId?: string; title: string; body: string };
         if (!title || !notifBody) { sendJson(res, 400, { error: "title and body are required" }); return; }
 
         const sc = StringCodec();
-        const payload = { hostId: config.hostId, title, body: notifBody };
+        const payload: Record<string, string> = { hostId: config.hostId, title, body: notifBody };
+        if (notifTaskId) payload.task_id = notifTaskId;
         const subject = `host.${config.hostId}.push.send`;
         const reply = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
         const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };

@@ -28,7 +28,7 @@ The request blocks until the user responds. Response: `{"values":["answer1","ans
 
 **Sending push notifications** — To notify the user, POST to `/notify` with:
 ```json
-{"title":"...","body":"..."}
+{"taskId":"{{TASK_ID}}","title":"...","body":"..."}
 ```
 
 ---
