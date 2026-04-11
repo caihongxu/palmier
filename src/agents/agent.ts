@@ -12,6 +12,7 @@ import { OpenCodeAgent } from "./opencode.js";
 import { DeepAgents } from "./deepagents.js";
 import { Aider } from "./aider.js";
 import { OpenHands } from "./openhands.js";
+import { Cursor } from "./cursor.js";
 
 export interface CommandLine {
   command: string;
@@ -59,6 +60,7 @@ const agentRegistry: Record<string, AgentTool> = {
   deepagents: new DeepAgents(),
   aider: new Aider(),
   openhands: new OpenHands(),
+  cursor: new Cursor(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -75,6 +77,7 @@ const agentLabels: Record<string, string> = {
   deepagents: "DeepAgents",
   aider: "Aider",
   openhands: "OpenHands",
+  cursor: "Cursor CLI",
 };
 
 export interface DetectedAgent {
