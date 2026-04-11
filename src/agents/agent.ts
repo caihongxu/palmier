@@ -13,6 +13,7 @@ import { DeepAgents } from "./deepagents.js";
 import { Aider } from "./aider.js";
 import { OpenHands } from "./openhands.js";
 import { Cursor } from "./cursor.js";
+import { Kiro } from "./kiro.js";
 
 export interface CommandLine {
   command: string;
@@ -61,6 +62,7 @@ const agentRegistry: Record<string, AgentTool> = {
   aider: new Aider(),
   openhands: new OpenHands(),
   cursor: new Cursor(),
+  kiro: new Kiro(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -78,6 +80,7 @@ const agentLabels: Record<string, string> = {
   aider: "Aider",
   openhands: "OpenHands",
   cursor: "Cursor CLI",
+  kiro: "Kiro",
 };
 
 export interface DetectedAgent {
