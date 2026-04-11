@@ -24,7 +24,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
    ```
    This detects your agents, configures access, installs the background daemon, and starts pairing.
 4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
-5. To access from other devices, enter the OTP code shown after init into the PWA.
+5. To access from other devices, enter the pairing code shown after init into the PWA.
 
 ### Prerequisites
 
@@ -51,7 +51,7 @@ Local always works. Enable LAN and/or Server mode during `palmier init`.
 | **LAN** | HTTP (direct) | `http://<host-ip>:<port>` | Required | Access from other devices on the local network |
 | **Server** | Cloud relay (NATS) | `https://app.palmier.me` | Required | Push notifications, remote access from anywhere |
 
-**LAN mode** binds the daemon to `0.0.0.0` so the PWA is accessible from other devices on your network. Devices must pair via OTP.
+**LAN mode** binds the daemon to `0.0.0.0` so the PWA is accessible from other devices on your network. Devices must pair with a pairing code.
 
 **Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io)). All features including push notifications are available. Server mode and LAN mode can be active at the same time.
 
@@ -61,7 +61,7 @@ Local always works. Enable LAN and/or Server mode during `palmier init`.
 
 Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
-For LAN or server mode, run `palmier pair` on the host to generate an OTP code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or `https://app.palmier.me` (server mode).
+For LAN or server mode, run `palmier pair` on the host to generate a pairing code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or `https://app.palmier.me` (server mode).
 
 ### Managing Clients
 
@@ -125,7 +125,7 @@ palmier restart
 | Command | Description |
 |---|---|
 | `palmier init` | Interactive setup wizard |
-| `palmier pair` | Generate an OTP code to pair a new device |
+| `palmier pair` | Generate a pairing code to pair a new device |
 | `palmier clients list` | List active client tokens |
 | `palmier clients revoke <token>` | Revoke a specific client token |
 | `palmier clients revoke-all` | Revoke all client tokens |

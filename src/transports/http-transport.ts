@@ -383,7 +383,7 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── Public pair endpoint — no auth, PWA posts OTP code here ────────
+    // ── Public pair endpoint — no auth, PWA posts pairing code here ────────
 
     if (req.method === "POST" && pathname === "/pair") {
       try {

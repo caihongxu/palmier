@@ -61,7 +61,7 @@ function httpPairRegister(port: number, code: string): Promise<boolean> {
 }
 
 /**
- * Generate an OTP code and wait for a PWA client to pair.
+ * Generate a pairing code and wait for a PWA client to pair.
  * Listens on NATS (server mode) and HTTP (via serve daemon) in parallel.
  */
 export async function pairCommand(): Promise<void> {
