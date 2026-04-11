@@ -11,7 +11,6 @@ import { GooseAgent } from "./goose.js";
 import { OpenCodeAgent } from "./opencode.js";
 import { DeepAgents } from "./deepagents.js";
 import { Aider } from "./aider.js";
-import { OpenHands } from "./openhands.js";
 import { Cursor } from "./cursor.js";
 import { Kiro } from "./kiro.js";
 import { Cline } from "./cline.js";
@@ -61,7 +60,6 @@ const agentRegistry: Record<string, AgentTool> = {
   opencode: new OpenCodeAgent(),
   deepagents: new DeepAgents(),
   aider: new Aider(),
-  openhands: new OpenHands(),
   cursor: new Cursor(),
   kiro: new Kiro(),
   cline: new Cline(),
@@ -80,7 +78,6 @@ const agentLabels: Record<string, string> = {
   opencode: "OpenCode",
   deepagents: "Deep Agents CLI",
   aider: "Aider",
-  openhands: "OpenHands",
   cursor: "Cursor CLI",
   kiro: "Kiro",
   cline: "Cline",
