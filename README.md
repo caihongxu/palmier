@@ -34,14 +34,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## How It Works
 
-- The host runs as a **background daemon** (systemd user service on Linux, Task Scheduler on Windows), staying alive via `palmier serve`.
-- **Tasks** are stored locally as Markdown files. Each task has a prompt, execution plan, and optional schedules.
-- **Plan generation** is automatic — when you create or update a task, the host invokes your chosen agent CLI to generate an execution plan and name.
-- **Schedules** are backed by systemd timers (Linux) or Task Scheduler (Windows). You can enable/disable them without deleting the task, and any task can still be run manually at any time.
-- **Command-triggered tasks** — optionally specify a shell command (e.g., `tail -f /var/log/app.log`). Palmier runs the command continuously and invokes the agent for each line of stdout, passing it alongside your prompt. Useful for log monitoring, event-driven automation, and reactive workflows.
-- **Agent HTTP endpoints** — the daemon exposes localhost-only endpoints (`/notify`, `/request-input`) that agents call to send push notifications and request user input during task execution.
-
-## Architecture
+Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server.
 
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
