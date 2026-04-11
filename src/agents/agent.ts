@@ -11,6 +11,7 @@ import { GooseAgent } from "./goose.js";
 import { OpenCodeAgent } from "./opencode.js";
 import { DeepAgents } from "./deepagents.js";
 import { Aider } from "./aider.js";
+import { OpenHands } from "./openhands.js";
 
 export interface CommandLine {
   command: string;
@@ -57,6 +58,7 @@ const agentRegistry: Record<string, AgentTool> = {
   opencode: new OpenCodeAgent(),
   deepagents: new DeepAgents(),
   aider: new Aider(),
+  openhands: new OpenHands(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -72,6 +74,7 @@ const agentLabels: Record<string, string> = {
   opencode: "OpenCode",
   deepagents: "DeepAgents",
   aider: "Aider",
+  openhands: "OpenHands",
 };
 
 export interface DetectedAgent {
