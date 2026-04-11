@@ -24,7 +24,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
    ```
    This detects your agents, configures access, installs the background daemon, and starts pairing.
 4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
-5. To access from other devices, enter the pairing code shown after init into the PWA.
+5. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me).
 
 ### Prerequisites
 
