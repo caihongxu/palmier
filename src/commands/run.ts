@@ -411,7 +411,12 @@ async function runCommandTriggeredMode(
     });
   });
 
-  child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
+  let stderrBuf = "";
+  child.stderr?.on("data", (d: Buffer) => {
+    const chunk = d.toString();
+    stderrBuf += chunk;
+    process.stderr.write(d);
+  });
 
   // Wait for command to exit
   const exitCode = await new Promise<number | null>((resolve) => {
@@ -422,6 +427,7 @@ async function runCommandTriggeredMode(
     });
     child.on("error", (err: Error) => {
       console.error(`[command-triggered] Command error:`, err);
+      stderrBuf += err.message;
       commandExited = true;
       rl.close();
       resolve(1);
@@ -437,6 +443,19 @@ async function runCommandTriggeredMode(
   }
 
   const endTime = Date.now();
+
+  if (exitCode !== 0) {
+    const errorDetail = stderrBuf.trim() || `Command exited with code ${exitCode}`;
+    appendRunMessage(ctx.taskDir, ctx.runId, {
+      role: "status",
+      time: endTime,
+      content: errorDetail,
+      type: "error",
+    });
+    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    return { outcome: "failed", endTime };
+  }
+
   return { outcome: "finished", endTime };
 }
 
