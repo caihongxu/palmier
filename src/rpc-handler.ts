@@ -382,15 +382,10 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           const runTaskDir = getTaskDir(config.projectRoot, params.id);
           const platform = getPlatform();
 
-          // Check if the task is already running
+          // If the task is already running, kill the stale process and start fresh
           if (platform.isTaskRunning(params.id)) {
-            // Ensure status reflects reality
-            const currentStatus = readTaskStatus(runTaskDir);
-            if (currentStatus?.running_state !== "started") {
-              writeTaskStatus(runTaskDir, { running_state: "started", time_stamp: Date.now() });
-              await publishHostEvent(nc, config.hostId, params.id, { event_type: "running-state", running_state: "started" });
-            }
-            return { error: "Task is already running" };
+            console.log(`[task.run] Task ${params.id} is already running, killing stale process`);
+            await platform.stopTask(params.id);
           }
 
           // Create initial result file so it appears in runs list immediately
