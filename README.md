@@ -113,36 +113,6 @@ The daemon automatically recovers existing tasks by reinstalling their system ti
 
 Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
 
-### Verifying the Service
-
-After `palmier init`, verify the host is running:
-
-**Linux:**
-
-```bash
-# Check service status
-systemctl --user status palmier.service
-
-# View recent logs
-journalctl --user -u palmier.service -n 50 --no-pager
-
-# Follow logs in real time
-journalctl --user -u palmier.service -f
-```
-
-**Windows (PowerShell):**
-
-```powershell
-# Check if the daemon is running
-Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*palmier*serve*' }
-```
-
-**Restarting the daemon (both platforms):**
-
-```bash
-palmier restart
-```
-
 ## CLI Reference
 
 | Command | Description |
