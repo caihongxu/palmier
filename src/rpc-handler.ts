@@ -379,13 +379,26 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       case "task.run": {
         const params = request.params as { id: string };
         try {
-          // Create initial result file so it appears in runs list immediately
           const runTaskDir = getTaskDir(config.projectRoot, params.id);
+          const platform = getPlatform();
+
+          // Check if the task is already running
+          if (platform.isTaskRunning(params.id)) {
+            // Ensure status reflects reality
+            const currentStatus = readTaskStatus(runTaskDir);
+            if (currentStatus?.running_state !== "started") {
+              writeTaskStatus(runTaskDir, { running_state: "started", time_stamp: Date.now() });
+              await publishHostEvent(nc, config.hostId, params.id, { event_type: "running-state", running_state: "started" });
+            }
+            return { error: "Task is already running" };
+          }
+
+          // Create initial result file so it appears in runs list immediately
           const runTask = parseTaskFile(runTaskDir);
           const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
-          await getPlatform().startTask(params.id);
+          await platform.startTask(params.id);
           return { ok: true, task_id: params.id, run_id: taskRunId };
         } catch (err: unknown) {
           const e = err as { stderr?: string; message?: string };
