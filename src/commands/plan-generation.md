@@ -16,6 +16,7 @@ task_name: <concise label, 3-6 words>
 - If the task produces formatted output (report, email, summary, etc.), specify the structure, sections, and tone.
 - When a step requires user input, simply state what information is needed from the user. Do **not** specify how to obtain it — the agent has its own tool for requesting user input.
 - Preserve relative time expressions (e.g., "today", "yesterday", "last week") exactly as written — do **not** resolve them to specific dates. The plan may be executed on a different day than it was generated.
+- If the task involves opening a web browser or application, include a final step to close it before finishing.
 
 ## Task Description
 
