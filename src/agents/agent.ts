@@ -15,6 +15,7 @@ import { Cursor } from "./cursor.js";
 import { Kiro } from "./kiro.js";
 import { Cline } from "./cline.js";
 import { Qoder } from "./qoder.js";
+import { Hermes } from "./hermes.js";
 
 export interface CommandLine {
   command: string;
@@ -65,6 +66,7 @@ const agentRegistry: Record<string, AgentTool> = {
   kiro: new Kiro(),
   cline: new Cline(),
   qoder: new Qoder(),
+  hermes: new Hermes(),
 };
 
 const agentLabels: Record<string, string> = {
@@ -81,9 +83,10 @@ const agentLabels: Record<string, string> = {
   deepagents: "Deep Agents CLI",
   aider: "Aider",
   cursor: "Cursor CLI",
-  kiro: "Kiro",
-  cline: "Cline",
-  qoder: "Qoder",
+  kiro: "Kiro CLI",
+  cline: "Cline CLI",
+  qoder: "Qoder CLI",
+  hermes: "Hermes Agent",
 };
 
 export interface DetectedAgent {
