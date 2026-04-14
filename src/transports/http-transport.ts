@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { StringCodec, type NatsConnection } from "nats";
 import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
+import { getLocationDevice } from "../location-device.js";
 import * as fs from "node:fs";
 import { getTaskDir, parseTaskFile, spliceUserMessage } from "../task.js";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
@@ -367,6 +368,66 @@ export async function startHttpTransport(
         sendJson(res, 200, { response: status });
       } catch (err) {
         sendJson(res, 500, { error: String(err) });
+      }
+      return;
+    }
+
+    // ── POST /device-geolocation — request GPS from mobile device via FCM ──
+
+    if (req.method === "POST" && pathname === "/device-geolocation") {
+      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
+      if (!nc) { sendJson(res, 503, { error: "Not connected to server (NATS unavailable)" }); return; }
+      try {
+        const locDevice = getLocationDevice();
+        if (!locDevice) {
+          sendJson(res, 400, { error: "No device has location access enabled" });
+          return;
+        }
+
+        const { randomUUID } = await import("crypto");
+        const sc = StringCodec();
+        const requestId = randomUUID();
+
+        // Ask the server to send an FCM data message to the designated device
+        const ackReply = await nc.request(
+          `host.${config.hostId}.fcm.geolocation`,
+          sc.encode(JSON.stringify({ hostId: config.hostId, requestId, fcmToken: locDevice.fcmToken })),
+          { timeout: 5_000 },
+        );
+        const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+        if (ack.error) {
+          sendJson(res, 502, { error: ack.error });
+          return;
+        }
+
+        // Wait for the device to respond with location via NATS
+        const locationPromise = new Promise<string>((resolve, reject) => {
+          const sub = nc!.subscribe(`host.${config.hostId}.geolocation.${requestId}`, { max: 1 });
+          const timer = setTimeout(() => {
+            sub.unsubscribe();
+            reject(new Error("Device did not respond within 30 seconds"));
+          }, 30_000);
+
+          (async () => {
+            for await (const msg of sub) {
+              clearTimeout(timer);
+              resolve(sc.decode(msg.data));
+            }
+          })();
+        });
+
+        const locationData = JSON.parse(await locationPromise);
+        if (locationData.error) {
+          sendJson(res, 200, { error: locationData.error });
+        } else {
+          sendJson(res, 200, locationData);
+        }
+      } catch (err: any) {
+        if (err.message?.includes("30 seconds")) {
+          sendJson(res, 504, { error: "Device did not respond within 30 seconds" });
+        } else {
+          sendJson(res, 500, { error: String(err) });
+        }
       }
       return;
     }

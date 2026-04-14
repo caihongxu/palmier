@@ -13,6 +13,7 @@ import crossSpawn from "cross-spawn";
 import { getAgent } from "./agents/agent.js";
 import { validateClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
+import { getLocationDevice, setLocationDevice, clearLocationDevice } from "./location-device.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
@@ -182,11 +183,13 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     switch (request.method) {
       case "task.list": {
         const tasks = listTasks(config.projectRoot);
+        const locDevice = getLocationDevice();
         return {
           tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
+          location_client_token: locDevice?.clientToken ?? null,
         };
       }
 
@@ -687,6 +690,19 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       case "host.update": {
         const error = await performUpdate();
         if (error) return { error };
+        return { ok: true };
+      }
+
+      case "device.location.enable": {
+        const params = request.params as { fcmToken: string };
+        if (!params.fcmToken) return { error: "fcmToken is required" };
+        const clientToken = request.clientToken ?? "";
+        setLocationDevice(clientToken, params.fcmToken);
+        return { ok: true };
+      }
+
+      case "device.location.disable": {
+        clearLocationDevice();
         return { ok: true };
       }
 

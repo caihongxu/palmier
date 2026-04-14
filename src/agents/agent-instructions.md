@@ -26,6 +26,8 @@ The following HTTP endpoints are available at http://localhost:{{PORT}} during t
 ```
 The request blocks until the user responds. Response: `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user declines.
 
+**Requesting device geolocation** — To get the GPS location of the user's mobile device, POST to `/device-geolocation` with an empty body. The request blocks until the device responds (up to 30 seconds). Response: `{"latitude":..., "longitude":..., "accuracy":..., "timestamp":...}` on success, or `{"error":"..."}` on failure.
+
 **Sending push notifications** — To notify the user, POST to `/notify` with:
 ```json
 {"taskId":"{{TASK_ID}}","title":"...","body":"..."}
