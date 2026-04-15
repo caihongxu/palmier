@@ -126,7 +126,9 @@ async function generatePlan(
   const fullPrompt = PLAN_GENERATION_PROMPT + userPrompt;
   const planAgent = getAgent(agentName);
   const { command, args, stdin, env: agentEnv } = planAgent.getPlanGenerationCommandLine(fullPrompt);
-  console.log(`[generatePlan] Running: ${command} ${args.join(" ")}`);
+  const truncate = (s: string, max = 100) => s.length > max ? s.slice(0, max) + "..." : s;
+  const displayArgs = args.map((arg) => truncate(arg));
+  console.log(`[generatePlan] Running: ${command} ${displayArgs.join(" ")}`);
 
   const { output } = await spawnCommand(command, args, {
     cwd: projectRoot,
