@@ -36,6 +36,20 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, and fetching GPS location.
 
+### MCP Server
+
+Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:<port>/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool definitions automatically. The same tools are also available as REST endpoints for curl-based agents.
+
+**MCP server URL:** `http://localhost:<port>/mcp`
+
+**Available tools:**
+| Tool | Description |
+|------|-------------|
+| `notify` | Send a push notification to the user's device |
+| `request-input` | Request input from the user (blocks until response) |
+| `request-confirmation` | Request confirmation from the user (blocks until response) |
+| `device-geolocation` | Get GPS location of the user's mobile device |
+
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
 │              │◄──────────────────────│                  │
