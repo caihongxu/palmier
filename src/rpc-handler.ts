@@ -167,15 +167,16 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       body: task.body,
       status: status ? {
         ...status,
-        ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
         ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
       } : undefined,
     };
   }
 
   async function handleRpc(request: RpcMessage): Promise<unknown> {
-    // Client token validation: skip for trusted localhost requests
-    if (!request.localhost && (!request.clientToken || !validateClient(request.clientToken))) {
+    // Client token validation: skip for trusted localhost requests and
+    // task.user_input (server-originated push responses; gated by getPending instead)
+    const skipAuth = request.method === "task.user_input";
+    if (!skipAuth && !request.localhost && (!request.clientToken || !validateClient(request.clientToken))) {
       return { error: "Unauthorized" };
     }
 
@@ -579,7 +580,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         return {
           task_id: params.id,
           ...status,
-          ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
           ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
         };
       }

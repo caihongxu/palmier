@@ -4,9 +4,10 @@ import * as path from "node:path";
 import { StringCodec, type NatsConnection } from "nats";
 import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
-import { getLocationDevice } from "../location-device.js";
 import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
+import { agentToolMap, ToolError, type ToolContext } from "../mcp-tools.js";
+import { handleMcpRequest } from "../mcp-handler.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
 
@@ -160,9 +161,42 @@ export async function startHttpTransport(
     broadcastSseEvent({ task_id: taskId, ...payload });
   }
 
+  const toolContext: ToolContext = { config, nc, publishEvent };
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const pathname = url.pathname;
+
+    // ── MCP streamable HTTP endpoint ──────────────────────────────────
+
+    if (req.method === "POST" && pathname === "/mcp") {
+      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
+      try {
+        const body = await readBody(req);
+        const result = await handleMcpRequest(body, toolContext);
+        sendJson(res, 200, result);
+      } catch (err) {
+        sendJson(res, 500, { error: String(err) });
+      }
+      return;
+    }
+
+    // ── Auto-generated REST endpoints from MCP tool registry ──────────
+
+    if (req.method === "POST" && agentToolMap.has(pathname.slice(1))) {
+      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
+      const tool = agentToolMap.get(pathname.slice(1))!;
+      try {
+        const body = await readBody(req);
+        const args = body.trim() ? JSON.parse(body) : {};
+        const result = await tool.handler(args, toolContext);
+        sendJson(res, 200, result);
+      } catch (err: any) {
+        const status = err instanceof ToolError ? err.statusCode : 500;
+        sendJson(res, status, { error: err.message ?? String(err) });
+      }
+      return;
+    }
 
     // ── Localhost-only endpoints (no auth) ─────────────────────────────
 
@@ -205,105 +239,6 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── POST /notify — send push notification via NATS ─────────────────
-
-    if (req.method === "POST" && pathname === "/notify") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      if (!nc) { sendJson(res, 503, { error: "NATS not connected — push notifications require server mode" }); return; }
-
-      try {
-        const body = await readBody(req);
-        const { title, body: notifBody } = JSON.parse(body) as { title: string; body: string };
-        if (!title || !notifBody) { sendJson(res, 400, { error: "title and body are required" }); return; }
-
-        const sc = StringCodec();
-        const payload: Record<string, string> = { hostId: config.hostId, title, body: notifBody };
-        const subject = `host.${config.hostId}.push.send`;
-        const reply = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
-        const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };
-
-        if (result.ok) {
-          sendJson(res, 200, { ok: true });
-        } else {
-          sendJson(res, 502, { error: result.error ?? "Push notification failed" });
-        }
-      } catch (err) {
-        sendJson(res, 500, { error: `Failed to send notification: ${err}` });
-      }
-      return;
-    }
-
-    // ── POST /request-input — held connection until user responds ────────
-
-    if (req.method === "POST" && pathname === "/request-input") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      try {
-        const body = await readBody(req);
-        const { descriptions } = JSON.parse(body) as { descriptions: string[] };
-        if (!descriptions?.length) {
-          sendJson(res, 400, { error: "descriptions is required" });
-          return;
-        }
-
-        const { randomUUID } = await import("crypto");
-        const requestId = randomUUID();
-
-        const pendingPromise = registerPending(requestId, "input", descriptions);
-
-        await publishEvent("_input", {
-          event_type: "input-request",
-          host_id: config.hostId,
-          request_id: requestId,
-          input_descriptions: descriptions,
-        });
-
-        const response = await pendingPromise;
-
-        if (response.length === 1 && response[0] === "aborted") {
-          await publishEvent("_input", { event_type: "input-resolved", host_id: config.hostId, request_id: requestId, status: "aborted" });
-          sendJson(res, 200, { aborted: true });
-        } else {
-          await publishEvent("_input", { event_type: "input-resolved", host_id: config.hostId, request_id: requestId, status: "provided" });
-          sendJson(res, 200, { values: response });
-        }
-      } catch (err) {
-        sendJson(res, 500, { error: String(err) });
-      }
-      return;
-    }
-
-    // ── POST /request-confirmation — held connection ────────────────────
-
-    if (req.method === "POST" && pathname === "/request-confirmation") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      try {
-        const body = await readBody(req);
-        const { taskId } = JSON.parse(body) as { taskId: string };
-        if (!taskId) { sendJson(res, 400, { error: "taskId is required" }); return; }
-
-        const pendingPromise = registerPending(taskId, "confirmation");
-
-        await publishEvent(taskId, {
-          event_type: "confirm-request",
-          host_id: config.hostId,
-        });
-
-        const response = await pendingPromise;
-        const confirmed = response[0] === "confirmed";
-
-        await publishEvent(taskId, {
-          event_type: "confirm-resolved",
-          host_id: config.hostId,
-          status: confirmed ? "confirmed" : "aborted",
-        });
-
-        sendJson(res, 200, { confirmed });
-      } catch (err) {
-        sendJson(res, 500, { error: String(err) });
-      }
-      return;
-    }
-
     // ── POST /request-permission — held connection ──────────────────────
 
     if (req.method === "POST" && pathname === "/request-permission") {
@@ -339,66 +274,6 @@ export async function startHttpTransport(
         sendJson(res, 200, { response: status });
       } catch (err) {
         sendJson(res, 500, { error: String(err) });
-      }
-      return;
-    }
-
-    // ── POST /device-geolocation — request GPS from mobile device via FCM ──
-
-    if (req.method === "POST" && pathname === "/device-geolocation") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      if (!nc) { sendJson(res, 503, { error: "Not connected to server (NATS unavailable)" }); return; }
-      try {
-        const locDevice = getLocationDevice();
-        if (!locDevice) {
-          sendJson(res, 400, { error: "No device has location access enabled" });
-          return;
-        }
-
-        const { randomUUID } = await import("crypto");
-        const sc = StringCodec();
-        const requestId = randomUUID();
-
-        // Ask the server to send an FCM data message to the designated device
-        const ackReply = await nc.request(
-          `host.${config.hostId}.fcm.geolocation`,
-          sc.encode(JSON.stringify({ hostId: config.hostId, requestId, fcmToken: locDevice.fcmToken })),
-          { timeout: 5_000 },
-        );
-        const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
-        if (ack.error) {
-          sendJson(res, 502, { error: ack.error });
-          return;
-        }
-
-        // Wait for the device to respond with location via NATS
-        const locationPromise = new Promise<string>((resolve, reject) => {
-          const sub = nc!.subscribe(`host.${config.hostId}.geolocation.${requestId}`, { max: 1 });
-          const timer = setTimeout(() => {
-            sub.unsubscribe();
-            reject(new Error("Device did not respond within 30 seconds"));
-          }, 30_000);
-
-          (async () => {
-            for await (const msg of sub) {
-              clearTimeout(timer);
-              resolve(sc.decode(msg.data));
-            }
-          })();
-        });
-
-        const locationData = JSON.parse(await locationPromise);
-        if (locationData.error) {
-          sendJson(res, 200, { error: locationData.error });
-        } else {
-          sendJson(res, 200, locationData);
-        }
-      } catch (err: any) {
-        if (err.message?.includes("30 seconds")) {
-          sendJson(res, 504, { error: "Device did not respond within 30 seconds" });
-        } else {
-          sendJson(res, 500, { error: String(err) });
-        }
       }
       return;
     }

@@ -20,18 +20,31 @@ If the task fails because a tool was denied or you lack the required permissions
 
 The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution. Use curl to call them.
 
-**Requesting user input** — When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment. Instead, POST to `/request-input` with:
+**`POST /request-input`** — Request input from the user. The request blocks until the user responds.
 ```json
-{"descriptions":["question 1","question 2"]}
+{"description": "optional context", "questions": ["question 1", "question 2"]}
 ```
-The request blocks until the user responds. Response: `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user declines.
+- `questions` (required, string array): Questions to present to the user.
+- `description` (optional, string): Context or heading for the input request.
+- Response: `{"values": ["answer1", "answer2"]}` on success, or `{"aborted": true}` if the user declines.
+- When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment. Use this endpoint instead.
 
-**Requesting user's location** — To get the GPS location of the user's mobile device, POST to `/device-geolocation` with an empty body. The request blocks until the device responds (up to 30 seconds). Response: `{"latitude":..., "longitude":..., "accuracy":..., "timestamp":...}` on success, or `{"error":"..."}` on failure.
-
-**Sending push notifications** — To notify the user, POST to `/notify` with:
+**`POST /request-confirmation`** — Request confirmation from the user. The request blocks until the user confirms or aborts.
 ```json
-{"title":"...","body":"..."}
+{"description": "What the user is confirming"}
 ```
+- `description` (required, string): What the user is confirming.
+- Response: `{"confirmed": true}` or `{"confirmed": false}`.
+
+**`POST /device-geolocation`** — Get the GPS location of the user's mobile device. Blocks until the device responds (up to 30 seconds). No request body required.
+- Response: `{"latitude": ..., "longitude": ..., "accuracy": ..., "timestamp": ...}` on success, or `{"error": "..."}` on failure.
+
+**`POST /notify`** — Send a push notification to the user's device.
+```json
+{"title": "...", "body": "..."}
+```
+- `title` (required, string): Notification title.
+- `body` (required, string): Notification body.
 
 ---
 
