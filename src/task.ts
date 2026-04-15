@@ -29,7 +29,6 @@ export function parseTaskContent(content: string): ParsedTask {
   }
 
   const frontmatter = parseYaml(match[1]) as TaskFrontmatter;
-  const body = (match[2] || "").trim();
 
   if (!frontmatter.id) {
     throw new Error("TASK.md frontmatter must include at least: id");
@@ -39,7 +38,7 @@ export function parseTaskContent(content: string): ParsedTask {
   frontmatter.agent ??= "claude";
   frontmatter.triggers_enabled ??= true;
 
-  return { frontmatter, body };
+  return { frontmatter };
 }
 
 /**
@@ -50,7 +49,7 @@ export function writeTaskFile(taskDir: string, task: ParsedTask): void {
   fs.mkdirSync(taskDir, { recursive: true });
 
   const yamlStr = stringifyYaml(task.frontmatter).trim();
-  const content = `---\n${yamlStr}\n---\n${task.body}\n`;
+  const content = `---\n${yamlStr}\n---\n`;
 
   const filePath = path.join(taskDir, "TASK.md");
   fs.writeFileSync(filePath, content, "utf-8");

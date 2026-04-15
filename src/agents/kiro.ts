@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class Kiro implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "kiro-cli",
-      args: ["--no-interactive", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "kiro-cli", args: ["--no-interactive", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

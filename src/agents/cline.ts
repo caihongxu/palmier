@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class Cline implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "cline ",
-      args: ["--yolo", "-p", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "cline ", args: ["--yolo", "-p", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

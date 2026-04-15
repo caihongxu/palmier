@@ -5,11 +5,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export class OpenClawAgent implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "openclaw",
-      args: ["agent", "--local", "--agent", "main", "--message", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "openclaw", args: ["agent", "--local", "--agent", "main", "--message", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

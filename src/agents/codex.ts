@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class CodexAgent implements AgentTool {
   supportsPermissions = true;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "codex",
-      args: ["exec", "--skip-git-repo-check", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "codex", args: ["exec", "--skip-git-repo-check", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

@@ -272,7 +272,7 @@ export async function runCommand(taskId: string): Promise<void> {
       await appendAndNotify(ctx, {
         role: "user",
         time: Date.now(),
-        content: task.body || task.frontmatter.user_prompt,
+        content: task.frontmatter.user_prompt,
       });
 
       const result = await invokeAgentWithRetries(ctx, task);
@@ -362,7 +362,6 @@ async function runCommandTriggeredMode(
     const perLinePrompt = `${ctx.task.frontmatter.user_prompt}\n\nProcess this input:\n${line}`;
     const perLineTask: ParsedTask = {
       frontmatter: { ...ctx.task.frontmatter, user_prompt: perLinePrompt },
-      body: "",
     };
 
     const result = await invokeAgentWithRetries(ctx, perLineTask);

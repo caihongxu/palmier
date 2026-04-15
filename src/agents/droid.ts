@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class DroidAgent implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "droid",
-      args: ["exec", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "droid", args: ["exec", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

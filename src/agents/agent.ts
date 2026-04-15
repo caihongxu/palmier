@@ -31,8 +31,8 @@ export interface CommandLine {
  * Abstracts how plans are generated and tasks are executed across different AI agents.
  */
 export interface AgentTool {
-  /** Return the command and args used to generate a plan from a prompt. */
-  getPlanGenerationCommandLine(prompt: string): CommandLine;
+  /** Return the command and args for a short, non-interactive prompt (e.g. generating a task name). */
+  getPromptCommandLine(prompt: string): CommandLine;
 
   /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
    *  and treat it as a continuation of the original run (reuse the same session, etc).

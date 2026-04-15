@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class ClaudeAgent implements AgentTool {
   supportsPermissions = true;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "claude",
-      args: ["-p", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "claude", args: ["-p", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

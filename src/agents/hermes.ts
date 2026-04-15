@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class Hermes implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "hermes",
-      args: ["chat", "-q", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "hermes", args: ["chat", "-q", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

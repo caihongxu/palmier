@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class GeminiAgent implements AgentTool {
   supportsPermissions = true;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "gemini",
-      args: ["--prompt", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "gemini", args: ["--prompt", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

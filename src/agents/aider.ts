@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class Aider implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "aider",
-      args: ["--message", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "aider", args: ["--message", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

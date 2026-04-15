@@ -36,7 +36,6 @@ export interface Trigger {
 
 export interface ParsedTask {
   frontmatter: TaskFrontmatter;
-  body: string;
 }
 
 /**

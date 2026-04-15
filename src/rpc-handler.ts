@@ -1,9 +1,7 @@
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
-import { fileURLToPath } from "url";
 import { spawn, type ChildProcess } from "child_process";
-import { parse as parseYaml } from "yaml";
 import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir } from "./task.js";
 import { resolvePending, getPending } from "./pending-requests.js";
@@ -17,13 +15,6 @@ import { getLocationDevice, setLocationDevice, clearLocationDevice } from "./loc
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const PLAN_GENERATION_PROMPT = fs.readFileSync(
-  path.join(__dirname, "commands", "plan-generation.md"),
-  "utf-8",
-);
 
 /**
  * Parse RESULT frontmatter and conversation messages.
@@ -115,39 +106,30 @@ function parseAttr(attrs: string, name: string): string | undefined {
 }
 
 /**
- * Run plan generation for a task prompt using the given agent.
- * Returns the generated plan body and task name.
+ * Generate a concise task name from a user prompt using the given agent.
+ * Falls back to the raw prompt on failure.
  */
-async function generatePlan(
+async function generateName(
   projectRoot: string,
   userPrompt: string,
   agentName: string,
-): Promise<{ name: string; body: string }> {
-  const fullPrompt = PLAN_GENERATION_PROMPT + userPrompt;
-  const planAgent = getAgent(agentName);
-  const { command, args, stdin, env: agentEnv } = planAgent.getPlanGenerationCommandLine(fullPrompt);
+): Promise<string> {
+  const prompt = `Generate a concise 3-6 word name for this task. Reply with ONLY the name, nothing else.\n\nTask: ${userPrompt}`;
+  const agent = getAgent(agentName);
+  const { command, args, stdin, env: agentEnv } = agent.getPromptCommandLine(prompt);
 
-  const { output } = await spawnCommand(command, args, {
-    cwd: projectRoot,
-    timeout: 120_000,
-    stdin,
-    ...(agentEnv ? { env: agentEnv } : {}),
-  });
-
-  let name = "";
-  const trimmed = output.trim();
-  let body = trimmed;
-  const fmMatch = trimmed.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (fmMatch) {
-    try {
-      const fm = parseYaml(fmMatch[1]) as { task_name?: string };
-      name = fm.task_name ?? "";
-    } catch {
-      // If frontmatter parsing fails, treat entire output as body
-    }
-    body = fmMatch[2].trimStart();
+  try {
+    const { output } = await spawnCommand(command, args, {
+      cwd: projectRoot,
+      timeout: 30_000,
+      stdin,
+      ...(agentEnv ? { env: agentEnv } : {}),
+    });
+    const name = output.trim().replace(/^["']|["']$/g, "").slice(0, 80);
+    return name || userPrompt;
+  } catch {
+    return userPrompt;
   }
-  return { name, body };
 }
 
 /** Active follow-up child processes, keyed by "taskId:runId". */
@@ -163,7 +145,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     const pending = getPending(task.frontmatter.id);
     return {
       ...task.frontmatter,
-      body: task.body,
       status: status ? {
         ...status,
         ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
@@ -215,25 +196,13 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           command?: string;
         };
 
-        // Only generate a plan for longer prompts that benefit from it
-        let name = "";
-        let body = "";
-        if (params.user_prompt.length <= 50) {
-          name = params.user_prompt;
-        } else {
-          try {
-            const plan = await generatePlan(config.projectRoot, params.user_prompt, params.agent);
-            name = plan.name;
-            body = plan.body;
-          } catch (err: unknown) {
-            const error = err as { stdout?: string; stderr?: string };
-            return { error: "plan generation failed", stdout: error.stdout, stderr: error.stderr };
-          }
-        }
+        const name = params.user_prompt.length <= 50
+          ? params.user_prompt
+          : await generateName(config.projectRoot, params.user_prompt, params.agent);
 
         const id = randomUUID();
         const taskDir = getTaskDir(config.projectRoot, id);
-        const task = {
+        const task: ParsedTask = {
           frontmatter: {
             id,
             name,
@@ -246,7 +215,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
-          body,
         };
 
         writeTaskFile(taskDir, task);
@@ -272,10 +240,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const taskDir = getTaskDir(config.projectRoot, params.id);
         const existing = parseTaskFile(taskDir);
 
-        // Detect whether plan needs regeneration
+        // Detect whether name needs regeneration
         const promptChanged = params.user_prompt !== undefined && params.user_prompt !== existing.frontmatter.user_prompt;
         const agentChanged = params.agent !== undefined && params.agent !== existing.frontmatter.agent;
-        const needsRegeneration = promptChanged || agentChanged || !existing.body;
 
         // Merge updates
         if (params.user_prompt !== undefined) existing.frontmatter.user_prompt = params.user_prompt;
@@ -297,19 +264,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
         }
 
-        // Regenerate plan if needed (only for longer prompts)
-        if (existing.frontmatter.user_prompt.length <= 50) {
-          existing.frontmatter.name = existing.frontmatter.user_prompt;
-          existing.body = "";
-        } else if (needsRegeneration) {
-          try {
-            const plan = await generatePlan(config.projectRoot, existing.frontmatter.user_prompt, existing.frontmatter.agent);
-            existing.frontmatter.name = plan.name;
-            existing.body = plan.body;
-          } catch (err: unknown) {
-            const error = err as { stdout?: string; stderr?: string };
-            return { error: "plan generation failed", stdout: error.stdout, stderr: error.stderr };
-          }
+        // Regenerate name when prompt or agent changes
+        if (promptChanged || agentChanged) {
+          existing.frontmatter.name = existing.frontmatter.user_prompt.length <= 50
+            ? existing.frontmatter.user_prompt
+            : await generateName(config.projectRoot, existing.frontmatter.user_prompt, existing.frontmatter.agent);
         }
 
         writeTaskFile(taskDir, existing);
@@ -356,7 +315,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
-          body: "",
         };
 
         writeTaskFile(taskDir, task);

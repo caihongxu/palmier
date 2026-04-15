@@ -6,11 +6,8 @@ import { SHELL } from "../platform/index.js";
 
 export class Cursor implements AgentTool {
   supportsPermissions = false;
-  getPlanGenerationCommandLine(prompt: string): CommandLine {
-    return {
-      command: "cursor",
-      args: ["-p", prompt],
-    };
+  getPromptCommandLine(prompt: string): CommandLine {
+    return { command: "cursor", args: ["-p", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

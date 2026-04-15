@@ -19,7 +19,7 @@ This is the task body.`;
     assert.equal(result.frontmatter.id, "abc123");
     assert.equal(result.frontmatter.name, "Test Task");
     assert.equal(result.frontmatter.agent, "claude");
-    assert.equal(result.body, "This is the task body.");
+    assert.equal(result.frontmatter.user_prompt, "Do something");
   });
 
   it("defaults agent to claude when not specified", () => {
@@ -68,7 +68,7 @@ requires_confirmation: false
     assert.throws(() => parseTaskContent("---\nname: test\n---\n"), /must include at least: id/);
   });
 
-  it("handles empty body", () => {
+  it("handles empty body gracefully", () => {
     const content = `---
 id: abc123
 user_prompt: test
@@ -78,6 +78,6 @@ requires_confirmation: false
 ---`;
 
     const result = parseTaskContent(content);
-    assert.equal(result.body, "");
+    assert.equal(result.frontmatter.id, "abc123");
   });
 });

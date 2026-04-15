@@ -17,7 +17,7 @@ const AGENT_INSTRUCTIONS_TEMPLATE = fs.readFileSync(
  */
 export function getAgentInstructions(task: ParsedTask, skipPermissions?: boolean): string {
   const port = loadConfig().httpPort ?? 9966;
-  const taskDescription = task.body || task.frontmatter.user_prompt;
+  const taskDescription = task.frontmatter.user_prompt;
   let instructions = AGENT_INSTRUCTIONS_TEMPLATE
     .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(port, task.frontmatter.id))
     .replace(/\{\{TASK_DESCRIPTION\}\}/g, taskDescription);
