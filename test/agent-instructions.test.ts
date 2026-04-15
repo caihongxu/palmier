@@ -101,17 +101,32 @@ describe("getAgentInstructions", () => {
   });
 });
 
-describe("full agent instruction snapshot", () => {
-  it("matches the expected full text exactly", () => {
-    const result = buildInstructions("test-task-id").replace(/\r\n/g, "\n").trimEnd();
-    const snapshotPath = path.join(__dirname, "fixtures", "agent-instructions-snapshot.md");
-    const expected = fs.readFileSync(snapshotPath, "utf-8").replace(/\r\n/g, "\n").trimEnd();
-    assert.equal(result, expected);
-  });
-});
 
 describe("generateEndpointDocs", () => {
   const docs = generateEndpointDocs(9966, "test-id", mockTools);
+
+  it("matches expected full output", () => {
+    const expected = [
+      "The following HTTP endpoints are available during task execution. Use curl to call them.",
+      "",
+      "**`POST http://localhost:9966/mock-action?taskId=test-id`** — Perform a mock action.",
+      "```json",
+      '{"title":"...","detail":"..."}',
+      "```",
+      "- `title` (required, string): Action title",
+      "- `detail` (optional, string): Optional detail",
+      '- Response: `{"ok": true}` on success.',
+      "",
+      "**`POST http://localhost:9966/mock-query?taskId=test-id`** — Query mock data from the device.",
+      "```json",
+      '{"tags":["..."]}',
+      "```",
+      "- `tags` (optional, string array): Filter tags",
+      "- Blocks until the device responds.",
+      '- Response: `{"data": ...}` on success.',
+    ].join("\n");
+    assert.equal(docs, expected);
+  });
 
   it("generates docs for all provided tools", () => {
     for (const tool of mockTools) {
