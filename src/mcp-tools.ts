@@ -19,14 +19,18 @@ export interface ToolContext {
 
 export interface ToolDefinition {
   name: string;
-  description: string;
+  /** First line is the summary (used as endpoint header). Remaining lines become bullet points in docs. */
+  description: string[];
   inputSchema: object;
   handler: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
 }
 
 const notifyTool: ToolDefinition = {
   name: "notify",
-  description: "Send a push notification to the user's device.",
+  description: [
+    "Send a push notification to the user's device.",
+    'Response: `{"ok": true}` on success.',
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -55,7 +59,12 @@ const notifyTool: ToolDefinition = {
 
 const requestInputTool: ToolDefinition = {
   name: "request-input",
-  description: "Request input from the user. The request blocks until the user responds.",
+  description: [
+    "Request input from the user.",
+    "The request blocks until the user responds.",
+    'Response: `{"values": ["answer1", "answer2"]}` on success, or `{"aborted": true}` if the user declines.',
+    "When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment — use this endpoint instead.",
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -87,18 +96,28 @@ const requestInputTool: ToolDefinition = {
     const response = await pendingPromise;
 
     if (response.length === 1 && response[0] === "aborted") {
-      await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, session_id: ctx.sessionId, status: "aborted" });
+      await ctx.publishEvent("_input", {
+        event_type: "input-resolved", host_id: ctx.config.hostId,
+        session_id: ctx.sessionId, status: "aborted",
+      });
       return { aborted: true };
     }
 
-    await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, session_id: ctx.sessionId, status: "provided" });
+    await ctx.publishEvent("_input", {
+      event_type: "input-resolved", host_id: ctx.config.hostId,
+      session_id: ctx.sessionId, status: "provided",
+    });
     return { values: response };
   },
 };
 
 const requestConfirmationTool: ToolDefinition = {
   name: "request-confirmation",
-  description: "Request confirmation from the user. The request blocks until the user confirms or aborts.",
+  description: [
+    "Request confirmation from the user.",
+    "The request blocks until the user confirms or aborts.",
+    'Response: `{"confirmed": true}` or `{"confirmed": false}`.',
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -136,7 +155,12 @@ const requestConfirmationTool: ToolDefinition = {
 
 const deviceGeolocationTool: ToolDefinition = {
   name: "device-geolocation",
-  description: "Get the GPS location of the user's mobile device. Blocks until the device responds (up to 30 seconds).",
+  description: [
+    "Get the GPS location of the user's mobile device.",
+    "When you need the user's real-time location, use this endpoint.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"latitude": ..., "longitude": ..., "accuracy": ..., "timestamp": ...}` on success, or `{"error": "..."}` on failure.',
+  ],
   inputSchema: {
     type: "object",
     properties: {},
@@ -180,3 +204,50 @@ const deviceGeolocationTool: ToolDefinition = {
 
 export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
+
+/**
+ * Generate the HTTP Endpoints markdown section for agent-instructions.md from the tool registry.
+ */
+export function generateEndpointDocs(port: number, taskId: string): string {
+  const baseUrl = `http://localhost:${port}`;
+  const lines: string[] = [
+    `The following HTTP endpoints are available during task execution. Use curl to call them.`,
+    "",
+  ];
+
+  for (const tool of agentTools) {
+    const schema = tool.inputSchema as { properties?: Record<string, { type?: string; description?: string; items?: { type?: string } }>; required?: string[] };
+    const props = schema.properties ?? {};
+    const required = new Set(schema.required ?? []);
+
+    // Build example JSON (body only, no taskId)
+    const example: Record<string, unknown> = {};
+    for (const [key, prop] of Object.entries(props)) {
+      if (prop.type === "array") example[key] = ["..."];
+      else example[key] = "...";
+    }
+
+    const queryUrl = `${baseUrl}/${tool.name}?taskId=${taskId}`;
+    const [header, ...details] = tool.description;
+
+    lines.push(`**\`POST ${queryUrl}\`** — ${header}`);
+    if (Object.keys(example).length > 0) {
+      lines.push("```json");
+      lines.push(JSON.stringify(example));
+      lines.push("```");
+    }
+    for (const [key, prop] of Object.entries(props)) {
+      const req = required.has(key) ? "required" : "optional";
+      let typeStr = prop.type ?? "unknown";
+      if (prop.type === "array" && prop.items?.type) typeStr = `${prop.items.type} array`;
+      lines.push(`- \`${key}\` (${req}, ${typeStr}): ${prop.description ?? ""}`);
+    }
+    for (const detail of details) {
+      lines.push(`- ${detail}`);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}

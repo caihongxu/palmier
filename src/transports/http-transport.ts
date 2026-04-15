@@ -195,11 +195,9 @@ export async function startHttpTransport(
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       const tool = agentToolMap.get(pathname.slice(1))!;
       try {
-        const body = await readBody(req);
-        const args = body.trim() ? JSON.parse(body) : {};
-        const { taskId } = args as { taskId?: string };
+        const taskId = url.searchParams.get("taskId");
         if (!taskId) {
-          sendJson(res, 400, { error: "taskId is required" });
+          sendJson(res, 400, { error: "taskId query parameter is required" });
           return;
         }
         const taskDir = getTaskDir(config.projectRoot, taskId);
@@ -207,7 +205,8 @@ export async function startHttpTransport(
           sendJson(res, 404, { error: `Task not found: ${taskId}` });
           return;
         }
-        delete args.taskId;
+        const body = await readBody(req);
+        const args = body.trim() ? JSON.parse(body) : {};
         const ctx = makeToolContext(taskId);
         console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${tool.name}`);
         const result = await tool.handler(args, ctx);

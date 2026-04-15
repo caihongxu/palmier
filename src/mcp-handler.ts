@@ -90,7 +90,7 @@ export async function handleMcpRequest(body: string, sessionId: string | undefin
         body: rpcResult(id, {
           tools: agentTools.map((t) => ({
             name: t.name,
-            description: t.description,
+            description: t.description.join(" "),
             inputSchema: t.inputSchema,
           })),
         }),

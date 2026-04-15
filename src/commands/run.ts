@@ -513,10 +513,10 @@ async function requestConfirmation(
   taskDir: string,
 ): Promise<boolean> {
   const port = config.httpPort ?? 9966;
-  const res = await fetch(`http://localhost:${port}/request-confirmation`, {
+  const res = await fetch(`http://localhost:${port}/request-confirmation?taskId=${encodeURIComponent(task.frontmatter.id)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ taskId: task.frontmatter.id, description: `Run task "${task.frontmatter.name || task.frontmatter.id}"?` }),
+    body: JSON.stringify({ description: `Run task "${task.frontmatter.name || task.frontmatter.id}"?` }),
   });
   const body = await res.json() as { confirmed?: boolean; error?: string };
   if (typeof body.confirmed !== "boolean") {
