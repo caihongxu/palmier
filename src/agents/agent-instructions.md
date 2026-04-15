@@ -22,7 +22,7 @@ The following HTTP endpoints are available at http://localhost:{{PORT}} during t
 
 **Requesting user input** — When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment. Instead, POST to `/request-input` with:
 ```json
-{"taskId":"{{TASK_ID}}","descriptions":["question 1","question 2"]}
+{"descriptions":["question 1","question 2"]}
 ```
 The request blocks until the user responds. Response: `{"values":["answer1","answer2"]}` on success, or `{"aborted":true}` if the user declines.
 
@@ -30,7 +30,7 @@ The request blocks until the user responds. Response: `{"values":["answer1","ans
 
 **Sending push notifications** — To notify the user, POST to `/notify` with:
 ```json
-{"taskId":"{{TASK_ID}}","title":"...","body":"..."}
+{"title":"...","body":"..."}
 ```
 
 ---

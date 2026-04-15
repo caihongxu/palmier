@@ -6,7 +6,6 @@ import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import { getLocationDevice } from "../location-device.js";
 import * as fs from "node:fs";
-import { getTaskDir, parseTaskFile, spliceUserMessage } from "../task.js";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
@@ -86,18 +85,6 @@ export function detectLanIp(): string {
     }
   }
   return "127.0.0.1";
-}
-
-/** Find the latest (highest-numbered) run directory for a task. */
-function findLatestRunId(taskDir: string): string | null {
-  try {
-    const dirs = fs.readdirSync(taskDir)
-      .filter((f) => /^\d+$/.test(f) && fs.statSync(`${taskDir}/${f}`).isDirectory())
-      .sort();
-    return dirs.length > 0 ? dirs[dirs.length - 1] : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -226,12 +213,11 @@ export async function startHttpTransport(
 
       try {
         const body = await readBody(req);
-        const { taskId: notifTaskId, title, body: notifBody } = JSON.parse(body) as { taskId?: string; title: string; body: string };
+        const { title, body: notifBody } = JSON.parse(body) as { title: string; body: string };
         if (!title || !notifBody) { sendJson(res, 400, { error: "title and body are required" }); return; }
 
         const sc = StringCodec();
         const payload: Record<string, string> = { hostId: config.hostId, title, body: notifBody };
-        if (notifTaskId) payload.task_id = notifTaskId;
         const subject = `host.${config.hostId}.push.send`;
         const reply = await nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
         const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };
@@ -253,46 +239,31 @@ export async function startHttpTransport(
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
         const body = await readBody(req);
-        const { taskId, runId, descriptions } = JSON.parse(body) as {
-          taskId: string; runId?: string; descriptions: string[];
-        };
-        if (!taskId || !descriptions?.length) {
-          sendJson(res, 400, { error: "taskId and descriptions are required" });
+        const { descriptions } = JSON.parse(body) as { descriptions: string[] };
+        if (!descriptions?.length) {
+          sendJson(res, 400, { error: "descriptions is required" });
           return;
         }
 
-        const taskDir = getTaskDir(config.projectRoot, taskId);
-        const task = parseTaskFile(taskDir);
+        const { randomUUID } = await import("crypto");
+        const requestId = randomUUID();
 
-        // Resolve runId: use provided value, otherwise find the latest run directory
-        const effectiveRunId = runId ?? findLatestRunId(taskDir);
+        const pendingPromise = registerPending(requestId, "input", descriptions);
 
-        const pendingPromise = registerPending(taskId, "input", descriptions);
-
-        await publishEvent(taskId, {
+        await publishEvent("_input", {
           event_type: "input-request",
           host_id: config.hostId,
+          request_id: requestId,
           input_descriptions: descriptions,
-          name: task.frontmatter.name,
         });
 
         const response = await pendingPromise;
 
-        const questionsBlock = "\n\n" + descriptions.map((d) => `**${d}**`).join("\n");
-
         if (response.length === 1 && response[0] === "aborted") {
-          await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "aborted" });
-          if (effectiveRunId) {
-            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: "Aborted", type: "input" }, questionsBlock);
-            await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
-          }
+          await publishEvent("_input", { event_type: "input-resolved", host_id: config.hostId, request_id: requestId, status: "aborted" });
           sendJson(res, 200, { aborted: true });
         } else {
-          await publishEvent(taskId, { event_type: "input-resolved", host_id: config.hostId, status: "provided" });
-          if (effectiveRunId) {
-            spliceUserMessage(taskDir, effectiveRunId, { role: "user", time: Date.now(), content: response.join("\n"), type: "input" }, questionsBlock);
-            await publishEvent(taskId, { event_type: "result-updated", run_id: effectiveRunId });
-          }
+          await publishEvent("_input", { event_type: "input-resolved", host_id: config.hostId, request_id: requestId, status: "provided" });
           sendJson(res, 200, { values: response });
         }
       } catch (err) {

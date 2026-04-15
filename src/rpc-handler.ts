@@ -169,7 +169,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         ...status,
         ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
         ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
-        ...(pending?.type === "input" ? { pending_input: pending.params } : {}),
       } : undefined,
     };
   }
@@ -443,7 +442,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const child = crossSpawn(cmd, cmdArgs, {
           cwd: followupRunDir,
           stdio: [stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
-          env: { ...process.env, ...followupAgentEnv, PALMIER_TASK_ID: params.id },
+          env: { ...process.env, ...followupAgentEnv },
           windowsHide: true,
         });
         if (stdin != null) child.stdin!.end(stdin);
@@ -582,7 +581,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           ...status,
           ...(pending?.type === "confirmation" ? { pending_confirmation: true } : {}),
           ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
-          ...(pending?.type === "input" ? { pending_input: pending.params } : {}),
         };
       }
 

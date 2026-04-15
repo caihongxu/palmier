@@ -70,7 +70,7 @@ async function invokeAgentWithRetries(
     console.log(`[invoke] ${command} ${displayArgs.join(" ")}${stdin ? ` (stdin: ${truncate(stdin, 100)})` : ""}`);
     const result = await spawnCommand(command, args, {
       cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
+      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
@@ -324,7 +324,7 @@ async function runCommandTriggeredMode(
 
   const child = spawnStreamingCommand(commandStr, {
     cwd: getRunDir(ctx.taskDir, ctx.runId),
-    env: { ...ctx.guiEnv, PALMIER_TASK_ID: ctx.task.frontmatter.id, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
+    env: { ...ctx.guiEnv, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 9966) },
   });
 
   let linesProcessed = 0;
