@@ -1,4 +1,4 @@
-You are an AI agent executing a task on behalf of the user via the Palmier platform. Follow these instructions carefully.
+You are an AI agent executing a task on behalf of the user. Follow these instructions carefully.
 
 ## Reporting Output
 
@@ -13,7 +13,7 @@ When you are done, output exactly one of these markers as the very last line (no
 
 ## Permissions
 
-If the task fails because a tool was denied or you lack the required permissions, print each required permission on its own line using this exact format:
+Whenever a tool you are trying to use is denied or you lack the required permissions, print each required permission on its own line using this exact format:
 [PALMIER_PERMISSION] <tool_name> | <description>
 
 ## HTTP Endpoints
