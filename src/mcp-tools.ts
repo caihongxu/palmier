@@ -41,7 +41,9 @@ const notifyTool: ToolDefinition = {
     if (!ctx.nc) throw new ToolError("NATS not connected — push notifications require server mode", 503);
 
     const sc = StringCodec();
-    const payload = { hostId: ctx.config.hostId, title, body };
+    const payload: Record<string, string> = { hostId: ctx.config.hostId, title, body };
+    if (ctx.sessionId) payload.session_id = ctx.sessionId;
+    if (ctx.agentName) payload.agent_name = ctx.agentName;
     const subject = `host.${ctx.config.hostId}.push.send`;
     const reply = await ctx.nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
     const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };
