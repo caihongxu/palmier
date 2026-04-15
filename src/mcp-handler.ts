@@ -29,6 +29,8 @@ export async function handleMcpRequest(body: string, ctx: ToolContext): Promise<
     return rpcError(id, -32600, "Invalid Request: missing jsonrpc 2.0");
   }
 
+  console.log(`[mcp] ${req.method}${req.method === "tools/call" ? ` → ${req.params?.name}` : ""}`);
+
   switch (req.method) {
     case "initialize": {
       return rpcResult(id, {
@@ -39,12 +41,13 @@ export async function handleMcpRequest(body: string, ctx: ToolContext): Promise<
     }
 
     case "tools/list": {
-      const tools = agentTools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      }));
-      return rpcResult(id, { tools });
+      return rpcResult(id, {
+        tools: agentTools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })),
+      });
     }
 
     case "tools/call": {
@@ -58,11 +61,13 @@ export async function handleMcpRequest(body: string, ctx: ToolContext): Promise<
 
       try {
         const result = await tool.handler(args, ctx);
+        console.log(`[mcp] tools/call ${name} done:`, JSON.stringify(result).slice(0, 200));
         return rpcResult(id, {
           content: [{ type: "text", text: JSON.stringify(result) }],
         });
       } catch (err: any) {
         const message = err instanceof ToolError ? err.message : String(err);
+        console.error(`[mcp] tools/call ${name} error:`, message);
         return rpcResult(id, {
           content: [{ type: "text", text: JSON.stringify({ error: message }) }],
           isError: true,
@@ -71,6 +76,7 @@ export async function handleMcpRequest(body: string, ctx: ToolContext): Promise<
     }
 
     default:
+      console.warn(`[mcp] Unknown method: ${req.method}`);
       return rpcError(id, -32601, `Method not found: ${req.method}`);
   }
 }

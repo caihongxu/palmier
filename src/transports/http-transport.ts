@@ -186,13 +186,16 @@ export async function startHttpTransport(
     if (req.method === "POST" && agentToolMap.has(pathname.slice(1))) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       const tool = agentToolMap.get(pathname.slice(1))!;
+      console.log(`[mcp] REST ${tool.name}`);
       try {
         const body = await readBody(req);
         const args = body.trim() ? JSON.parse(body) : {};
         const result = await tool.handler(args, toolContext);
+        console.log(`[mcp] REST ${tool.name} done:`, JSON.stringify(result).slice(0, 200));
         sendJson(res, 200, result);
       } catch (err: any) {
         const status = err instanceof ToolError ? err.statusCode : 500;
+        console.error(`[mcp] REST ${tool.name} error:`, err.message ?? String(err));
         sendJson(res, status, { error: err.message ?? String(err) });
       }
       return;
