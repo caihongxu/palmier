@@ -208,14 +208,14 @@ export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) =
 /**
  * Generate the HTTP Endpoints markdown section for agent-instructions.md from the tool registry.
  */
-export function generateEndpointDocs(port: number, taskId: string): string {
+export function generateEndpointDocs(port: number, taskId: string, tools: ToolDefinition[] = agentTools): string {
   const baseUrl = `http://localhost:${port}`;
   const lines: string[] = [
     `The following HTTP endpoints are available during task execution. Use curl to call them.`,
     "",
   ];
 
-  for (const tool of agentTools) {
+  for (const tool of tools) {
     const schema = tool.inputSchema as { properties?: Record<string, { type?: string; description?: string; items?: { type?: string } }>; required?: string[] };
     const props = schema.properties ?? {};
     const required = new Set(schema.required ?? []);

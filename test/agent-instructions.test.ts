@@ -3,16 +3,55 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { generateEndpointDocs, agentTools } from "../src/mcp-tools.js";
+import { generateEndpointDocs, type ToolDefinition } from "../src/mcp-tools.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templatePath = path.join(__dirname, "..", "src", "agents", "agent-instructions.md");
 const template = fs.readFileSync(templatePath, "utf-8");
 
+/** Mock tools with a known, stable shape for testing */
+const mockTools: ToolDefinition[] = [
+  {
+    name: "mock-action",
+    description: [
+      "Perform a mock action.",
+      'Response: `{"ok": true}` on success.',
+    ],
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Action title" },
+        detail: { type: "string", description: "Optional detail" },
+      },
+      required: ["title"],
+    },
+    handler: async () => ({ ok: true }),
+  },
+  {
+    name: "mock-query",
+    description: [
+      "Query mock data from the device.",
+      "Blocks until the device responds.",
+      'Response: `{"data": ...}` on success.',
+    ],
+    inputSchema: {
+      type: "object",
+      properties: {
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter tags",
+        },
+      },
+    },
+    handler: async () => ({ data: [] }),
+  },
+];
+
 /** Minimal replica of getAgentInstructions that doesn't need host.json */
 function buildInstructions(taskId: string, skipPermissions?: boolean): string {
   let instructions = template
-    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(9966, taskId))
+    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(9966, taskId, mockTools))
     .replace(/\{\{TASK_DESCRIPTION\}\}/g, "Test task prompt");
   if (skipPermissions) {
     instructions = instructions.replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");
@@ -72,10 +111,10 @@ describe("full agent instruction snapshot", () => {
 });
 
 describe("generateEndpointDocs", () => {
-  const docs = generateEndpointDocs(9966, "test-id");
+  const docs = generateEndpointDocs(9966, "test-id", mockTools);
 
-  it("generates docs for all MCP tools", () => {
-    for (const tool of agentTools) {
+  it("generates docs for all provided tools", () => {
+    for (const tool of mockTools) {
       assert.match(docs, new RegExp(`POST http://localhost:9966/${tool.name}\\?taskId=`), `Missing endpoint for ${tool.name}`);
     }
   });
@@ -97,8 +136,8 @@ describe("generateEndpointDocs", () => {
   });
 
   it("includes response descriptions", () => {
-    for (const tool of agentTools) {
-      if (tool.responseDescription) {
+    for (const tool of mockTools) {
+      if (tool.description.length > 1) {
         assert.match(docs, /Response:/, `Missing response description for ${tool.name}`);
       }
     }
@@ -106,6 +145,16 @@ describe("generateEndpointDocs", () => {
 
   it("marks required and optional parameters correctly", () => {
     assert.match(docs, /\(required, string\)/);
+    // "detail" has no required entry, so it should be optional
     assert.match(docs, /\(optional, string\)/);
+  });
+
+  it("handles array-type parameters", () => {
+    assert.match(docs, /\(optional, string array\)/);
+    assert.match(docs, /Filter tags/);
+  });
+
+  it("renders multi-line descriptions as bullet points", () => {
+    assert.match(docs, /- Blocks until the device responds\./);
   });
 });
