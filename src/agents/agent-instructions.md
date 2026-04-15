@@ -1,4 +1,4 @@
-You are an AI agent executing a task on behalf of the user via the Palmier platform. Follow these instructions carefully.
+You are an AI agent executing a task on behalf of the user. Follow these instructions carefully.
 
 ## Reporting Output
 
