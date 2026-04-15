@@ -89,8 +89,10 @@ export function spawnCommand(
     const finalArgs = process.platform === "win32"
       ? args.map((a) => a.replace(/[\r\n]+/g, " "))
       : args;
+    const truncate = (s: string, max = 100) => s.length > max ? s.slice(0, max) + "..." : s;
+    const displayArgs = finalArgs.map((arg) => truncate(arg));
 
-    // console.log(`[spawn] ${command} ${finalArgs.join(" ")}`);
+    console.log(`[spawn] ${command} ${displayArgs.join(" ")}`);
 
     const child = crossSpawn(command, finalArgs, {
       cwd: opts.cwd,
