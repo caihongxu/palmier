@@ -7,7 +7,8 @@ import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 import { agentToolMap, ToolError, type ToolContext } from "../mcp-tools.js";
-import { handleMcpRequest } from "../mcp-handler.js";
+import { handleMcpRequest, getAgentName } from "../mcp-handler.js";
+import { getTaskDir } from "../task.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
 
@@ -161,7 +162,9 @@ export async function startHttpTransport(
     broadcastSseEvent({ task_id: taskId, ...payload });
   }
 
-  const toolContext: ToolContext = { config, nc, publishEvent };
+  function makeToolContext(sessionId: string): ToolContext {
+    return { config, nc, publishEvent, sessionId, agentName: getAgentName(sessionId) };
+  }
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
@@ -173,8 +176,13 @@ export async function startHttpTransport(
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
         const body = await readBody(req);
-        const result = await handleMcpRequest(body, toolContext);
-        sendJson(res, 200, result);
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+        const ctx = makeToolContext(sessionId ?? "");
+        const result = await handleMcpRequest(body, sessionId, ctx);
+        if (result.sessionId) {
+          res.setHeader("Mcp-Session-Id", result.sessionId);
+        }
+        sendJson(res, 200, result.body);
       } catch (err) {
         sendJson(res, 500, { error: String(err) });
       }
@@ -186,12 +194,24 @@ export async function startHttpTransport(
     if (req.method === "POST" && agentToolMap.has(pathname.slice(1))) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       const tool = agentToolMap.get(pathname.slice(1))!;
-      console.log(`[mcp] REST ${tool.name}`);
       try {
         const body = await readBody(req);
         const args = body.trim() ? JSON.parse(body) : {};
-        const result = await tool.handler(args, toolContext);
-        console.log(`[mcp] REST ${tool.name} done:`, JSON.stringify(result).slice(0, 200));
+        const { taskId } = args as { taskId?: string };
+        if (!taskId) {
+          sendJson(res, 400, { error: "taskId is required" });
+          return;
+        }
+        const taskDir = getTaskDir(config.projectRoot, taskId);
+        if (!fs.existsSync(taskDir)) {
+          sendJson(res, 404, { error: `Task not found: ${taskId}` });
+          return;
+        }
+        delete args.taskId;
+        const ctx = makeToolContext(taskId);
+        console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${tool.name}`);
+        const result = await tool.handler(args, ctx);
+        console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${tool.name} done:`, JSON.stringify(result).slice(0, 200));
         sendJson(res, 200, result);
       } catch (err: any) {
         const status = err instanceof ToolError ? err.statusCode : 500;

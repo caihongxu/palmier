@@ -18,12 +18,13 @@ If the task fails because a tool was denied or you lack the required permissions
 
 ## HTTP Endpoints
 
-The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution. Use curl to call them.
+The following HTTP endpoints are available at http://localhost:{{PORT}} during task execution. Use curl to call them. All endpoints require `taskId` in the request body.
 
 **`POST /request-input`** — Request input from the user. The request blocks until the user responds.
 ```json
-{"description": "optional context", "questions": ["question 1", "question 2"]}
+{"taskId": "{{TASK_ID}}", "description": "optional context", "questions": ["question 1", "question 2"]}
 ```
+- `taskId` (required, string): The current task ID.
 - `questions` (required, string array): Questions to present to the user.
 - `description` (optional, string): Context or heading for the input request.
 - Response: `{"values": ["answer1", "answer2"]}` on success, or `{"aborted": true}` if the user declines.
@@ -31,18 +32,24 @@ The following HTTP endpoints are available at http://localhost:{{PORT}} during t
 
 **`POST /request-confirmation`** — Request confirmation from the user. The request blocks until the user confirms or aborts.
 ```json
-{"description": "What the user is confirming"}
+{"taskId": "{{TASK_ID}}", "description": "What the user is confirming"}
 ```
+- `taskId` (required, string): The current task ID.
 - `description` (required, string): What the user is confirming.
 - Response: `{"confirmed": true}` or `{"confirmed": false}`.
 
-**`POST /device-geolocation`** — Get the GPS location of the user's mobile device. Blocks until the device responds (up to 30 seconds). No request body required.
+**`POST /device-geolocation`** — Get the GPS location of the user's mobile device. Blocks until the device responds (up to 30 seconds).
+```json
+{"taskId": "{{TASK_ID}}"}
+```
+- `taskId` (required, string): The current task ID.
 - Response: `{"latitude": ..., "longitude": ..., "accuracy": ..., "timestamp": ...}` on success, or `{"error": "..."}` on failure.
 
 **`POST /notify`** — Send a push notification to the user's device.
 ```json
-{"title": "...", "body": "..."}
+{"taskId": "{{TASK_ID}}", "title": "...", "body": "..."}
 ```
+- `taskId` (required, string): The current task ID.
 - `title` (required, string): Notification title.
 - `body` (required, string): Notification body.
 

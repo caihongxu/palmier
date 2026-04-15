@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getLocationDevice } from "./location-device.js";
@@ -14,6 +13,8 @@ export interface ToolContext {
   config: HostConfig;
   nc: NatsConnection | undefined;
   publishEvent: (id: string, payload: Record<string, unknown>) => Promise<void>;
+  sessionId: string;
+  agentName?: string;
 }
 
 export interface ToolDefinition {
@@ -70,13 +71,13 @@ const requestInputTool: ToolDefinition = {
     const { description, questions } = args as { description?: string; questions: string[] };
     if (!questions?.length) throw new ToolError("questions is required", 400);
 
-    const requestId = randomUUID();
-    const pendingPromise = registerPending(requestId, "input", questions);
+    const pendingPromise = registerPending(ctx.sessionId, "input", questions);
 
     await ctx.publishEvent("_input", {
       event_type: "input-request",
       host_id: ctx.config.hostId,
-      request_id: requestId,
+      session_id: ctx.sessionId,
+      agent_name: ctx.agentName,
       description,
       input_questions: questions,
     });
@@ -84,11 +85,11 @@ const requestInputTool: ToolDefinition = {
     const response = await pendingPromise;
 
     if (response.length === 1 && response[0] === "aborted") {
-      await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, request_id: requestId, status: "aborted" });
+      await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, session_id: ctx.sessionId, status: "aborted" });
       return { aborted: true };
     }
 
-    await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, request_id: requestId, status: "provided" });
+    await ctx.publishEvent("_input", { event_type: "input-resolved", host_id: ctx.config.hostId, session_id: ctx.sessionId, status: "provided" });
     return { values: response };
   },
 };
@@ -107,13 +108,13 @@ const requestConfirmationTool: ToolDefinition = {
     const { description } = args as { description: string };
     if (!description) throw new ToolError("description is required", 400);
 
-    const requestId = randomUUID();
-    const pendingPromise = registerPending(requestId, "confirmation");
+    const pendingPromise = registerPending(ctx.sessionId, "confirmation");
 
     await ctx.publishEvent("_confirm", {
       event_type: "confirm-request",
       host_id: ctx.config.hostId,
-      request_id: requestId,
+      session_id: ctx.sessionId,
+      agent_name: ctx.agentName,
       description,
     });
 
@@ -123,7 +124,7 @@ const requestConfirmationTool: ToolDefinition = {
     await ctx.publishEvent("_confirm", {
       event_type: "confirm-resolved",
       host_id: ctx.config.hostId,
-      request_id: requestId,
+      session_id: ctx.sessionId,
       status: confirmed ? "confirmed" : "aborted",
     });
 
@@ -145,18 +146,17 @@ const deviceGeolocationTool: ToolDefinition = {
     if (!locDevice) throw new ToolError("No device has location access enabled", 400);
 
     const sc = StringCodec();
-    const requestId = randomUUID();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.geolocation`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId, fcmToken: locDevice.fcmToken })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: locDevice.fcmToken })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const locationPromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.geolocation.${requestId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.geolocation.${ctx.sessionId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
