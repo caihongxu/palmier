@@ -34,7 +34,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## How It Works
 
-Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server.
+Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, and fetching GPS location.
 
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
