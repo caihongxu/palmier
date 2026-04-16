@@ -65,7 +65,7 @@ const requestInputTool: ToolDefinition = {
     "Request input from the user.",
     "The request blocks until the user responds.",
     'Response: `{"values": ["answer1", "answer2"]}` on success, or `{"aborted": true}` if the user declines.',
-    "When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment — use this endpoint instead.",
+    "When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment — use this instead.",
   ],
   inputSchema: {
     type: "object",
@@ -159,7 +159,7 @@ const deviceGeolocationTool: ToolDefinition = {
   name: "device-geolocation",
   description: [
     "Get the GPS location of the user's mobile device.",
-    "When you need the user's real-time location, use this endpoint.",
+    "When you need the user's real-time location, use this.",
     "Blocks until the device responds (up to 30 seconds).",
     'Response: `{"latitude": ..., "longitude": ..., "accuracy": ..., "timestamp": ...}` on success, or `{"error": "..."}` on failure.',
   ],
@@ -661,7 +661,7 @@ const sendEmailTool: ToolDefinition = {
   name: "send-email",
   description: [
     "Send an email from the user's mobile device.",
-    "When you need to send an email, use this tool. The email app opens on the device with the draft pre-filled for the user to review and send.",
+    "When you need to send an email, use this. The email app opens on the device with the draft pre-filled for the user to review and send.",
     'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
   ],
   inputSchema: {
