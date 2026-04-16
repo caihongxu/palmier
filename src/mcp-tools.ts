@@ -588,7 +588,58 @@ const readBatteryTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, setAlarmTool, readBatteryTool];
+const setRingerModeTool: ToolDefinition = {
+  name: "set-ringer-mode",
+  description: [
+    "Set the phone's ringer mode. Requires Do Not Disturb access on the device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"ok": true, "mode": "silent"}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      mode: { type: "string", description: "Ringer mode: 'normal', 'vibrate', or 'silent'" },
+    },
+    required: ["mode"],
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const { mode } = args as { mode: string };
+    if (!["normal", "vibrate", "silent"].includes(mode)) throw new ToolError("mode must be 'normal', 'vibrate', or 'silent'", 400);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.ringer`,
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, mode })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.ringer.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, setAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
