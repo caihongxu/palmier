@@ -543,7 +543,52 @@ const setAlarmTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, setAlarmTool];
+const readBatteryTool: ToolDefinition = {
+  name: "read-battery",
+  description: [
+    "Get the battery level and charging status of the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"level": 85, "charging": true}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {},
+  },
+  async handler(_args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.battery`,
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.battery.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, setAlarmTool, readBatteryTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
