@@ -204,7 +204,108 @@ const deviceGeolocationTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool];
+const readContactsTool: ToolDefinition = {
+  name: "read-contacts",
+  description: [
+    "Read the contact list from the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"contacts": [{"id": ..., "name": ..., "phone": ...}]}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {},
+  },
+  async handler(_args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.contacts`,
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, action: "read" })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+const createContactTool: ToolDefinition = {
+  name: "create-contact",
+  description: [
+    "Create a new contact on the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Contact display name" },
+      phone: { type: "string", description: "Phone number" },
+      email: { type: "string", description: "Email address" },
+    },
+    required: ["name"],
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const { name, phone, email } = args as { name: string; phone?: string; email?: string };
+    if (!name) throw new ToolError("name is required", 400);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.contacts`,
+      sc.encode(JSON.stringify({
+        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        action: "create", name, phone, email,
+      })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
