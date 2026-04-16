@@ -657,7 +657,74 @@ const setRingerModeTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendAlertTool, readBatteryTool, setRingerModeTool];
+const sendEmailTool: ToolDefinition = {
+  name: "send-email",
+  description: [
+    "Send an email from the user's mobile device.",
+    "When you need to send an email, use this tool. The email app opens on the device with the draft pre-filled for the user to review and send.",
+    'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: { type: "string", description: "Recipient email address" },
+      subject: { type: "string", description: "Email subject" },
+      body: { type: "string", description: "Email body text" },
+      cc: { type: "string", description: "CC recipient(s)" },
+      bcc: { type: "string", description: "BCC recipient(s)" },
+    },
+    required: ["to"],
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const device = getCapabilityDevice("email");
+    if (!device) throw new ToolError("No device has email access enabled", 400);
+
+    const { to, subject, body, cc, bcc } = args as { to: string; subject?: string; body?: string; cc?: string; bcc?: string };
+    if (!to) throw new ToolError("to is required", 400);
+
+    const sc = StringCodec();
+
+    const payload: Record<string, string> = {
+      hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+      to,
+    };
+    if (subject) payload.subject = subject;
+    if (body) payload.body = body;
+    if (cc) payload.cc = cc;
+    if (bcc) payload.bcc = bcc;
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.email`,
+      sc.encode(JSON.stringify(payload)),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.email.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlertTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
