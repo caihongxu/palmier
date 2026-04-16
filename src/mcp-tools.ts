@@ -493,47 +493,41 @@ const sendSmsTool: ToolDefinition = {
   },
 };
 
-const setAlarmTool: ToolDefinition = {
-  name: "set-alarm",
+const sendAlertTool: ToolDefinition = {
+  name: "send-alert",
   description: [
-    "Set an alarm on the user's mobile device.",
+    "Send an alert to the user's mobile device with an alarm sound and full-screen popup.",
+    "Use this to urgently get the user's attention. The device will play an alarm sound and show a full-screen dialog even on the lock screen.",
     "Blocks until the device responds (up to 30 seconds).",
     'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
   ],
   inputSchema: {
     type: "object",
     properties: {
-      hour: { type: "number", description: "Hour (0-23)" },
-      minutes: { type: "number", description: "Minutes (0-59)" },
-      label: { type: "string", description: "Alarm label" },
-      days: {
-        type: "array",
-        items: { type: "number" },
-        description: "Recurring days (1=Sun, 2=Mon, ..., 7=Sat). Omit for one-time.",
-      },
+      title: { type: "string", description: "Alert title" },
+      description: { type: "string", description: "Alert description/details" },
     },
-    required: ["hour", "minutes"],
+    required: ["title"],
   },
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("alarm");
-    if (!device) throw new ToolError("No device has alarm access enabled", 400);
+    const device = getCapabilityDevice("alert");
+    if (!device) throw new ToolError("No device has alert access enabled", 400);
 
-    const { hour, minutes, label, days } = args as { hour: number; minutes: number; label?: string; days?: number[] };
-    if (hour == null || minutes == null) throw new ToolError("hour and minutes are required", 400);
+    const { title, description } = args as { title: string; description?: string };
+    if (!title) throw new ToolError("title is required", 400);
 
     const sc = StringCodec();
 
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, string> = {
       hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
-      action: "set", hour: String(hour), minutes: String(minutes),
+      title,
     };
-    if (label) payload.label = label;
-    if (days?.length) payload.days = days.join(",");
+    if (description) payload.description = description;
 
     const ackReply = await ctx.nc.request(
-      `host.${ctx.config.hostId}.fcm.alarm`,
+      `host.${ctx.config.hostId}.fcm.alert`,
       sc.encode(JSON.stringify(payload)),
       { timeout: 5_000 },
     );
@@ -541,7 +535,7 @@ const setAlarmTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alarm.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alert.${ctx.sessionId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -663,7 +657,7 @@ const setRingerModeTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, setAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendAlertTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
