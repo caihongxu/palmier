@@ -86,7 +86,7 @@ export async function initCommand(): Promise<void> {
     try { existingHostId = loadConfig().hostId; } catch { /* first init */ }
 
     const serverUrl = "https://app.palmier.me";
-    let registerResponse: { hostId: string; natsUrl: string; natsWsUrl: string; natsToken: string };
+    let registerResponse: { hostId: string; natsUrl: string; natsWsUrl: string; natsJwt: string; natsNkeySeed: string };
 
     while (true) {
       console.log(`\nRegistering host...`);
@@ -111,7 +111,8 @@ export async function initCommand(): Promise<void> {
       projectRoot: process.cwd(),
       natsUrl: registerResponse.natsUrl,
       natsWsUrl: registerResponse.natsWsUrl,
-      natsToken: registerResponse.natsToken,
+      natsJwt: registerResponse.natsJwt,
+      natsNkeySeed: registerResponse.natsNkeySeed,
       agents,
       httpPort,
       lanEnabled,
@@ -138,7 +139,7 @@ export async function initCommand(): Promise<void> {
 async function registerHost(
   serverUrl: string,
   existingHostId?: string,
-): Promise<{ hostId: string; natsUrl: string; natsWsUrl: string; natsToken: string }> {
+): Promise<{ hostId: string; natsUrl: string; natsWsUrl: string; natsJwt: string; natsNkeySeed: string }> {
   try {
     const res = await fetch(`${serverUrl}/api/hosts/register`, {
       method: "POST",
@@ -155,7 +156,8 @@ async function registerHost(
       hostId: string;
       natsUrl: string;
       natsWsUrl: string;
-      natsToken: string;
+      natsJwt: string;
+      natsNkeySeed: string;
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

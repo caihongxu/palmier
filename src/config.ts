@@ -25,8 +25,8 @@ export function loadConfig(): HostConfig {
     throw new Error("Invalid host config: missing hostId");
   }
 
-  if (!config.natsUrl || !config.natsToken) {
-    throw new Error("Invalid host config: missing natsUrl or natsToken");
+  if (!config.natsUrl || !config.natsJwt || !config.natsNkeySeed) {
+    throw new Error("Invalid host config: missing NATS JWT credentials. Re-run palmier init.");
   }
 
   return config;

@@ -4,7 +4,8 @@ export interface HostConfig {
 
   natsUrl?: string;
   natsWsUrl?: string;
-  natsToken?: string;
+  natsJwt?: string;
+  natsNkeySeed?: string;
 
   // Detected agent CLIs
   agents?: Array<{ key: string; label: string }>;
