@@ -2,6 +2,7 @@ import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getLocationDevice } from "./location-device.js";
 import { getNotifications } from "./notification-store.js";
+import { getSmsMessages } from "./sms-store.js";
 import type { HostConfig } from "./types.js";
 
 export class ToolError extends Error {
@@ -234,7 +235,19 @@ const deviceNotificationsResource: ResourceDefinition = {
   read: getNotifications,
 };
 
-export const agentResources: ResourceDefinition[] = [deviceNotificationsResource];
+const deviceSmsResource: ResourceDefinition = {
+  uri: "sms://device",
+  name: "Device SMS",
+  description: [
+    "Get recent SMS messages from the user's Android device.",
+    "Response: JSON array of message objects with `id`, `sender`, `body`, `timestamp`.",
+  ],
+  mimeType: "application/json",
+  restPath: "/sms",
+  read: getSmsMessages,
+};
+
+export const agentResources: ResourceDefinition[] = [deviceNotificationsResource, deviceSmsResource];
 export const agentResourceMap = new Map<string, ResourceDefinition>(agentResources.map((r) => [r.uri, r]));
 
 /**

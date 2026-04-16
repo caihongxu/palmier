@@ -14,6 +14,7 @@ import type { HostConfig } from "../types.js";
 import { CONFIG_DIR } from "../config.js";
 import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
+import { addSmsMessage } from "../sms-store.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -132,7 +133,7 @@ export async function serveCommand(): Promise<void> {
   if (nc) {
     startNatsTransport(config, handleRpc, nc);
 
-    // Subscribe to device notifications from Android
+    // Subscribe to device notifications and SMS from Android
     const sc = StringCodec();
     const notifSub = nc.subscribe(`host.${config.hostId}.device.notifications`);
     (async () => {
@@ -142,6 +143,18 @@ export async function serveCommand(): Promise<void> {
           addNotification({ ...data, receivedAt: Date.now() });
         } catch (err) {
           console.error("[nats] Failed to parse device notification:", err);
+        }
+      }
+    })();
+
+    const smsSub = nc.subscribe(`host.${config.hostId}.device.sms`);
+    (async () => {
+      for await (const msg of smsSub) {
+        try {
+          const data = JSON.parse(sc.decode(msg.data));
+          addSmsMessage({ ...data, receivedAt: Date.now() });
+        } catch (err) {
+          console.error("[nats] Failed to parse device SMS:", err);
         }
       }
     })();
