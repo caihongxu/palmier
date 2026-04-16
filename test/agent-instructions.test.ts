@@ -141,7 +141,7 @@ describe("generateEndpointDocs", () => {
       "- Blocks until the device responds.",
       '- Response: `{"data": ...}` on success.',
       "",
-      "**`GET http://localhost:9966/mock-data`** — Get mock data from the device.",
+      "**`GET http://localhost:9966/mock-data?taskId=test-id`** — Get mock data from the device.",
       "- Response: JSON array of data objects.",
     ].join("\n");
     assert.equal(docs, expected);

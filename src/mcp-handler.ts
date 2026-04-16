@@ -157,12 +157,15 @@ export async function handleMcpRequest(body: string, sessionId: string | undefin
       if (!resource) {
         return { body: rpcError(id, -32602, `Unknown resource: ${uri}`) };
       }
+      console.log(`${logPrefix} resources/read ${uri}`);
+      const content = resource.read();
+      console.log(`${logPrefix} resources/read ${uri} done: ${JSON.stringify(content).slice(0, 200)}`);
       return {
         body: rpcResult(id, {
           contents: [{
             uri: resource.uri,
             mimeType: resource.mimeType,
-            text: JSON.stringify(resource.read()),
+            text: JSON.stringify(content),
           }],
         }),
       };

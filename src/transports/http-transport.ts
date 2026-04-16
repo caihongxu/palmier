@@ -262,7 +262,20 @@ export async function startHttpTransport(
     const matchedResource = req.method === "GET" && agentResources.find((r) => r.restPath === pathname);
     if (matchedResource) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      sendJson(res, 200, matchedResource.read());
+      const taskId = url.searchParams.get("taskId");
+      if (!taskId) {
+        sendJson(res, 400, { error: "taskId query parameter is required" });
+        return;
+      }
+      const taskDir = getTaskDir(config.projectRoot, taskId);
+      if (!fs.existsSync(taskDir)) {
+        sendJson(res, 404, { error: `Task not found: ${taskId}` });
+        return;
+      }
+      console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${matchedResource.name}`);
+      const result = matchedResource.read();
+      console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${matchedResource.name} done: ${JSON.stringify(result).slice(0, 200)}`);
+      sendJson(res, 200, result);
       return;
     }
 

@@ -288,7 +288,7 @@ export function generateEndpointDocs(
 
   for (const resource of resources) {
     const [header, ...details] = resource.description;
-    lines.push(`**\`GET ${baseUrl}${resource.restPath}\`** — ${header}`);
+    lines.push(`**\`GET ${baseUrl}${resource.restPath}?taskId=${taskId}\`** — ${header}`);
     for (const detail of details) {
       lines.push(`- ${detail}`);
     }
