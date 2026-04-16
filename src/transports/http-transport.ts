@@ -336,13 +336,16 @@ export async function startHttpTransport(
           return;
         }
 
-        const pendingPromise = registerPending(taskId, "permission", permissions);
+        const pendingPromise = registerPending(taskId, "permission", permissions, {
+          session_id: taskId,
+          session_name: taskName,
+        });
 
         await publishEvent(taskId, {
           event_type: "permission-request",
           host_id: config.hostId,
           required_permissions: permissions,
-          name: taskName,
+          session_name: taskName,
         });
 
         const response = await pendingPromise;

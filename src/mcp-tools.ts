@@ -84,13 +84,18 @@ const requestInputTool: ToolDefinition = {
     const { description, questions } = args as { description?: string; questions: string[] };
     if (!questions?.length) throw new ToolError("questions is required", 400);
 
-    const pendingPromise = registerPending(ctx.sessionId, "input", questions);
+    const pendingPromise = registerPending(ctx.sessionId, "input", questions, {
+      session_id: ctx.sessionId,
+      session_name: ctx.agentName,
+      description,
+      input_questions: questions,
+    });
 
     await ctx.publishEvent("_input", {
       event_type: "input-request",
       host_id: ctx.config.hostId,
       session_id: ctx.sessionId,
-      agent_name: ctx.agentName,
+      session_name: ctx.agentName,
       description,
       input_questions: questions,
     });
@@ -131,13 +136,17 @@ const requestConfirmationTool: ToolDefinition = {
     const { description } = args as { description: string };
     if (!description) throw new ToolError("description is required", 400);
 
-    const pendingPromise = registerPending(ctx.sessionId, "confirmation");
+    const pendingPromise = registerPending(ctx.sessionId, "confirmation", undefined, {
+      session_id: ctx.sessionId,
+      session_name: ctx.agentName,
+      description,
+    });
 
     await ctx.publishEvent("_confirm", {
       event_type: "confirm-request",
       host_id: ctx.config.hostId,
       session_id: ctx.sessionId,
-      agent_name: ctx.agentName,
+      session_name: ctx.agentName,
       description,
     });
 

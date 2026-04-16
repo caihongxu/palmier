@@ -4,7 +4,7 @@ import * as path from "path";
 import { spawn, type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir } from "./task.js";
-import { resolvePending, getPending } from "./pending-requests.js";
+import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
@@ -142,13 +142,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
     const status = readTaskStatus(taskDir);
-    const pending = getPending(task.frontmatter.id);
     return {
       ...task.frontmatter,
-      status: status ? {
-        ...status,
-        ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
-      } : undefined,
+      status: status ?? undefined,
     };
   }
 
@@ -161,20 +157,26 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     }
 
     switch (request.method) {
-      case "task.list": {
-        const tasks = listTasks(config.projectRoot);
+      case "host.info": {
+        // Bootstrap metadata the PWA needs on connect, independent of which tab
+        // is active. Includes any prompts already waiting so a reconnecting
+        // PWA can render their modals without replaying events.
         const capabilities: Record<string, string | null> = {};
         for (const cap of ["location", "notifications", "sms", "contacts", "calendar", "alert", "battery", "dnd"] as const) {
           capabilities[cap] = getCapabilityDevice(cap)?.clientToken ?? null;
         }
         return {
-          tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
-          location_client_token: capabilities.location,
           capability_tokens: capabilities,
+          pending_prompts: listPending(),
         };
+      }
+
+      case "task.list": {
+        const tasks = listTasks(config.projectRoot);
+        return { tasks: tasks.map((task) => flattenTask(task)) };
       }
 
       case "task.get": {
@@ -537,12 +539,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!status) {
           return { task_id: params.id, error: "No status found" };
         }
-        const pending = getPending(params.id);
-        return {
-          task_id: params.id,
-          ...status,
-          ...(pending?.type === "permission" ? { pending_permission: pending.params } : {}),
-        };
+        return { task_id: params.id, ...status };
       }
 
       case "task.result": {
