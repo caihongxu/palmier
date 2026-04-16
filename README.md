@@ -34,7 +34,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## How It Works
 
-Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, fetching GPS location, and reading device notifications.
+Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, reading SMS/notifications, managing contacts and calendar, setting alarms, and more.
 
 ### MCP Server
 
@@ -43,19 +43,30 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 **MCP server URL:** `http://localhost:<port>/mcp`
 
 **Available tools:**
-| Tool | Description |
-|------|-------------|
-| `notify` | Send a push notification to the user's device |
-| `request-input` | Request input from the user (blocks until response) |
-| `request-confirmation` | Request confirmation from the user (blocks until response) |
-| `device-geolocation` | Get GPS location of the user's mobile device |
+| Tool | Description | Permission |
+|------|-------------|------------|
+| `notify` | Send a push notification to the user's device | None |
+| `request-input` | Request input from the user (blocks until response) | None |
+| `request-confirmation` | Request confirmation from the user (blocks until response) | None |
+| `device-geolocation` | Get GPS location of the user's mobile device | Location Access |
+| `read-contacts` | Read the contact list from the user's device | Contacts Access |
+| `create-contact` | Create a new contact on the user's device | Contacts Access |
+| `read-calendar` | Read calendar events (with time range filter) | Calendar Access |
+| `create-calendar-event` | Create a calendar event on the user's device | Calendar Access |
+| `send-sms` | Send an SMS message from the user's device | SMS Access |
+| `set-alarm` | Set an alarm on the user's device | None |
+| `read-battery` | Get battery level and charging status | None |
+| `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Do Not Disturb Control |
 
 **Available resources:**
 | Resource | URI | REST | Description |
 |----------|-----|------|-------------|
 | Device Notifications | `notifications://device` | `GET /notifications` | Recent notifications from the user's Android device |
+| Device SMS | `sms://device` | `GET /sms` | Recent SMS messages from the user's Android device |
 
-Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes. The Android app requires notification listener access to be enabled in system settings.
+Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
+
+All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Permissions listed above must be granted via toggles in the Android app's settings menu.
 
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
