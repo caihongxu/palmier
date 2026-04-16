@@ -163,13 +163,17 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     switch (request.method) {
       case "task.list": {
         const tasks = listTasks(config.projectRoot);
-        const locDevice = getCapabilityDevice("location");
+        const capabilities: Record<string, string | null> = {};
+        for (const cap of ["location", "notifications", "sms", "contacts", "calendar", "alert", "battery", "dnd"] as const) {
+          capabilities[cap] = getCapabilityDevice(cap)?.clientToken ?? null;
+        }
         return {
           tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
-          location_client_token: locDevice?.clientToken ?? null,
+          location_client_token: capabilities.location,
+          capability_tokens: capabilities,
         };
       }
 
