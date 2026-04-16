@@ -29,7 +29,7 @@ describe("generatePairingCode", () => {
 });
 
 describe("PAIRING_EXPIRY_MS", () => {
-  it("is 5 minutes", () => {
-    assert.equal(PAIRING_EXPIRY_MS, 5 * 60 * 1000);
+  it("is 1 minute", () => {
+    assert.equal(PAIRING_EXPIRY_MS, 60 * 1000);
   });
 });

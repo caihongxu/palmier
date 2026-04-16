@@ -306,7 +306,7 @@ export async function startHttpTransport(
           const timer = setTimeout(() => {
             pendingPairs.delete(code);
             resolve({ paired: false });
-          }, expiryMs ?? 5 * 60 * 1000);
+          }, expiryMs ?? 60 * 1000);
 
           pendingPairs.set(code, { resolve, timer });
           req.on("close", () => {

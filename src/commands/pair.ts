@@ -8,7 +8,7 @@ import type { HostConfig } from "../types.js";
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
 const CODE_LENGTH = 6;
 
-export const PAIRING_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+export const PAIRING_EXPIRY_MS = 60 * 1000; // 1 minute
 
 export function generatePairingCode(): string {
   const bytes = new Uint8Array(CODE_LENGTH);
@@ -84,7 +84,7 @@ export async function pairCommand(): Promise<void> {
   console.log("");
   console.log(`  ${code}`);
   console.log("");
-  console.log("Code expires in 5 minutes.");
+  console.log("Code expires in 1 minute.");
 
   // NATS pairing (server mode)
   const nc = await connectNats(config);
