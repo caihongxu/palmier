@@ -66,7 +66,7 @@ const mockResources: ResourceDefinition[] = [
 /** Minimal replica of getAgentInstructions that doesn't need host.json */
 function buildInstructions(taskId: string, opts?: { skipPermissions?: boolean }): string {
   let instructions = template
-    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(9966, taskId, mockTools, mockResources))
+    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(7256, taskId, mockTools, mockResources))
     .replace(/\{\{TASK_DESCRIPTION\}\}/g, "Test task prompt");
   if (opts?.skipPermissions) {
     instructions = instructions.replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");
@@ -107,7 +107,7 @@ describe("getAgentInstructions", () => {
 
   it("includes port in endpoint URL", () => {
     const result = buildInstructions("test");
-    assert.match(result, /localhost:9966/);
+    assert.match(result, /localhost:7256/);
   });
 
   it("includes task description", () => {
@@ -119,13 +119,13 @@ describe("getAgentInstructions", () => {
 
 
 describe("generateEndpointDocs", () => {
-  const docs = generateEndpointDocs(9966, "test-id", mockTools, mockResources);
+  const docs = generateEndpointDocs(7256, "test-id", mockTools, mockResources);
 
   it("matches expected full output", () => {
     const expected = [
       "The following HTTP endpoints are available during task execution. Use curl to call them.",
       "",
-      "**`POST http://localhost:9966/mock-action?taskId=test-id`** — Perform a mock action.",
+      "**`POST http://localhost:7256/mock-action?taskId=test-id`** — Perform a mock action.",
       "```json",
       '{"title":"...","detail":"..."}',
       "```",
@@ -133,7 +133,7 @@ describe("generateEndpointDocs", () => {
       "- `detail` (optional, string): Optional detail",
       '- Response: `{"ok": true}` on success.',
       "",
-      "**`POST http://localhost:9966/mock-query?taskId=test-id`** — Query mock data from the device.",
+      "**`POST http://localhost:7256/mock-query?taskId=test-id`** — Query mock data from the device.",
       "```json",
       '{"tags":["..."]}',
       "```",
@@ -141,7 +141,7 @@ describe("generateEndpointDocs", () => {
       "- Blocks until the device responds.",
       '- Response: `{"data": ...}` on success.',
       "",
-      "**`GET http://localhost:9966/mock-data?taskId=test-id`** — Get mock data from the device.",
+      "**`GET http://localhost:7256/mock-data?taskId=test-id`** — Get mock data from the device.",
       "- Response: JSON array of data objects.",
     ].join("\n");
     assert.equal(docs, expected);
@@ -149,7 +149,7 @@ describe("generateEndpointDocs", () => {
 
   it("generates docs for all provided tools", () => {
     for (const tool of mockTools) {
-      assert.match(docs, new RegExp(`POST http://localhost:9966/${tool.name}\\?taskId=`), `Missing endpoint for ${tool.name}`);
+      assert.match(docs, new RegExp(`POST http://localhost:7256/${tool.name}\\?taskId=`), `Missing endpoint for ${tool.name}`);
     }
   });
 
@@ -162,7 +162,7 @@ describe("generateEndpointDocs", () => {
   });
 
   it("includes port in the header", () => {
-    assert.match(docs, /localhost:9966/);
+    assert.match(docs, /localhost:7256/);
   });
 
   it("includes task ID in query parameters", () => {
@@ -194,7 +194,7 @@ describe("generateEndpointDocs", () => {
 
   it("generates GET endpoints for all provided resources", () => {
     for (const resource of mockResources) {
-      assert.match(docs, new RegExp(`GET http://localhost:9966${resource.restPath}`), `Missing endpoint for ${resource.uri}`);
+      assert.match(docs, new RegExp(`GET http://localhost:7256${resource.restPath}`), `Missing endpoint for ${resource.uri}`);
     }
   });
 
@@ -203,7 +203,7 @@ describe("generateEndpointDocs", () => {
   });
 
   it("generates no resource endpoints when resources array is empty", () => {
-    const docsNoResources = generateEndpointDocs(9966, "test-id", mockTools, []);
+    const docsNoResources = generateEndpointDocs(7256, "test-id", mockTools, []);
     assert.doesNotMatch(docsNoResources, /GET http/);
   });
 });

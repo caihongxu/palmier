@@ -10,7 +10,7 @@ export interface HostConfig {
   // Detected agent CLIs
   agents?: Array<{ key: string; label: string }>;
 
-  // HTTP server port (default 9966)
+  // HTTP server port (default 7256)
   httpPort?: number;
   // Whether to accept non-localhost HTTP connections
   lanEnabled?: boolean;

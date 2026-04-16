@@ -67,7 +67,7 @@ function httpPairRegister(port: number, code: string): Promise<boolean> {
 export async function pairCommand(): Promise<void> {
   const config = loadConfig();
   const code = generatePairingCode();
-  const httpPort = config.httpPort ?? 9966;
+  const httpPort = config.httpPort ?? 7256;
 
   let paired = false;
 
