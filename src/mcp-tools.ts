@@ -424,7 +424,7 @@ const createCalendarEventTool: ToolDefinition = {
 };
 
 const sendSmsTool: ToolDefinition = {
-  name: "send-sms",
+  name: "send-sms-message",
   description: [
     "Send an SMS message from the user's mobile device.",
     "Blocks until the device responds (up to 30 seconds).",
@@ -671,14 +671,14 @@ const deviceNotificationsResource: ResourceDefinition = {
 };
 
 const deviceSmsResource: ResourceDefinition = {
-  uri: "sms://device",
+  uri: "sms-messages://device",
   name: "Device SMS",
   description: [
     "Get recent SMS messages from the user's Android device.",
     "Response: JSON array of message objects with `id`, `sender`, `body`, `timestamp`.",
   ],
   mimeType: "application/json",
-  restPath: "/sms",
+  restPath: "/sms-messages",
   read: getSmsMessages,
 };
 

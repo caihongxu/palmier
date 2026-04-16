@@ -125,7 +125,7 @@ export async function startHttpTransport(
 
   // Wire up resource change listeners
   onNotificationsChanged(() => broadcastResourceUpdated("notifications://device"));
-  onSmsChanged(() => broadcastResourceUpdated("sms://device"));
+  onSmsChanged(() => broadcastResourceUpdated("sms-messages://device"));
 
   // If a pairing code is provided, pre-register it
   if (pairingCode) {

@@ -53,37 +53,47 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `create-contact` | Create a new contact on the user's device | Contacts Access |
 | `read-calendar` | Read calendar events (with time range filter) | Calendar Access |
 | `create-calendar-event` | Create a calendar event on the user's device | Calendar Access |
-| `send-sms` | Send an SMS message from the user's device | SMS Access |
+| `send-sms-message` | Send an SMS message from the user's device | SMS Access |
 | `set-alarm` | Set an alarm on the user's device | None |
 | `read-battery` | Get battery level and charging status | None |
 | `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Do Not Disturb Control |
 
 **Available resources:**
-| Resource | URI | REST | Description |
-|----------|-----|------|-------------|
-| Device Notifications | `notifications://device` | `GET /notifications` | Recent notifications from the user's Android device |
-| Device SMS | `sms://device` | `GET /sms` | Recent SMS messages from the user's Android device |
+| Resource | URI | Permission | Description |
+|----------|-----|------------|-------------|
+| Device Notifications | `notifications://device` | Notification Access | Recent notifications from the user's Android device |
+| Device SMS | `sms-messages://device` | SMS Access | Recent SMS messages from the user's Android device |
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 
 All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Permissions listed above must be granted via toggles in the Android app's settings menu.
 
+### Architecture
+
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
 │              │◄──────────────────────│                  │
 │  Host Daemon │                       │   PWA (Browser)  │
-│              │◄──────┐               │                  │
-└──────┬───────┘       │               └──────────────────┘
-       │               │                        │
-       ▼               │  NATS (TLS)            │ NATS (TLS)
-┌──────────────┐       │               ┌────────┴─────────┐
-│  Agent CLIs  │       └───────────────│  Relay Server    │
-│  (Claude,    │                       │  (passthrough,   │
-│   Gemini,    │                       │   push notify)   │
-│   Codex ...) │                       └──────────────────┘
-└──────────────┘
+│  (MCP Server)│◄──────┐               │                  │
+└──┬────────┬──┘       │               └──────────────────┘
+   │        │          │                        │
+   ▼        ▼          │  NATS (TLS)            │ NATS (TLS)
+┌──────┐ ┌──────┐      │               ┌────────┴─────────┐
+│Agent │ │Agent │      └───────────────│  Relay Server    │
+│ CLIs │ │Tools/│                       │  (passthrough,   │
+│      │ │Rsrcs │◄──── FCM ───────────│   push, FCM)     │
+└──────┘ └──────┘                       └──────────────────┘
+                                                │
+                                           FCM  │
+                                                ▼
+                                       ┌──────────────────┐
+                                       │  Android Device  │
+                                       │  (notifications, │
+                                       │   SMS, contacts, │
+                                       │   calendar, GPS) │
+                                       └──────────────────┘
         Local / LAN: direct HTTP
-        Server mode: via relay server
+        Server mode: via relay server + FCM
 ```
 
 ## Access Modes
