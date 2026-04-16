@@ -6,6 +6,7 @@ import { SHELL } from "../platform/index.js";
 
 export class CodexAgent implements AgentTool {
   supportsPermissions = true;
+  supportsYolo = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "codex", args: ["exec", "--skip-git-repo-check", prompt] };
   }

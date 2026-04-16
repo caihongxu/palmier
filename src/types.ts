@@ -8,7 +8,7 @@ export interface HostConfig {
   natsNkeySeed?: string;
 
   // Detected agent CLIs
-  agents?: Array<{ key: string; label: string }>;
+  agents?: Array<{ key: string; label: string; supportsPermissions: boolean; supportsYolo: boolean }>;
 
   // HTTP server port (default 7256)
   httpPort?: number;

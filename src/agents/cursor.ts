@@ -6,6 +6,7 @@ import { SHELL } from "../platform/index.js";
 
 export class Cursor implements AgentTool {
   supportsPermissions = false;
+  supportsYolo = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "cursor", args: ["-p", prompt] };
   }

@@ -5,13 +5,13 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export class OpenClawAgent implements AgentTool {
   supportsPermissions = false;
+  supportsYolo = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "openclaw", args: ["agent", "--local", "--agent", "main", "--message", prompt] };
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? getAgentInstructions(task, yolo || !this.supportsPermissions);
+    const prompt = followupPrompt ?? getAgentInstructions(task, true);
     // OpenClaw does not support stdin as prompt.
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];
 

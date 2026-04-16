@@ -6,6 +6,7 @@ import { SHELL } from "../platform/index.js";
 
 export class DeepAgents implements AgentTool {
   supportsPermissions = false;
+  supportsYolo = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "deepagents", args: ["--non-interactive", prompt] };
   }

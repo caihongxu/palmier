@@ -6,6 +6,7 @@ import { SHELL } from "../platform/index.js";
 
 export class OpenCodeAgent implements AgentTool {
   supportsPermissions = false;
+  supportsYolo = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "opencode", args: ["run", prompt] };
   }

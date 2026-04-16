@@ -6,6 +6,7 @@ import { SHELL } from "../platform/index.js";
 
 export class Kiro implements AgentTool {
   supportsPermissions = false;
+  supportsYolo = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "kiro-cli", args: ["--no-interactive", prompt] };
   }
