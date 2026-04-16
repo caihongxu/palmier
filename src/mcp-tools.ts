@@ -305,7 +305,125 @@ const createContactTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool];
+const readCalendarTool: ToolDefinition = {
+  name: "read-calendar",
+  description: [
+    "Read calendar events from the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    "Pass startDate and endDate as Unix timestamps in milliseconds. Defaults to next 7 days.",
+    'Response: `{"events": [{"id": ..., "title": ..., "startTime": ..., "endTime": ..., "location": ..., "description": ..., "allDay": ..., "calendar": ...}]}` on success.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      startDate: { type: "number", description: "Start of range (Unix ms). Defaults to now." },
+      endDate: { type: "number", description: "End of range (Unix ms). Defaults to 7 days from start." },
+    },
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const { startDate, endDate } = args as { startDate?: number; endDate?: number };
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.calendar`,
+      sc.encode(JSON.stringify({
+        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        action: "read",
+        ...(startDate ? { startDate: String(startDate) } : {}),
+        ...(endDate ? { endDate: String(endDate) } : {}),
+      })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+const createCalendarEventTool: ToolDefinition = {
+  name: "create-calendar-event",
+  description: [
+    "Create a calendar event on the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      title: { type: "string", description: "Event title" },
+      startTime: { type: "number", description: "Start time (Unix ms)" },
+      endTime: { type: "number", description: "End time (Unix ms)" },
+      location: { type: "string", description: "Event location" },
+      description: { type: "string", description: "Event description" },
+    },
+    required: ["title", "startTime", "endTime"],
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const { title, startTime, endTime, location, description } = args as {
+      title: string; startTime: number; endTime: number; location?: string; description?: string;
+    };
+    if (!title || !startTime || !endTime) throw new ToolError("title, startTime, and endTime are required", 400);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.calendar`,
+      sc.encode(JSON.stringify({
+        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        action: "create",
+        title, startTime: String(startTime), endTime: String(endTime),
+        ...(location ? { location } : {}),
+        ...(description ? { description } : {}),
+      })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
