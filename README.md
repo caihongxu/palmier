@@ -34,11 +34,11 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## How It Works
 
-Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, and fetching GPS location.
+Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, fetching GPS location, and reading device notifications.
 
 ### MCP Server
 
-Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:<port>/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool definitions automatically. The same tools are also available as REST endpoints for curl-based agents.
+Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:<port>/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also available as REST endpoints for curl-based agents.
 
 **MCP server URL:** `http://localhost:<port>/mcp`
 
@@ -49,6 +49,13 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `request-input` | Request input from the user (blocks until response) |
 | `request-confirmation` | Request confirmation from the user (blocks until response) |
 | `device-geolocation` | Get GPS location of the user's mobile device |
+
+**Available resources:**
+| Resource | URI | REST | Description |
+|----------|-----|------|-------------|
+| Device Notifications | `notifications://device` | `GET /notifications` | Recent notifications from the user's Android device |
+
+Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes. The Android app requires notification listener access to be enabled in system settings.
 
 ```
 ┌──────────────┐         HTTP          ┌──────────────────┐
