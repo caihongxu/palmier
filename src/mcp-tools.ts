@@ -423,7 +423,62 @@ const createCalendarEventTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool];
+const sendSmsTool: ToolDefinition = {
+  name: "send-sms",
+  description: [
+    "Send an SMS message from the user's mobile device.",
+    "Blocks until the device responds (up to 30 seconds).",
+    'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: { type: "string", description: "Recipient phone number" },
+      body: { type: "string", description: "Message text" },
+    },
+    required: ["to", "body"],
+  },
+  async handler(args, ctx) {
+    if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
+
+    const { to, body } = args as { to: string; body: string };
+    if (!to || !body) throw new ToolError("to and body are required", 400);
+
+    const sc = StringCodec();
+
+    const ackReply = await ctx.nc.request(
+      `host.${ctx.config.hostId}.fcm.sms`,
+      sc.encode(JSON.stringify({
+        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        action: "send", to, body,
+      })),
+      { timeout: 5_000 },
+    );
+    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    if (ack.error) throw new ToolError(ack.error, 502);
+
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.sms.${ctx.sessionId}`, { max: 1 });
+      const timer = setTimeout(() => {
+        sub.unsubscribe();
+        reject(new ToolError("Device did not respond within 30 seconds", 504));
+      }, 30_000);
+
+      (async () => {
+        for await (const msg of sub) {
+          clearTimeout(timer);
+          resolve(sc.decode(msg.data));
+        }
+      })();
+    });
+
+    const result = JSON.parse(await responsePromise);
+    if (result.error) return { error: result.error };
+    return result;
+  },
+};
+
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────
