@@ -12,7 +12,8 @@ import { detectAgents } from "../agents/agent.js";
 import { saveConfig } from "../config.js";
 import type { HostConfig } from "../types.js";
 import { CONFIG_DIR } from "../config.js";
-import type { NatsConnection } from "nats";
+import { StringCodec, type NatsConnection } from "nats";
+import { addNotification } from "../notification-store.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -130,6 +131,20 @@ export async function serveCommand(): Promise<void> {
   // Start NATS transport (loops forever, fire-and-forget)
   if (nc) {
     startNatsTransport(config, handleRpc, nc);
+
+    // Subscribe to device notifications from Android
+    const sc = StringCodec();
+    const notifSub = nc.subscribe(`host.${config.hostId}.device.notifications`);
+    (async () => {
+      for await (const msg of notifSub) {
+        try {
+          const data = JSON.parse(sc.decode(msg.data));
+          addNotification({ ...data, receivedAt: Date.now() });
+        } catch (err) {
+          console.error("[nats] Failed to parse device notification:", err);
+        }
+      }
+    })();
   }
 
   // Start HTTP transport (loops forever)

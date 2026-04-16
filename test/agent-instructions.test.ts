@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { generateEndpointDocs, type ToolDefinition } from "../src/mcp-tools.js";
+import { generateEndpointDocs, type ToolDefinition, type ResourceDefinition } from "../src/mcp-tools.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templatePath = path.join(__dirname, "..", "src", "agents", "agent-instructions.md");
@@ -48,10 +48,25 @@ const mockTools: ToolDefinition[] = [
   },
 ];
 
+/** Mock resources with a known, stable shape for testing */
+const mockResources: ResourceDefinition[] = [
+  {
+    uri: "mock://data",
+    name: "Mock Data",
+    description: [
+      "Get mock data from the device.",
+      "Response: JSON array of data objects.",
+    ],
+    mimeType: "application/json",
+    restPath: "/mock-data",
+    read: () => [],
+  },
+];
+
 /** Minimal replica of getAgentInstructions that doesn't need host.json */
 function buildInstructions(taskId: string, opts?: { skipPermissions?: boolean }): string {
   let instructions = template
-    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(9966, taskId, mockTools))
+    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(9966, taskId, mockTools, mockResources))
     .replace(/\{\{TASK_DESCRIPTION\}\}/g, "Test task prompt");
   if (opts?.skipPermissions) {
     instructions = instructions.replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");
@@ -104,7 +119,7 @@ describe("getAgentInstructions", () => {
 
 
 describe("generateEndpointDocs", () => {
-  const docs = generateEndpointDocs(9966, "test-id", mockTools);
+  const docs = generateEndpointDocs(9966, "test-id", mockTools, mockResources);
 
   it("matches expected full output", () => {
     const expected = [
@@ -125,6 +140,9 @@ describe("generateEndpointDocs", () => {
       "- `tags` (optional, string array): Filter tags",
       "- Blocks until the device responds.",
       '- Response: `{"data": ...}` on success.',
+      "",
+      "**`GET http://localhost:9966/mock-data`** — Get mock data from the device.",
+      "- Response: JSON array of data objects.",
     ].join("\n");
     assert.equal(docs, expected);
   });
@@ -172,5 +190,20 @@ describe("generateEndpointDocs", () => {
 
   it("renders multi-line descriptions as bullet points", () => {
     assert.match(docs, /- Blocks until the device responds\./);
+  });
+
+  it("generates GET endpoints for all provided resources", () => {
+    for (const resource of mockResources) {
+      assert.match(docs, new RegExp(`GET http://localhost:9966${resource.restPath}`), `Missing endpoint for ${resource.uri}`);
+    }
+  });
+
+  it("includes resource description as bullet points", () => {
+    assert.match(docs, /- Response: JSON array of data objects\./);
+  });
+
+  it("generates no resource endpoints when resources array is empty", () => {
+    const docsNoResources = generateEndpointDocs(9966, "test-id", mockTools, []);
+    assert.doesNotMatch(docsNoResources, /GET http/);
   });
 });

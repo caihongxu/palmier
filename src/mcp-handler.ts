@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { agentTools, agentToolMap, ToolError, type ToolContext } from "./mcp-tools.js";
+import { agentTools, agentToolMap, agentResources, agentResourceMap, ToolError, type ToolContext } from "./mcp-tools.js";
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -11,6 +11,15 @@ interface JsonRpcRequest {
 export interface McpResponse {
   body: object;
   sessionId?: string;
+  /** If true, the HTTP transport should keep the response open as an SSE stream for server-initiated notifications. */
+  stream?: boolean;
+}
+
+// Resource subscriptions: sessionId → Set of resource URIs
+const resourceSubscriptions = new Map<string, Set<string>>();
+
+export function getResourceSubscriptions(): Map<string, Set<string>> {
+  return resourceSubscriptions;
 }
 
 // Session-to-agent name map with 24h TTL
@@ -30,7 +39,10 @@ export function getAgentName(sessionId: string): string | undefined {
 function pruneExpiredSessions(): void {
   const now = Date.now();
   for (const [id, entry] of sessionAgents) {
-    if (now > entry.expiresAt) sessionAgents.delete(id);
+    if (now > entry.expiresAt) {
+      sessionAgents.delete(id);
+      resourceSubscriptions.delete(id);
+    }
   }
 }
 
@@ -78,7 +90,7 @@ export async function handleMcpRequest(body: string, sessionId: string | undefin
       return {
         body: rpcResult(id, {
           protocolVersion: "2025-03-26",
-          capabilities: { tools: {} },
+          capabilities: { tools: {}, resources: { subscribe: true } },
           serverInfo: { name: "palmier", version: "1.0.0" },
         }),
         sessionId: newSessionId,
@@ -124,6 +136,59 @@ export async function handleMcpRequest(body: string, sessionId: string | undefin
           }),
         };
       }
+    }
+
+    case "resources/list": {
+      return {
+        body: rpcResult(id, {
+          resources: agentResources.map((r) => ({
+            uri: r.uri,
+            name: r.name,
+            description: r.description[0],
+            mimeType: r.mimeType,
+          })),
+        }),
+      };
+    }
+
+    case "resources/read": {
+      const uri = req.params?.uri as string;
+      const resource = agentResourceMap.get(uri);
+      if (!resource) {
+        return { body: rpcError(id, -32602, `Unknown resource: ${uri}`) };
+      }
+      return {
+        body: rpcResult(id, {
+          contents: [{
+            uri: resource.uri,
+            mimeType: resource.mimeType,
+            text: JSON.stringify(resource.read()),
+          }],
+        }),
+      };
+    }
+
+    case "resources/subscribe": {
+      const uri = req.params?.uri as string;
+      if (!agentResourceMap.has(uri)) {
+        return { body: rpcError(id, -32602, `Unknown resource: ${uri}`) };
+      }
+      if (!sessionId) {
+        return { body: rpcError(id, -32600, "Session required for subscriptions") };
+      }
+      if (!resourceSubscriptions.has(sessionId)) {
+        resourceSubscriptions.set(sessionId, new Set());
+      }
+      resourceSubscriptions.get(sessionId)!.add(uri);
+      return { body: rpcResult(id, {}), stream: true };
+    }
+
+    case "resources/unsubscribe": {
+      const uri = req.params?.uri as string;
+      if (sessionId) {
+        resourceSubscriptions.get(sessionId)?.delete(uri);
+      }
+      return { body: rpcResult(id, {}) };
     }
 
     default:

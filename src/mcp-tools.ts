@@ -1,6 +1,7 @@
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getLocationDevice } from "./location-device.js";
+import { getNotifications } from "./notification-store.js";
 import type { HostConfig } from "./types.js";
 
 export class ToolError extends Error {
@@ -205,10 +206,46 @@ const deviceGeolocationTool: ToolDefinition = {
 export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
+// ── MCP Resources ─────────────────────────────────────────────────────
+
+export interface ResourceDefinition {
+  /** MCP resource URI (e.g. "notifications://device"). */
+  uri: string;
+  /** Display name. */
+  name: string;
+  /** First line is the summary (used as REST endpoint header). Remaining lines become bullet points in docs. */
+  description: string[];
+  mimeType: string;
+  /** REST endpoint path (e.g. "/notifications"). Served as GET. */
+  restPath: string;
+  /** Return the current resource content. */
+  read: () => unknown;
+}
+
+const deviceNotificationsResource: ResourceDefinition = {
+  uri: "notifications://device",
+  name: "Device Notifications",
+  description: [
+    "Get recent notifications from the user's Android device.",
+    "Response: JSON array of notification objects with `id`, `packageName`, `appName`, `title`, `text`, `timestamp`.",
+  ],
+  mimeType: "application/json",
+  restPath: "/notifications",
+  read: getNotifications,
+};
+
+export const agentResources: ResourceDefinition[] = [deviceNotificationsResource];
+export const agentResourceMap = new Map<string, ResourceDefinition>(agentResources.map((r) => [r.uri, r]));
+
 /**
  * Generate the HTTP Endpoints markdown section for agent-instructions.md from the tool registry.
  */
-export function generateEndpointDocs(port: number, taskId: string, tools: ToolDefinition[] = agentTools): string {
+export function generateEndpointDocs(
+  port: number,
+  taskId: string,
+  tools: ToolDefinition[] = agentTools,
+  resources: ResourceDefinition[] = agentResources,
+): string {
   const baseUrl = `http://localhost:${port}`;
   const lines: string[] = [
     `The following HTTP endpoints are available during task execution. Use curl to call them.`,
@@ -246,6 +283,15 @@ export function generateEndpointDocs(port: number, taskId: string, tools: ToolDe
       lines.push(`- ${detail}`);
     }
 
+    lines.push("");
+  }
+
+  for (const resource of resources) {
+    const [header, ...details] = resource.description;
+    lines.push(`**\`GET ${baseUrl}${resource.restPath}\`** — ${header}`);
+    for (const detail of details) {
+      lines.push(`- ${detail}`);
+    }
     lines.push("");
   }
 

@@ -6,9 +6,10 @@ import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
-import { agentToolMap, ToolError, type ToolContext } from "../mcp-tools.js";
-import { handleMcpRequest, getAgentName } from "../mcp-handler.js";
+import { agentToolMap, agentResources, ToolError, type ToolContext } from "../mcp-tools.js";
+import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
 import { getTaskDir } from "../task.js";
+import { onNotificationsChanged } from "../notification-store.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
 
@@ -102,8 +103,27 @@ export async function startHttpTransport(
   onReady?: () => void,
 ): Promise<void> {
   const sseClients = new Set<SseClient>();
+  const mcpStreams = new Map<string, http.ServerResponse>();
   const lanEnabled = config.lanEnabled ?? false;
   const bindAddress = lanEnabled ? "0.0.0.0" : "127.0.0.1";
+
+  /** Push notifications/resources/updated to all MCP clients subscribed to the given URI. */
+  function broadcastResourceUpdated(uri: string) {
+    const subs = getResourceSubscriptions();
+    for (const [sessionId, uris] of subs) {
+      if (!uris.has(uri)) continue;
+      const stream = mcpStreams.get(sessionId);
+      if (!stream) continue;
+      stream.write(`data: ${JSON.stringify({
+        jsonrpc: "2.0",
+        method: "notifications/resources/updated",
+        params: { uri },
+      })}\n\n`);
+    }
+  }
+
+  // Wire up resource change listeners
+  onNotificationsChanged(() => broadcastResourceUpdated("notifications://device"));
 
   // If a pairing code is provided, pre-register it
   if (pairingCode) {
@@ -182,7 +202,24 @@ export async function startHttpTransport(
         if (result.sessionId) {
           res.setHeader("Mcp-Session-Id", result.sessionId);
         }
-        sendJson(res, 200, result.body);
+        if (result.stream && sessionId) {
+          // Keep response open as SSE stream for server-initiated notifications
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          });
+          res.write(`data: ${JSON.stringify(result.body)}\n\n`);
+          mcpStreams.set(sessionId, res);
+          const heartbeat = setInterval(() => { res.write(":heartbeat\n\n"); }, 15_000);
+          req.on("close", () => {
+            clearInterval(heartbeat);
+            mcpStreams.delete(sessionId);
+            getResourceSubscriptions().delete(sessionId);
+          });
+        } else {
+          sendJson(res, 200, result.body);
+        }
       } catch (err) {
         sendJson(res, 500, { error: String(err) });
       }
@@ -217,6 +254,15 @@ export async function startHttpTransport(
         console.error(`[mcp] REST ${tool.name} error:`, err.message ?? String(err));
         sendJson(res, status, { error: err.message ?? String(err) });
       }
+      return;
+    }
+
+    // ── Auto-generated REST endpoints from MCP resource registry ────
+
+    const matchedResource = req.method === "GET" && agentResources.find((r) => r.restPath === pathname);
+    if (matchedResource) {
+      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
+      sendJson(res, 200, matchedResource.read());
       return;
     }
 
