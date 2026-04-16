@@ -1,6 +1,6 @@
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
-import { getLocationDevice } from "./location-device.js";
+import { getCapabilityDevice } from "./device-capabilities.js";
 import { getNotifications } from "./notification-store.js";
 import { getSmsMessages } from "./sms-store.js";
 import type { HostConfig } from "./types.js";
@@ -170,14 +170,14 @@ const deviceGeolocationTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const locDevice = getLocationDevice();
-    if (!locDevice) throw new ToolError("No device has location access enabled", 400);
+    const device = getCapabilityDevice("location");
+    if (!device) throw new ToolError("No device has location access enabled", 400);
 
     const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.geolocation`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: locDevice.fcmToken })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
@@ -218,11 +218,14 @@ const readContactsTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("contacts");
+    if (!device) throw new ToolError("No device has contacts access enabled", 400);
+
     const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, action: "read" })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken, action: "read" })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
@@ -268,6 +271,9 @@ const createContactTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("contacts");
+    if (!device) throw new ToolError("No device has contacts access enabled", 400);
+
     const { name, phone, email } = args as { name: string; phone?: string; email?: string };
     if (!name) throw new ToolError("name is required", 400);
 
@@ -276,7 +282,7 @@ const createContactTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
         action: "create", name, phone, email,
       })),
       { timeout: 5_000 },
@@ -323,13 +329,16 @@ const readCalendarTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("calendar");
+    if (!device) throw new ToolError("No device has calendar access enabled", 400);
+
     const { startDate, endDate } = args as { startDate?: number; endDate?: number };
     const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
         action: "read",
         ...(startDate ? { startDate: String(startDate) } : {}),
         ...(endDate ? { endDate: String(endDate) } : {}),
@@ -381,6 +390,9 @@ const createCalendarEventTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("calendar");
+    if (!device) throw new ToolError("No device has calendar access enabled", 400);
+
     const { title, startTime, endTime, location, description } = args as {
       title: string; startTime: number; endTime: number; location?: string; description?: string;
     };
@@ -391,7 +403,7 @@ const createCalendarEventTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
         action: "create",
         title, startTime: String(startTime), endTime: String(endTime),
         ...(location ? { location } : {}),
@@ -441,6 +453,9 @@ const sendSmsTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("sms");
+    if (!device) throw new ToolError("No device has SMS access enabled", 400);
+
     const { to, body } = args as { to: string; body: string };
     if (!to || !body) throw new ToolError("to and body are required", 400);
 
@@ -449,7 +464,7 @@ const sendSmsTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.sms`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId,
+        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
         action: "send", to, body,
       })),
       { timeout: 5_000 },
@@ -502,13 +517,16 @@ const setAlarmTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("alarm");
+    if (!device) throw new ToolError("No device has alarm access enabled", 400);
+
     const { hour, minutes, label, days } = args as { hour: number; minutes: number; label?: string; days?: number[] };
     if (hour == null || minutes == null) throw new ToolError("hour and minutes are required", 400);
 
     const sc = StringCodec();
 
     const payload: Record<string, unknown> = {
-      hostId: ctx.config.hostId, requestId: ctx.sessionId,
+      hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
       action: "set", hour: String(hour), minutes: String(minutes),
     };
     if (label) payload.label = label;
@@ -557,11 +575,14 @@ const readBatteryTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("battery");
+    if (!device) throw new ToolError("No device has battery access enabled", 400);
+
     const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.battery`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
@@ -605,6 +626,9 @@ const setRingerModeTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
+    const device = getCapabilityDevice("dnd");
+    if (!device) throw new ToolError("No device has Do Not Disturb control enabled", 400);
+
     const { mode } = args as { mode: string };
     if (!["normal", "vibrate", "silent"].includes(mode)) throw new ToolError("mode must be 'normal', 'vibrate', or 'silent'", 400);
 
@@ -612,7 +636,7 @@ const setRingerModeTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.ringer`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, mode })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken, mode })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };

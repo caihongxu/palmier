@@ -11,7 +11,7 @@ import crossSpawn from "cross-spawn";
 import { getAgent } from "./agents/agent.js";
 import { validateClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
-import { getLocationDevice, setLocationDevice, clearLocationDevice } from "./location-device.js";
+import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type DeviceCapability } from "./device-capabilities.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
@@ -163,7 +163,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
     switch (request.method) {
       case "task.list": {
         const tasks = listTasks(config.projectRoot);
-        const locDevice = getLocationDevice();
+        const locDevice = getCapabilityDevice("location");
         return {
           tasks: tasks.map((task) => flattenTask(task)),
           agents: config.agents ?? [],
@@ -652,12 +652,27 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const params = request.params as { fcmToken: string };
         if (!params.fcmToken) return { error: "fcmToken is required" };
         const clientToken = request.clientToken ?? "";
-        setLocationDevice(clientToken, params.fcmToken);
+        setCapabilityDevice("location", clientToken, params.fcmToken);
         return { ok: true };
       }
 
       case "device.location.disable": {
-        clearLocationDevice();
+        clearCapabilityDevice("location");
+        return { ok: true };
+      }
+
+      case "device.capability.enable": {
+        const params = request.params as { capability: DeviceCapability; fcmToken: string };
+        if (!params.capability || !params.fcmToken) return { error: "capability and fcmToken are required" };
+        const clientToken = request.clientToken ?? "";
+        setCapabilityDevice(params.capability, clientToken, params.fcmToken);
+        return { ok: true };
+      }
+
+      case "device.capability.disable": {
+        const params = request.params as { capability: DeviceCapability };
+        if (!params.capability) return { error: "capability is required" };
+        clearCapabilityDevice(params.capability);
         return { ok: true };
       }
 
