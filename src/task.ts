@@ -36,7 +36,7 @@ export function parseTaskContent(content: string): ParsedTask {
 
   frontmatter.name ??= frontmatter.user_prompt?.slice(0, 60) ?? "";
   frontmatter.agent ??= "claude";
-  frontmatter.triggers_enabled ??= true;
+  frontmatter.schedule_enabled ??= true;
 
   return { frontmatter };
 }

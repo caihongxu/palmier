@@ -21,18 +21,20 @@ export interface TaskFrontmatter {
   name: string;
   user_prompt: string;
   agent: string;
-  triggers: Trigger[];
-  triggers_enabled: boolean;
+  /**
+   * Task schedule. `schedule_values` is homogeneous per `schedule_type`:
+   * - `crons`: array of cron expressions (e.g. "0 9 * * *")
+   * - `specific_times`: array of local datetime strings (e.g. "2026-04-20T09:00")
+   * Both fields are present together or absent together.
+   */
+  schedule_type?: "crons" | "specific_times";
+  schedule_values?: string[];
+  schedule_enabled: boolean;
   requires_confirmation: boolean;
   yolo_mode?: boolean;
   foreground_mode?: boolean;
   permissions?: RequiredPermission[];
   command?: string;
-}
-
-export interface Trigger {
-  type: "cron" | "once";
-  value: string;
 }
 
 export interface ParsedTask {

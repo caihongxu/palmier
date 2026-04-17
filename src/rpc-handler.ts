@@ -194,8 +194,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const params = request.params as {
           user_prompt: string;
           agent: string;
-          triggers?: Array<{ type: "cron" | "once"; value: string }>;
-          triggers_enabled?: boolean;
+          schedule_type?: "crons" | "specific_times";
+          schedule_values?: string[];
+          schedule_enabled?: boolean;
           requires_confirmation?: boolean;
           yolo_mode?: boolean;
           foreground_mode?: boolean;
@@ -214,9 +215,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             name,
             user_prompt: params.user_prompt,
             agent: params.agent,
-            triggers: params.triggers ?? [],
-            triggers_enabled: params.triggers_enabled ?? true,
+            schedule_enabled: params.schedule_enabled ?? true,
             requires_confirmation: params.requires_confirmation ?? true,
+            ...(params.schedule_type && params.schedule_values?.length
+              ? { schedule_type: params.schedule_type, schedule_values: params.schedule_values }
+              : {}),
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
@@ -235,8 +238,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           id: string;
           user_prompt?: string;
           agent?: string;
-          triggers?: Array<{ type: "cron" | "once"; value: string }>;
-          triggers_enabled?: boolean;
+          schedule_type?: "crons" | "specific_times" | null;
+          schedule_values?: string[] | null;
+          schedule_enabled?: boolean;
           requires_confirmation?: boolean;
           yolo_mode?: boolean;
           foreground_mode?: boolean;
@@ -253,8 +257,21 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // Merge updates
         if (params.user_prompt !== undefined) existing.frontmatter.user_prompt = params.user_prompt;
         if (params.agent !== undefined) existing.frontmatter.agent = params.agent;
-        if (params.triggers !== undefined) existing.frontmatter.triggers = params.triggers;
-        if (params.triggers_enabled !== undefined) existing.frontmatter.triggers_enabled = params.triggers_enabled;
+        if (params.schedule_type !== undefined) {
+          if (params.schedule_type) {
+            existing.frontmatter.schedule_type = params.schedule_type;
+          } else {
+            delete existing.frontmatter.schedule_type;
+          }
+        }
+        if (params.schedule_values !== undefined) {
+          if (params.schedule_values && params.schedule_values.length > 0) {
+            existing.frontmatter.schedule_values = params.schedule_values;
+          } else {
+            delete existing.frontmatter.schedule_values;
+          }
+        }
+        if (params.schedule_enabled !== undefined) existing.frontmatter.schedule_enabled = params.schedule_enabled;
         if (params.requires_confirmation !== undefined)
           existing.frontmatter.requires_confirmation = params.requires_confirmation;
         if (params.yolo_mode !== undefined) {
@@ -314,8 +331,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             name,
             user_prompt: params.user_prompt,
             agent: params.agent,
-            triggers: [],
-            triggers_enabled: false,
+            schedule_enabled: false,
             requires_confirmation: params.requires_confirmation ?? false,
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),

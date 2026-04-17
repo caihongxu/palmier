@@ -196,15 +196,17 @@ Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}
     fs.writeFileSync(path.join(UNIT_DIR, serviceName), serviceContent, "utf-8");
     daemonReload();
 
-    // Only create and enable a timer if triggers exist and are enabled
-    if (!task.frontmatter.triggers_enabled) return;
-    const triggers = task.frontmatter.triggers || [];
+    // Only create and enable a timer if the schedule exists and is enabled
+    if (!task.frontmatter.schedule_enabled) return;
+    const scheduleType = task.frontmatter.schedule_type;
+    const scheduleValues = task.frontmatter.schedule_values;
+    if (!scheduleType || !scheduleValues?.length) return;
     const onCalendarLines: string[] = [];
-    for (const trigger of triggers) {
-      if (trigger.type === "cron") {
-        onCalendarLines.push(`OnCalendar=${cronToOnCalendar(trigger.value)}`);
-      } else if (trigger.type === "once") {
-        onCalendarLines.push(`OnActiveSec=${trigger.value}`);
+    for (const value of scheduleValues) {
+      if (scheduleType === "crons") {
+        onCalendarLines.push(`OnCalendar=${cronToOnCalendar(value)}`);
+      } else if (scheduleType === "specific_times") {
+        onCalendarLines.push(`OnActiveSec=${value}`);
       }
     }
 

@@ -14,22 +14,23 @@ const DAEMON_TASK_NAME = "PalmierDaemon";
 const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /**
- * Convert a cron expression or "once" trigger to Task Scheduler XML trigger elements.
+ * Convert a single schedule value to a Task Scheduler XML trigger element.
  *
- * Only these cron patterns (produced by the PWA UI) are handled:
+ * `specific_times` values are ISO datetime strings like "2026-03-28T09:00".
+ *
+ * `crons` values are cron expressions. Only these patterns (produced by the PWA UI) are handled:
  *   hourly:  "0 * * * *"
  *   daily:   "MM HH * * *"
  *   weekly:  "MM HH * * D"
  *   monthly: "MM HH D * *"
  */
-export function triggerToXml(trigger: { type: string; value: string }): string {
-  if (trigger.type === "once") {
-    // ISO datetime "2026-03-28T09:00"
-    return `<TimeTrigger><StartBoundary>${trigger.value}:00</StartBoundary></TimeTrigger>`;
+export function scheduleValueToXml(scheduleType: "crons" | "specific_times", value: string): string {
+  if (scheduleType === "specific_times") {
+    return `<TimeTrigger><StartBoundary>${value}:00</StartBoundary></TimeTrigger>`;
   }
 
-  const parts = trigger.value.trim().split(/\s+/);
-  if (parts.length !== 5) throw new Error(`Invalid cron expression: ${trigger.value}`);
+  const parts = value.trim().split(/\s+/);
+  if (parts.length !== 5) throw new Error(`Invalid cron expression: ${value}`);
   const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
   const st = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`;
   // StartBoundary needs a full date; use a past date as the anchor
@@ -193,12 +194,14 @@ export class WindowsPlatform implements PlatformService {
 
     // Build trigger XML elements
     const triggerElements: string[] = [];
-    if (task.frontmatter.triggers_enabled) {
-      for (const trigger of task.frontmatter.triggers ?? []) {
+    const scheduleType = task.frontmatter.schedule_type;
+    const scheduleValues = task.frontmatter.schedule_values;
+    if (task.frontmatter.schedule_enabled && scheduleType && scheduleValues?.length) {
+      for (const value of scheduleValues) {
         try {
-          triggerElements.push(triggerToXml(trigger));
+          triggerElements.push(scheduleValueToXml(scheduleType, value));
         } catch (err) {
-          console.error(`Invalid trigger: ${err}`);
+          console.error(`Invalid schedule value: ${err}`);
         }
       }
     }
