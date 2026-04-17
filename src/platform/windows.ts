@@ -192,11 +192,14 @@ export class WindowsPlatform implements PlatformService {
     const script = process.argv[1] || "palmier";
     const tr = `"${process.execPath}" "${script}" run ${taskId}`;
 
-    // Build trigger XML elements
+    // Build trigger XML elements. Event-based schedule types (on_new_notification,
+    // on_new_sms) carry no values and are driven by the run process, not the OS
+    // scheduler — they intentionally produce only the dummy trigger below.
     const triggerElements: string[] = [];
     const scheduleType = task.frontmatter.schedule_type;
     const scheduleValues = task.frontmatter.schedule_values;
-    if (task.frontmatter.schedule_enabled && scheduleType && scheduleValues?.length) {
+    const isTimerSchedule = scheduleType === "crons" || scheduleType === "specific_times";
+    if (task.frontmatter.schedule_enabled && isTimerSchedule && scheduleValues?.length) {
       for (const value of scheduleValues) {
         try {
           triggerElements.push(scheduleValueToXml(scheduleType, value));

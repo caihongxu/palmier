@@ -9,6 +9,7 @@ import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 import { agentToolMap, agentResources, ToolError, type ToolContext } from "../mcp-tools.js";
 import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
 import { getTaskDir } from "../task.js";
+import { popEvent } from "../event-queues.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
 
@@ -276,6 +277,19 @@ export async function startHttpTransport(
       const result = matchedResource.read();
       console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${matchedResource.name} done: ${JSON.stringify(result).slice(0, 200)}`);
       sendJson(res, 200, result);
+      return;
+    }
+
+    // ── Event queue pop (used by event-triggered palmier run) ─────────
+
+    if (req.method === "POST" && pathname === "/task-event/pop") {
+      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
+      const taskId = url.searchParams.get("taskId");
+      if (!taskId) {
+        sendJson(res, 400, { error: "taskId query parameter is required" });
+        return;
+      }
+      sendJson(res, 200, popEvent(taskId));
       return;
     }
 

@@ -15,6 +15,7 @@ import { CONFIG_DIR } from "../config.js";
 import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
+import { enqueueEvent } from "../event-queues.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -135,27 +136,46 @@ export async function serveCommand(): Promise<void> {
 
     // Subscribe to device notifications and SMS from Android
     const sc = StringCodec();
+
+    // Dispatch a raw event payload to every task whose schedule matches.
+    function dispatchDeviceEvent(scheduleType: "on_new_notification" | "on_new_sms", payload: string): void {
+      for (const task of listTasks(config.projectRoot)) {
+        if (task.frontmatter.schedule_type !== scheduleType) continue;
+        if (!task.frontmatter.schedule_enabled) continue;
+        const { shouldStart } = enqueueEvent(task.frontmatter.id, payload);
+        if (shouldStart) {
+          platform.startTask(task.frontmatter.id).catch((err) => {
+            console.error(`[event-trigger] Failed to start ${task.frontmatter.id}:`, err);
+          });
+        }
+      }
+    }
+
     const notifSub = nc.subscribe(`host.${config.hostId}.device.notifications`);
     (async () => {
       for await (const msg of notifSub) {
+        const raw = sc.decode(msg.data);
         try {
-          const data = JSON.parse(sc.decode(msg.data));
+          const data = JSON.parse(raw);
           addNotification({ ...data, receivedAt: Date.now() });
         } catch (err) {
           console.error("[nats] Failed to parse device notification:", err);
         }
+        dispatchDeviceEvent("on_new_notification", raw);
       }
     })();
 
     const smsSub = nc.subscribe(`host.${config.hostId}.device.sms`);
     (async () => {
       for await (const msg of smsSub) {
+        const raw = sc.decode(msg.data);
         try {
-          const data = JSON.parse(sc.decode(msg.data));
+          const data = JSON.parse(raw);
           addSmsMessage({ ...data, receivedAt: Date.now() });
         } catch (err) {
           console.error("[nats] Failed to parse device SMS:", err);
         }
+        dispatchDeviceEvent("on_new_sms", raw);
       }
     })();
   }

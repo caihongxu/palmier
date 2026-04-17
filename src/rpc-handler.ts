@@ -14,6 +14,7 @@ import { publishHostEvent } from "./events.js";
 import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type DeviceCapability } from "./device-capabilities.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
+import { clearTaskQueue } from "./event-queues.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
 /**
@@ -194,7 +195,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const params = request.params as {
           user_prompt: string;
           agent: string;
-          schedule_type?: "crons" | "specific_times";
+          schedule_type?: "crons" | "specific_times" | "on_new_notification" | "on_new_sms";
           schedule_values?: string[];
           schedule_enabled?: boolean;
           requires_confirmation?: boolean;
@@ -217,9 +218,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             agent: params.agent,
             schedule_enabled: params.schedule_enabled ?? true,
             requires_confirmation: params.requires_confirmation ?? true,
-            ...(params.schedule_type && params.schedule_values?.length
-              ? { schedule_type: params.schedule_type, schedule_values: params.schedule_values }
-              : {}),
+            ...(params.schedule_type ? { schedule_type: params.schedule_type } : {}),
+            ...(params.schedule_values?.length ? { schedule_values: params.schedule_values } : {}),
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
@@ -238,7 +238,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           id: string;
           user_prompt?: string;
           agent?: string;
-          schedule_type?: "crons" | "specific_times" | null;
+          schedule_type?: "crons" | "specific_times" | "on_new_notification" | "on_new_sms" | null;
           schedule_values?: string[] | null;
           schedule_enabled?: boolean;
           requires_confirmation?: boolean;
@@ -307,6 +307,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const params = request.params as { id: string };
 
         getPlatform().removeTaskTimer(params.id);
+        clearTaskQueue(params.id);
         removeFromTaskList(config.projectRoot, params.id);
 
         return { ok: true, task_id: params.id };

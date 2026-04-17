@@ -267,6 +267,14 @@ export async function runCommand(taskId: string): Promise<void> {
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (command-triggered).`);
+    } else if (task.frontmatter.schedule_type === "on_new_notification"
+               || task.frontmatter.schedule_type === "on_new_sms") {
+      // Event-triggered mode (driven by NATS pub/sub of device notifications/SMS)
+      const result = await runEventTriggeredMode(ctx);
+      const outcome = resolveOutcome(taskDir, result.outcome);
+      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
+      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
+      console.log(`Task ${taskId} completed (event-triggered).`);
     } else {
       // Standard execution — add user prompt as first message
       await appendAndNotify(ctx, {
@@ -453,6 +461,59 @@ async function runCommandTriggeredMode(
   }
 
   return { outcome: "finished", endTime };
+}
+
+/**
+ * Event-triggered execution mode.
+ *
+ * Drains the daemon-owned per-task event queue via the local /task-event/pop
+ * HTTP endpoint, invoking the agent once per event with the payload spliced
+ * into the user prompt. The run process itself holds no NATS subscription;
+ * the daemon handles that and atomically clears the active flag when we see
+ * an empty pop, so it can fire up a fresh run on the next incoming event.
+ */
+async function runEventTriggeredMode(
+  ctx: InvocationContext,
+): Promise<{ outcome: TaskRunningState; endTime: number }> {
+  const scheduleType = ctx.task.frontmatter.schedule_type!;
+  const label = scheduleType === "on_new_notification" ? "notification" : "SMS";
+  const port = ctx.config.httpPort ?? 7256;
+  const popUrl = `http://localhost:${port}/task-event/pop?taskId=${encodeURIComponent(ctx.taskId)}`;
+
+  console.log(`[event-triggered] Draining ${label} queue`);
+  appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
+  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+
+  let eventsProcessed = 0;
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(popUrl, { method: "POST" });
+      if (!res.ok) throw new Error(`pop-event failed: ${res.status} ${res.statusText}`);
+      const body = await res.json() as { event?: string; empty?: true };
+      if (body.empty || !body.event) break;
+
+      eventsProcessed++;
+      console.log(`[event-triggered] Processing ${label} #${eventsProcessed}`);
+
+      const perEventPrompt = `${ctx.task.frontmatter.user_prompt}\n\nProcess this new ${label}:\n${body.event}`;
+      const perEventTask: ParsedTask = {
+        frontmatter: { ...ctx.task.frontmatter, user_prompt: perEventPrompt },
+      };
+
+      await invokeAgentWithRetries(ctx, perEventTask);
+
+      appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
+      await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: errorMsg, type: "error" });
+    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    return { outcome: "failed", endTime: Date.now() };
+  }
+
+  return { outcome: "finished", endTime: Date.now() };
 }
 
 async function publishTaskEvent(

@@ -22,12 +22,13 @@ export interface TaskFrontmatter {
   user_prompt: string;
   agent: string;
   /**
-   * Task schedule. `schedule_values` is homogeneous per `schedule_type`:
-   * - `crons`: array of cron expressions (e.g. "0 9 * * *")
-   * - `specific_times`: array of local datetime strings (e.g. "2026-04-20T09:00")
-   * Both fields are present together or absent together.
+   * Task schedule.
+   * - `crons`: `schedule_values` holds cron expressions (e.g. "0 9 * * *")
+   * - `specific_times`: `schedule_values` holds local datetime strings (e.g. "2026-04-20T09:00")
+   * - `on_new_notification`: fires on each new Android notification from NATS; no `schedule_values`
+   * - `on_new_sms`: fires on each new SMS from NATS; no `schedule_values`
    */
-  schedule_type?: "crons" | "specific_times";
+  schedule_type?: "crons" | "specific_times" | "on_new_notification" | "on_new_sms";
   schedule_values?: string[];
   schedule_enabled: boolean;
   requires_confirmation: boolean;
