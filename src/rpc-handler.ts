@@ -163,8 +163,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // is active. Includes any prompts already waiting so a reconnecting
         // PWA can render their modals without replaying events.
         const capabilities: Record<string, string | null> = {};
-        for (const cap of ["location", "notifications", "sms", "contacts", "calendar", "alert", "battery", "dnd", "email"] as const) {
-          capabilities[cap] = getCapabilityDevice(cap)?.clientToken ?? null;
+        for (const capability of ["location", "notifications", "sms", "contacts", "calendar", "alert", "battery", "dnd", "send-email"] as const) {
+          capabilities[capability] = getCapabilityDevice(capability)?.clientToken ?? null;
         }
         return {
           agents: config.agents ?? [],

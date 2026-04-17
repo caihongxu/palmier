@@ -17,7 +17,7 @@ export type DeviceCapability =
   | "calendar"
   | "alert"
   | "battery"
-  | "email"
+  | "send-email"
   | "dnd";
 
 type CapabilityMap = Partial<Record<DeviceCapability, RegisteredDevice>>;

@@ -687,8 +687,8 @@ const sendEmailTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("email");
-    if (!device) throw new ToolError("No device has email access enabled", 400);
+    const device = getCapabilityDevice("send-email");
+    if (!device) throw new ToolError("No device has send-email access enabled", 400);
 
     const { to, subject, body, cc, bcc } = args as { to: string; subject?: string; body?: string; cc?: string; bcc?: string };
     if (!to) throw new ToolError("to is required", 400);
