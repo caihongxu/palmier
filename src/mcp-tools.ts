@@ -1,8 +1,8 @@
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getCapabilityDevice } from "./device-capabilities.js";
-import { getNotifications } from "./notification-store.js";
-import { getSmsMessages } from "./sms-store.js";
+import { getNotifications, onNotificationsChanged } from "./notification-store.js";
+import { getSmsMessages, onSmsChanged } from "./sms-store.js";
 import type { HostConfig } from "./types.js";
 
 export class ToolError extends Error {
@@ -750,6 +750,8 @@ export interface ResourceDefinition {
   restPath: string;
   /** Return the current resource content. */
   read: () => unknown;
+  /** Register a listener for content changes. Returns an unsubscribe function. */
+  subscribe: (listener: () => void) => () => void;
 }
 
 const deviceNotificationsResource: ResourceDefinition = {
@@ -762,6 +764,7 @@ const deviceNotificationsResource: ResourceDefinition = {
   mimeType: "application/json",
   restPath: "/notifications",
   read: getNotifications,
+  subscribe: onNotificationsChanged,
 };
 
 const deviceSmsResource: ResourceDefinition = {
@@ -774,6 +777,7 @@ const deviceSmsResource: ResourceDefinition = {
   mimeType: "application/json",
   restPath: "/sms-messages",
   read: getSmsMessages,
+  subscribe: onSmsChanged,
 };
 
 export const agentResources: ResourceDefinition[] = [deviceNotificationsResource, deviceSmsResource];

@@ -9,8 +9,6 @@ import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 import { agentToolMap, agentResources, ToolError, type ToolContext } from "../mcp-tools.js";
 import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
 import { getTaskDir } from "../task.js";
-import { onNotificationsChanged } from "../notification-store.js";
-import { onSmsChanged } from "../sms-store.js";
 
 // ── Bundled PWA asset serving ───────────────────────────────────────────
 
@@ -123,9 +121,9 @@ export async function startHttpTransport(
     }
   }
 
-  // Wire up resource change listeners
-  onNotificationsChanged(() => broadcastResourceUpdated("notifications://device"));
-  onSmsChanged(() => broadcastResourceUpdated("sms-messages://device"));
+  for (const resource of agentResources) {
+    resource.subscribe(() => broadcastResourceUpdated(resource.uri));
+  }
 
   // If a pairing code is provided, pre-register it
   if (pairingCode) {
