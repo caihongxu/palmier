@@ -15,7 +15,7 @@ export type DeviceCapability =
   | "sms"
   | "contacts"
   | "calendar"
-  | "alert"
+  | "alarm"
   | "battery"
   | "send-email"
   | "dnd";

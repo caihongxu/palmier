@@ -34,7 +34,7 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 ## How It Works
 
-Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications, reading SMS/notifications, managing contacts and calendar, setting alarms, and more.
+Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications and full-screen alarms, reading SMS/notifications, managing contacts and calendar, and more.
 
 ### MCP Server
 
@@ -54,7 +54,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `read-calendar` | Read calendar events (with time range filter) | Calendar Access |
 | `create-calendar-event` | Create a calendar event on the user's device | Calendar Access |
 | `send-sms-message` | Send an SMS message from the user's device | SMS Access |
-| `set-alarm` | Set an alarm on the user's device | None |
+| `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) | Full-Screen Alarm |
 | `read-battery` | Get battery level and charging status | None |
 | `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Do Not Disturb Control |
 

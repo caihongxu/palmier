@@ -12,6 +12,7 @@ import { getAgent } from "./agents/agent.js";
 import { validateClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type DeviceCapability } from "./device-capabilities.js";
+import { listApps } from "./app-registry.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
@@ -163,7 +164,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // is active. Includes any prompts already waiting so a reconnecting
         // PWA can render their modals without replaying events.
         const capabilities: Record<string, string | null> = {};
-        for (const capability of ["location", "notifications", "sms", "contacts", "calendar", "alert", "battery", "dnd", "send-email"] as const) {
+        for (const capability of ["location", "notifications", "sms", "contacts", "calendar", "alarm", "battery", "dnd", "send-email"] as const) {
           capabilities[capability] = getCapabilityDevice(capability)?.clientToken ?? null;
         }
         return {
@@ -692,6 +693,13 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.capability) return { error: "capability is required" };
         clearCapabilityDevice(params.capability);
         return { ok: true };
+      }
+
+      case "device.notifications.apps": {
+        // Return the host-side app-name cache, populated as notifications arrive.
+        // Used by the task editor's app filter to resolve package names to
+        // display names without round-tripping to the listening device.
+        return { apps: listApps() };
       }
 
       default:

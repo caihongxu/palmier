@@ -502,10 +502,10 @@ const sendSmsTool: ToolDefinition = {
   },
 };
 
-const sendAlertTool: ToolDefinition = {
-  name: "send-alert",
+const sendAlarmTool: ToolDefinition = {
+  name: "send-alarm",
   description: [
-    "Send an alert to the user's mobile device with an alarm sound and full-screen popup.",
+    "Send an alarm to the user's mobile device with an alarm sound and full-screen popup.",
     "Use this to urgently get the user's attention. The device will play an alarm sound and show a full-screen dialog even on the lock screen.",
     "Blocks until the device responds (up to 30 seconds).",
     'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',
@@ -513,16 +513,16 @@ const sendAlertTool: ToolDefinition = {
   inputSchema: {
     type: "object",
     properties: {
-      title: { type: "string", description: "Alert title" },
-      description: { type: "string", description: "Alert description/details" },
+      title: { type: "string", description: "Alarm title" },
+      description: { type: "string", description: "Alarm description/details" },
     },
     required: ["title"],
   },
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("alert");
-    if (!device) throw new ToolError("No device has alert access enabled", 400);
+    const device = getCapabilityDevice("alarm");
+    if (!device) throw new ToolError("No device has alarm access enabled", 400);
 
     const { title, description } = args as { title: string; description?: string };
     if (!title) throw new ToolError("title is required", 400);
@@ -536,7 +536,7 @@ const sendAlertTool: ToolDefinition = {
     if (description) payload.description = description;
 
     const ackReply = await ctx.nc.request(
-      `host.${ctx.config.hostId}.fcm.alert`,
+      `host.${ctx.config.hostId}.fcm.alarm`,
       sc.encode(JSON.stringify(payload)),
       { timeout: 5_000 },
     );
@@ -544,7 +544,7 @@ const sendAlertTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alert.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alarm.${ctx.sessionId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -733,7 +733,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlertTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 // ── MCP Resources ─────────────────────────────────────────────────────

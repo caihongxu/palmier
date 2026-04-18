@@ -16,6 +16,7 @@ import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
 import { enqueueEvent } from "../event-queues.js";
+import { recordApp } from "../app-registry.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -137,11 +138,17 @@ export async function serveCommand(): Promise<void> {
     // Subscribe to device notifications and SMS from Android
     const sc = StringCodec();
 
-    // Dispatch a raw event payload to every task whose schedule matches.
-    function dispatchDeviceEvent(scheduleType: "on_new_notification" | "on_new_sms", payload: string): void {
+    // Dispatch a raw event payload to every task whose schedule matches. For
+    // notification tasks, schedule_values (when non-empty) acts as a packageName
+    // whitelist; empty/unset means "any app".
+    function dispatchDeviceEvent(scheduleType: "on_new_notification" | "on_new_sms", payload: string, parsed?: unknown): void {
       for (const task of listTasks(config.projectRoot)) {
         if (task.frontmatter.schedule_type !== scheduleType) continue;
         if (!task.frontmatter.schedule_enabled) continue;
+        if (scheduleType === "on_new_notification" && task.frontmatter.schedule_values && task.frontmatter.schedule_values.length > 0) {
+          const pkg = (parsed as { packageName?: string } | undefined)?.packageName;
+          if (!pkg || !task.frontmatter.schedule_values.includes(pkg)) continue;
+        }
         const { shouldStart } = enqueueEvent(task.frontmatter.id, payload);
         if (shouldStart) {
           platform.startTask(task.frontmatter.id).catch((err) => {
@@ -155,13 +162,16 @@ export async function serveCommand(): Promise<void> {
     (async () => {
       for await (const msg of notifSub) {
         const raw = sc.decode(msg.data);
+        let parsed: unknown;
         try {
-          const data = JSON.parse(raw);
-          addNotification({ ...data, receivedAt: Date.now() });
+          parsed = JSON.parse(raw);
+          const data = parsed as { packageName?: string; appName?: string };
+          addNotification({ ...(parsed as object), receivedAt: Date.now() } as Parameters<typeof addNotification>[0]);
+          if (data.packageName && data.appName) recordApp(data.packageName, data.appName);
         } catch (err) {
           console.error("[nats] Failed to parse device notification:", err);
         }
-        dispatchDeviceEvent("on_new_notification", raw);
+        dispatchDeviceEvent("on_new_notification", raw, parsed);
       }
     })();
 
