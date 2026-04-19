@@ -140,6 +140,18 @@ function runLaunchctl(args: string[], opts: { ignoreFailure?: boolean } = {}): v
   }
 }
 
+/**
+ * Reload a LaunchAgent plist. The `enable` call is essential: after `bootout`
+ * macOS can leave the service in a *disabled* state (tracked in
+ * /var/db/com.apple.xpc.launchd/disabled.<uid>.plist). A subsequent bootstrap
+ * then fails with "Bootstrap failed: 5: Input/output error".
+ */
+function reloadAgent(domain: string, label: string, plistPath: string): void {
+  runLaunchctl(["bootout", `${domain}/${label}`], { ignoreFailure: true });
+  runLaunchctl(["enable", `${domain}/${label}`], { ignoreFailure: true });
+  runLaunchctl(["bootstrap", domain, `"${plistPath}"`]);
+}
+
 export class MacOsPlatform implements PlatformService {
   installDaemon(config: HostConfig): void {
     fs.mkdirSync(AGENT_DIR, { recursive: true });
@@ -166,8 +178,7 @@ export class MacOsPlatform implements PlatformService {
     console.log("LaunchAgent installed at:", plistPath);
 
     const domain = guiDomain();
-    runLaunchctl(["bootout", `${domain}/${DAEMON_LABEL}`], { ignoreFailure: true });
-    runLaunchctl(["bootstrap", domain, `"${plistPath}"`]);
+    reloadAgent(domain, DAEMON_LABEL, plistPath);
     runLaunchctl(["kickstart", "-k", `${domain}/${DAEMON_LABEL}`]);
 
     console.log("Palmier host LaunchAgent loaded and started.");
@@ -212,8 +223,7 @@ export class MacOsPlatform implements PlatformService {
       );
       if (updated !== content) {
         fs.writeFileSync(plistPath, updated, "utf-8");
-        runLaunchctl(["bootout", `${domain}/${DAEMON_LABEL}`], { ignoreFailure: true });
-        runLaunchctl(["bootstrap", domain, `"${plistPath}"`]);
+        reloadAgent(domain, DAEMON_LABEL, plistPath);
       }
     }
 
@@ -263,8 +273,7 @@ export class MacOsPlatform implements PlatformService {
     fs.writeFileSync(plistPath, buildPlist(dict), "utf-8");
 
     const domain = guiDomain();
-    runLaunchctl(["bootout", `${domain}/${label}`], { ignoreFailure: true });
-    runLaunchctl(["bootstrap", domain, `"${plistPath}"`]);
+    reloadAgent(domain, label, plistPath);
   }
 
   removeTaskTimer(taskId: string): void {
