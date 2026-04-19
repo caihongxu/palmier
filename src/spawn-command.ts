@@ -18,19 +18,12 @@ export interface SpawnStreamingOptions {
 }
 
 /**
- * Spawn a command with shell interpretation, returning the ChildProcess
- * with stdout piped for line-by-line reading.
- *
- * Unlike spawnCommand(), this does NOT collect output into a buffer —
- * the caller reads from child.stdout directly (e.g. via readline).
- *
- * shell: true is required so users can write piped commands like
- * "tail -f log | grep ERROR".
- *
- * stdin is "pipe" (kept open, never written to) rather than "ignore"
- * (/dev/null). Some long-running commands exit when stdin is closed/EOF.
- * This differs from spawnCommand() which uses "ignore" because agent
- * CLIs like `claude -p` hang on an open stdin pipe.
+ * Spawn with shell interpretation for piped commands like "tail -f log | grep".
+ * Returns the ChildProcess with stdout piped so the caller can read it directly
+ * (contrast with spawnCommand which buffers). stdin is "pipe" (held open, not
+ * written to): some long-running commands exit on stdin EOF. Agent CLIs like
+ * `claude -p` conversely hang on an open stdin, which is why spawnCommand
+ * defaults to "ignore".
  */
 export function spawnStreamingCommand(
   command: string,
@@ -60,18 +53,10 @@ export interface SpawnCommandOptions {
 }
 
 /**
- * Spawn a command with additional arguments.
- *
- * Uses cross-spawn to correctly resolve .cmd shims and escape arguments
- * on Windows without shell: true (which mishandles special characters).
- *
- * On other platforms the command is executed directly (no shell), so no
- * escaping is needed.
- *
- * stdin is set to "ignore" by default (equivalent to < /dev/null) because
- * tools like `claude -p` hang indefinitely on an open stdin pipe.
- * When opts.stdin is provided, stdin is set to "pipe" and the string is
- * written to the process before closing the pipe.
+ * cross-spawn resolves .cmd shims and escapes args on Windows without shell:true
+ * (which mishandles special characters). stdin defaults to "ignore" because
+ * tools like `claude -p` hang on an open stdin pipe; pass opts.stdin to write
+ * a string and then close the pipe.
  */
 export interface SpawnCommandResult {
   output: string;
@@ -84,8 +69,7 @@ export function spawnCommand(
   opts: SpawnCommandOptions,
 ): Promise<SpawnCommandResult> {
   return new Promise<SpawnCommandResult>((resolve, reject) => {
-    // Collapse newlines to spaces — cmd.exe can't handle literal newlines
-    // in arguments, and CLI prompts don't need them.
+    // cmd.exe can't handle literal newlines in arguments.
     const finalArgs = process.platform === "win32"
       ? args.map((a) => a.replace(/[\r\n]+/g, " "))
       : args;

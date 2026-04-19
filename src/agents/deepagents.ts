@@ -19,7 +19,7 @@ export class DeepAgents implements AgentTool {
     if (yolo) {
       args.push("--auto-approve");
     }
-    if (followupPrompt) {args.push("--resume");} // continue mode for followups
+    if (followupPrompt) {args.push("--resume");}
     args.push("--non-interactive", prompt);
 
     return { command: "deepagents", args};

@@ -736,8 +736,6 @@ const sendEmailTool: ToolDefinition = {
 export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
-// ── MCP Resources ─────────────────────────────────────────────────────
-
 export interface ResourceDefinition {
   /** MCP resource URI (e.g. "notifications://device"). */
   uri: string;
@@ -783,9 +781,6 @@ const deviceSmsResource: ResourceDefinition = {
 export const agentResources: ResourceDefinition[] = [deviceNotificationsResource, deviceSmsResource];
 export const agentResourceMap = new Map<string, ResourceDefinition>(agentResources.map((r) => [r.uri, r]));
 
-/**
- * Generate the HTTP Endpoints markdown section for agent-instructions.md from the tool registry.
- */
 export function generateEndpointDocs(
   port: number,
   taskId: string,
@@ -803,7 +798,6 @@ export function generateEndpointDocs(
     const props = schema.properties ?? {};
     const required = new Set(schema.required ?? []);
 
-    // Build example JSON (body only, no taskId)
     const example: Record<string, unknown> = {};
     for (const [key, prop] of Object.entries(props)) {
       if (prop.type === "array") example[key] = ["..."];

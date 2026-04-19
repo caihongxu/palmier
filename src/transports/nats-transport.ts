@@ -1,10 +1,6 @@
 import { StringCodec, type NatsConnection, type Msg, type Subscription } from "nats";
 import type { HostConfig, RpcMessage } from "../types.js";
 
-/**
- * Start the NATS transport using an existing connection.
- * Subscribe to RPC subjects and dispatch to handler.
- */
 export async function startNatsTransport(
   config: HostConfig,
   handleRpc: (req: RpcMessage) => Promise<unknown>,
@@ -16,7 +12,6 @@ export async function startNatsTransport(
   console.log(`[nats] Subscribing to: ${subject}`);
   const sub = nc.subscribe(subject);
 
-  // Graceful shutdown
   const shutdown = async () => {
     console.log("[nats] Shutting down...");
     sub.unsubscribe();
@@ -28,12 +23,11 @@ export async function startNatsTransport(
   process.on("SIGTERM", shutdown);
 
   async function processMessage(msg: Msg) {
-    // Derive RPC method from subject: ...rpc.<method parts>
+    // Subject format: ...rpc.<method parts>
     const subjectTokens = msg.subject.split(".");
     const rpcIdx = subjectTokens.indexOf("rpc");
     const method = rpcIdx >= 0 ? subjectTokens.slice(rpcIdx + 1).join(".") : "";
 
-    // Parse params from message body
     let params: Record<string, unknown> = {};
     if (msg.data && msg.data.length > 0) {
       const raw = sc.decode(msg.data).trim();
@@ -50,7 +44,7 @@ export async function startNatsTransport(
       }
     }
 
-    // Extract clientToken from params (PWA includes it in the payload)
+    // PWA includes the client token in the payload.
     const clientToken = typeof params.clientToken === "string" ? params.clientToken : undefined;
     delete params.clientToken;
 
@@ -72,7 +66,7 @@ export async function startNatsTransport(
 
   async function consumeSubscription(subscription: Subscription) {
     for await (const msg of subscription) {
-      // Handle RPC without blocking the message loop so heartbeats keep flowing
+      // Don't await — heartbeats must keep flowing while RPC runs.
       processMessage(msg);
     }
   }

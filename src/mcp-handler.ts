@@ -15,14 +15,13 @@ export interface McpResponse {
   stream?: boolean;
 }
 
-// Resource subscriptions: sessionId → Set of resource URIs
+/** sessionId → subscribed resource URIs */
 const resourceSubscriptions = new Map<string, Set<string>>();
 
 export function getResourceSubscriptions(): Map<string, Set<string>> {
   return resourceSubscriptions;
 }
 
-// Session-to-agent name map with 24h TTL
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessionAgents = new Map<string, { agentName: string; expiresAt: number }>();
 

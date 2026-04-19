@@ -3,9 +3,6 @@ import * as path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { ParsedTask, TaskFrontmatter, TaskStatus, HistoryEntry, ConversationMessage } from "./types.js";
 
-/**
- * Parse a TASK.md file from the given task directory.
- */
 export function parseTaskFile(taskDir: string): ParsedTask {
   const filePath = path.join(taskDir, "TASK.md");
 
@@ -17,9 +14,6 @@ export function parseTaskFile(taskDir: string): ParsedTask {
   return parseTaskContent(content);
 }
 
-/**
- * Parse TASK.md content string into frontmatter + body.
- */
 export function parseTaskContent(content: string): ParsedTask {
   const fmRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
   const match = content.match(fmRegex);
@@ -41,10 +35,6 @@ export function parseTaskContent(content: string): ParsedTask {
   return { frontmatter };
 }
 
-/**
- * Write a TASK.md file to the given task directory.
- * Creates the directory if it doesn't exist.
- */
 export function writeTaskFile(taskDir: string, task: ParsedTask): void {
   fs.mkdirSync(taskDir, { recursive: true });
 
@@ -55,18 +45,11 @@ export function writeTaskFile(taskDir: string, task: ParsedTask): void {
   fs.writeFileSync(filePath, content, "utf-8");
 }
 
-/**
- * Append a task ID to the project-level tasks.jsonl file.
- */
 export function appendTaskList(projectRoot: string, taskId: string): void {
   const listPath = path.join(projectRoot, "tasks.jsonl");
   fs.appendFileSync(listPath, JSON.stringify({ task_id: taskId }) + "\n", "utf-8");
 }
 
-/**
- * Remove a task ID from the project-level tasks.jsonl file.
- * Returns true if the entry was found and removed.
- */
 export function removeFromTaskList(projectRoot: string, taskId: string): boolean {
   const listPath = path.join(projectRoot, "tasks.jsonl");
   if (!fs.existsSync(listPath)) return false;
@@ -91,9 +74,6 @@ export function removeFromTaskList(projectRoot: string, taskId: string): boolean
   return true;
 }
 
-/**
- * List all tasks referenced in tasks.jsonl.
- */
 export function listTasks(projectRoot: string): ParsedTask[] {
   const listPath = path.join(projectRoot, "tasks.jsonl");
   if (!fs.existsSync(listPath)) return [];
@@ -118,25 +98,15 @@ export function listTasks(projectRoot: string): ParsedTask[] {
   return tasks.reverse();
 }
 
-/**
- * Get the directory path for a task by its ID.
- */
 export function getTaskDir(projectRoot: string, taskId: string): string {
   return path.join(projectRoot, "tasks", taskId);
 }
 
-/**
- * Write task status to status.json in the task directory.
- */
 export function writeTaskStatus(taskDir: string, status: TaskStatus): void {
   const filePath = path.join(taskDir, "status.json");
   fs.writeFileSync(filePath, JSON.stringify(status), "utf-8");
 }
 
-/**
- * Read task status from status.json in the task directory.
- * Returns undefined if the file doesn't exist.
- */
 export function readTaskStatus(taskDir: string): TaskStatus | undefined {
   const filePath = path.join(taskDir, "status.json");
   try {
@@ -146,10 +116,7 @@ export function readTaskStatus(taskDir: string): TaskStatus | undefined {
   }
 }
 
-/**
- * Create a run directory with an initial TASKRUN.md file.
- * Returns the run ID (timestamp string used as directory name).
- */
+/** Returns the run ID (timestamp string used as directory name). */
 export function createRunDir(
   taskDir: string,
   taskName: string,
@@ -165,16 +132,10 @@ export function createRunDir(
   return runId;
 }
 
-/**
- * Get the path to a run directory.
- */
 export function getRunDir(taskDir: string, runId: string): string {
   return path.join(taskDir, runId);
 }
 
-/**
- * Append a conversation message to a run's TASKRUN.md file.
- */
 export function appendRunMessage(
   taskDir: string,
   runId: string,
@@ -189,10 +150,6 @@ export function appendRunMessage(
   fs.appendFileSync(path.join(taskDir, runId, "TASKRUN.md"), entry, "utf-8");
 }
 
-/**
- * Begin a streaming assistant message — writes the delimiter only.
- * Returns a writer that appends content chunks and finalizes the message.
- */
 export function beginStreamingMessage(
   taskDir: string,
   runId: string,
@@ -217,7 +174,7 @@ export class StreamingMessageWriter {
     fs.appendFileSync(this.filePath, "\n\n", "utf-8");
     if (attachments?.length) {
       const raw = fs.readFileSync(this.filePath, "utf-8");
-      // Find the last assistant delimiter (may differ from the original if spliceUserMessage created a new one)
+      // spliceUserMessage may have created a newer assistant delimiter.
       const pattern = /<!-- palmier:message role="assistant" time="\d+" -->/g;
       let lastMatch: RegExpExecArray | null = null;
       let m;
@@ -233,12 +190,10 @@ export class StreamingMessageWriter {
 }
 
 /**
- * Splice a user message into a running assistant stream.
- * Ends the current assistant block, writes the user message,
- * then opens a new assistant block — all as direct file appends.
- * The existing StreamingMessageWriter keeps working because its
- * write() is just appendFileSync, so subsequent chunks land in
- * the new assistant block.
+ * Splice a user message into a running assistant stream: close the current
+ * assistant block, write the user message, open a new assistant block. Direct
+ * appends only, so an existing StreamingMessageWriter keeps working — its
+ * subsequent chunks land in the new block.
  */
 export function spliceUserMessage(
   taskDir: string,
@@ -248,22 +203,15 @@ export function spliceUserMessage(
   assistantAppend?: string,
 ): void {
   const filePath = path.join(taskDir, runId, "TASKRUN.md");
-  // 1. Optionally append to the current assistant block (e.g. the input questions)
   if (assistantAppend) {
     fs.appendFileSync(filePath, assistantAppend, "utf-8");
   }
-  // 2. End the current assistant block
   fs.appendFileSync(filePath, "\n\n", "utf-8");
-  // 3. Write the user message
   appendRunMessage(taskDir, runId, userMsg);
-  // 4. Open a new assistant block for subsequent agent output
   const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" -->`;
   fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
 }
 
-/**
- * Read conversation messages from a run's TASKRUN.md file.
- */
 export function readRunMessages(taskDir: string, runId: string): ConversationMessage[] {
   const raw = fs.readFileSync(path.join(taskDir, runId, "TASKRUN.md"), "utf-8");
   const fmMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
@@ -298,18 +246,11 @@ export function readRunMessages(taskDir: string, runId: string): ConversationMes
   return messages;
 }
 
-/**
- * Append a history entry to the project-level history.jsonl file.
- */
 export function appendHistory(projectRoot: string, entry: HistoryEntry): void {
   const historyPath = path.join(projectRoot, "history.jsonl");
   fs.appendFileSync(historyPath, JSON.stringify(entry) + "\n", "utf-8");
 }
 
-/**
- * Delete a history entry and its associated run directory.
- * Returns true if the entry was found and removed.
- */
 export function deleteHistoryEntry(
   projectRoot: string,
   taskId: string,
@@ -337,7 +278,6 @@ export function deleteHistoryEntry(
 
   fs.writeFileSync(historyPath, remaining.length > 0 ? remaining.join("\n") + "\n" : "", "utf-8");
 
-  // Delete the run directory
   const runDir = path.join(projectRoot, "tasks", taskId, runId);
   if (fs.existsSync(runDir)) {
     fs.rmSync(runDir, { recursive: true, force: true });
@@ -346,10 +286,7 @@ export function deleteHistoryEntry(
   return true;
 }
 
-/**
- * Read history entries from history.jsonl with pagination.
- * Returns entries sorted most-recent-first.
- */
+/** Returns entries most-recent-first. */
 export function readHistory(
   projectRoot: string,
   opts: { offset?: number; limit?: number; task_id?: string },

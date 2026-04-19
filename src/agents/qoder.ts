@@ -19,7 +19,7 @@ export class Qoder implements AgentTool {
     if (yolo) {
       args.push("--yolo");
     }
-    if (followupPrompt) {args.push("-c");} // continue mode for followups
+    if (followupPrompt) {args.push("-c");}
     args.push("-p", prompt);
 
     return { command: "qodercli", args};

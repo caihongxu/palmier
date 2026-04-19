@@ -16,7 +16,7 @@ export class GooseAgent implements AgentTool {
     const prompt = followupPrompt ?? getAgentInstructions(task, yolo || !this.supportsPermissions);
     const args = ["run"];
 
-    if (followupPrompt) {args.push("--resume");} // continue mode for followups
+    if (followupPrompt) {args.push("--resume");}
     args.push("--text", prompt);
 
     return { command: "goose", args, ...(yolo ? { env: { GOOSE_MODE: "auto" } } : {}) };

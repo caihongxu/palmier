@@ -15,9 +15,6 @@ const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 
-/**
- * Interactive wizard to provision this host.
- */
 export async function initCommand(): Promise<void> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask: AskFn = (q) => new Promise<string>((resolve) => rl.question(q, resolve));
@@ -27,7 +24,6 @@ export async function initCommand(): Promise<void> {
     console.log(`By continuing, you agree to the ${cyan("Terms of Service")} (https://www.palmier.me/terms)`);
     console.log(`and ${cyan("Privacy Policy")} (https://www.palmier.me/privacy).\n`);
 
-    // Detect agents first — abort if none found
     console.log("Detecting installed agents...");
     const agents = await detectAgents();
 
@@ -41,7 +37,6 @@ export async function initCommand(): Promise<void> {
 
     console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}\n`);
 
-    // LAN mode
     const lanAnswer = await ask("Enable LAN access (direct HTTP from local network)? (y/N): ");
     const lanEnabled = lanAnswer.trim().toLowerCase() === "y";
 
@@ -51,7 +46,6 @@ export async function initCommand(): Promise<void> {
     const parsed = parseInt(portAnswer.trim(), 10);
     if (parsed > 0 && parsed < 65536) httpPort = parsed;
 
-    // Display summary and ask for confirmation before making any changes
     console.log(`\n${bold("Setup summary:")}\n`);
     console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
@@ -64,7 +58,6 @@ export async function initCommand(): Promise<void> {
     }
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
-    // Check for existing tasks to recover
     const existingTasks = listTasks(process.cwd());
     if (existingTasks.length > 0) {
       console.log(`  ${dim("Recover tasks:")}  ${existingTasks.length} existing task(s) found:`);
@@ -81,7 +74,6 @@ export async function initCommand(): Promise<void> {
       return;
     }
 
-    // Register with server
     let existingHostId: string | undefined;
     try { existingHostId = loadConfig().hostId; } catch { /* first init */ }
 
@@ -105,7 +97,6 @@ export async function initCommand(): Promise<void> {
       }
     }
 
-    // Build and save config
     const config: HostConfig = {
       hostId: registerResponse.hostId,
       projectRoot: process.cwd(),
@@ -123,8 +114,8 @@ export async function initCommand(): Promise<void> {
 
     getPlatform().installDaemon(config);
 
-    // Task recovery happens in the daemon (palmier serve) on startup,
-    // since the daemon runs elevated and can create S4U scheduled tasks.
+    // Task recovery runs in the daemon (palmier serve) because that process
+    // is elevated and can create S4U scheduled tasks.
 
     console.log("\nStarting pairing...");
     rl.close();

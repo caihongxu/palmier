@@ -4,12 +4,7 @@ import { CONFIG_DIR } from "./config.js";
 
 const REGISTRY_FILE = path.join(CONFIG_DIR, "app-registry.json");
 
-/**
- * Persistent cache of packageName → appName pairs seen via incoming device
- * notifications. Used by the task editor UI to resolve display names for the
- * app filter without round-tripping to the notification-listening device
- * (important when the user is editing from a different browser, e.g. desktop).
- */
+/** Persistent cache of packageName → appName pairs seen via device notifications. */
 export interface AppInfo {
   packageName: string;
   appName: string;
@@ -36,10 +31,7 @@ function persist(map: Record<string, string>): void {
   fs.writeFileSync(REGISTRY_FILE, JSON.stringify(map, null, 2), "utf-8");
 }
 
-/**
- * Record an observation of a packageName ↔ appName pair. Writes only when the
- * name is new or changed so we track the latest label if an app renames itself.
- */
+/** Writes only on change so we track the latest label if an app renames itself. */
 export function recordApp(packageName: string, appName: string): void {
   if (!packageName || !appName) return;
   const map = load();

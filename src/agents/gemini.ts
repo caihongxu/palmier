@@ -25,8 +25,9 @@ export class GeminiAgent implements AgentTool {
       args.push("--allowed-tools", tools.join(","));
     }
 
-    if (followupPrompt) {args.push("--resume");} // continue mode for followups
-    args.push("--prompt", "-"); // read prompt from stdin to avoid command line length limits
+    if (followupPrompt) {args.push("--resume");}
+    // Read prompt from stdin to avoid command-line length limits.
+    args.push("--prompt", "-");
     
     return { command: "gemini", args, stdin: prompt };
   }

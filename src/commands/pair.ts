@@ -24,9 +24,6 @@ function buildPairResponse(config: HostConfig, label?: string) {
   };
 }
 
-/**
- * POST to the running serve daemon and long-poll until paired or expired.
- */
 function httpPairRegister(port: number, code: string): Promise<boolean> {
   const body = JSON.stringify({ code, expiryMs: PAIRING_EXPIRY_MS });
 
@@ -60,10 +57,7 @@ function httpPairRegister(port: number, code: string): Promise<boolean> {
   });
 }
 
-/**
- * Generate a pairing code and wait for a PWA client to pair.
- * Listens on NATS (server mode) and HTTP (via serve daemon) in parallel.
- */
+/** Listens on NATS (server mode) and HTTP (via serve daemon) in parallel. */
 export async function pairCommand(): Promise<void> {
   const config = loadConfig();
   const code = generatePairingCode();
@@ -78,7 +72,6 @@ export async function pairCommand(): Promise<void> {
 
   const cleanups: Array<() => void | Promise<void>> = [];
 
-  // Display pairing info
   console.log("");
   console.log("Enter this code in your Palmier app:");
   console.log("");
@@ -86,7 +79,6 @@ export async function pairCommand(): Promise<void> {
   console.log("");
   console.log("Code expires in 1 minute.");
 
-  // NATS pairing (server mode)
   const nc = await connectNats(config);
   const sc = StringCodec();
   const subject = `pair.${code}`;
@@ -116,13 +108,11 @@ export async function pairCommand(): Promise<void> {
     }
   })();
 
-  // HTTP pairing — register with serve daemon's /pair-register endpoint
   (async () => {
     const result = await httpPairRegister(httpPort, code);
     if (result) onPaired();
   })();
 
-  // Wait for pairing or timeout
   const start = Date.now();
   await new Promise<void>((resolve) => {
     const interval = setInterval(() => {
@@ -133,7 +123,6 @@ export async function pairCommand(): Promise<void> {
     }, 500);
   });
 
-  // Cleanup
   for (const cleanup of cleanups) {
     await cleanup();
   }

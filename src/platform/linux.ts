@@ -22,15 +22,9 @@ function getServiceName(taskId: string): string {
 }
 
 /**
- * Convert a cron expression to a systemd OnCalendar string.
- *
- * Only the 4 cron patterns the PWA UI can produce are supported:
- *   hourly:  "0 * * * *"
- *   daily:   "MM HH * * *"
- *   weekly:  "MM HH * * D"
- *   monthly: "MM HH D * *"
- * Arbitrary cron expressions (ranges, lists, steps beyond hourly) are NOT
- * handled because the UI never generates them.
+ * Only the 4 cron patterns the PWA UI produces are supported:
+ *   hourly "0 * * * *", daily "MM HH * * *", weekly "MM HH * * D", monthly "MM HH D * *".
+ * Arbitrary expressions (ranges, lists, sub-hour steps) are not handled.
  */
 export function cronToOnCalendar(cron: string): string {
   const parts = cron.trim().split(/\s+/);
@@ -40,7 +34,6 @@ export function cronToOnCalendar(cron: string): string {
 
   const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
 
-  // Map cron day-of-week numbers to systemd abbreviated names
   const dowMap: Record<string, string> = {
     "0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed",
     "4": "Thu", "5": "Fri", "6": "Sat", "7": "Sun",
@@ -73,8 +66,8 @@ export class LinuxPlatform implements PlatformService {
     fs.mkdirSync(UNIT_DIR, { recursive: true });
 
     const palmierBin = process.argv[1] || "palmier";
-    // Save the user's shell PATH so restartDaemon can use it later
-    // (the daemon itself runs under systemd with a limited PATH).
+    // Save the user's shell PATH so restartDaemon can reuse it later — under
+    // systemd the daemon itself runs with a limited PATH.
     const userPath = process.env.PATH || "/usr/local/bin:/usr/bin:/bin";
     fs.mkdirSync(path.dirname(PATH_FILE), { recursive: true });
     fs.writeFileSync(PATH_FILE, userPath, "utf-8");
@@ -110,7 +103,7 @@ WantedBy=default.target
       console.error("You may need to start it manually: systemctl --user enable --now palmier.service");
     }
 
-    // Enable lingering so service runs without active login session
+    // Lingering lets the service run without an active login session.
     try {
       execSync(`loginctl enable-linger ${process.env.USER || ""}`, { stdio: "inherit" });
       console.log("Login lingering enabled.");
@@ -127,11 +120,9 @@ WantedBy=default.target
       execSync("systemctl --user disable palmier.service 2>/dev/null", { stdio: "pipe" });
     } catch { /* service may not exist */ }
 
-    // Remove daemon service file
     const servicePath = path.join(UNIT_DIR, "palmier.service");
     try { fs.unlinkSync(servicePath); } catch { /* ignore */ }
 
-    // Remove all task timers and services
     try {
       const files = fs.readdirSync(UNIT_DIR).filter((f) => f.startsWith("palmier-task-"));
       for (const f of files) {
@@ -148,8 +139,8 @@ WantedBy=default.target
   }
 
   async restartDaemon(): Promise<void> {
-    // If called from a user's terminal, save the current PATH for future use.
-    // If called from the daemon (auto-update), read the saved PATH instead.
+    // From a TTY, snapshot the current PATH; from the daemon (auto-update),
+    // reuse whatever was last saved.
     if (process.stdin.isTTY) {
       fs.mkdirSync(path.dirname(PATH_FILE), { recursive: true });
       fs.writeFileSync(PATH_FILE, process.env.PATH || "", "utf-8");
@@ -196,7 +187,6 @@ Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}
     fs.writeFileSync(path.join(UNIT_DIR, serviceName), serviceContent, "utf-8");
     daemonReload();
 
-    // Only create and enable a timer if the schedule exists and is enabled
     if (!task.frontmatter.schedule_enabled) return;
     const scheduleType = task.frontmatter.schedule_type;
     const scheduleValues = task.frontmatter.schedule_values;
@@ -260,7 +250,6 @@ WantedBy=timers.target
   }
 
   isTaskRunning(taskId: string): boolean {
-    // Check systemd first (for scheduled/on-demand runs)
     const serviceName = getServiceName(taskId);
     try {
       const out = execSync(
@@ -271,7 +260,7 @@ WantedBy=timers.target
       if (state === "active" || state === "activating") return true;
     } catch { /* service may not exist */ }
 
-    // Fall back to PID check (for follow-up runs spawned directly)
+    // Follow-up runs are spawned directly, so check PID too.
     try {
       const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
       const status = readTaskStatus(taskDir);

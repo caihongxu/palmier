@@ -19,7 +19,7 @@ export class OpenCodeAgent implements AgentTool {
     if (yolo) {
       args.push("--dangerously-skip-permissions");
     }
-    if (followupPrompt) {args.push("--continue");} // continue mode for followups
+    if (followupPrompt) {args.push("--continue");}
     args.push(prompt);
 
     return { command: "opencode", args};

@@ -11,8 +11,6 @@ import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp
 import { getTaskDir } from "../task.js";
 import { popEvent } from "../event-queues.js";
 
-// ── Bundled PWA asset serving ───────────────────────────────────────────
-
 interface CachedAsset {
   data: Buffer;
   contentType: string;
@@ -41,22 +39,18 @@ function guessContentType(urlPath: string): string {
   return CONTENT_TYPES[ext] ?? "application/octet-stream";
 }
 
-/**
- * Read a PWA asset from the bundled pwa/ directory, caching in memory.
- * Returns null if the file does not exist.
- */
 function getAsset(urlPath: string): CachedAsset | null {
   const cached = assetCache.get(urlPath);
   if (cached) return cached;
 
   const filePath = path.join(PWA_DIR, urlPath === "/" ? "index.html" : urlPath);
 
-  // Prevent path traversal
+  // Prevent path traversal.
   if (!filePath.startsWith(PWA_DIR)) return null;
 
   try {
     let data = fs.readFileSync(filePath);
-    // Inject marker into index HTML so the PWA can detect it's served by palmier
+    // Marker lets the PWA detect it's served by palmier.
     if (urlPath === "/") {
       const html = data.toString("utf-8").replace("</head>", "<script>window.__PALMIER_SERVE__=true</script></head>");
       data = Buffer.from(html, "utf-8");
@@ -90,10 +84,6 @@ export function detectLanIp(): string {
   return "127.0.0.1";
 }
 
-/**
- * Start the HTTP transport: server with RPC, SSE, PWA proxy, pairing, and
- * localhost-only agent endpoints (notify, request-input, confirmation, permission).
- */
 export async function startHttpTransport(
   config: HostConfig,
   handleRpc: (req: RpcMessage) => Promise<unknown>,
@@ -126,7 +116,6 @@ export async function startHttpTransport(
     resource.subscribe(() => broadcastResourceUpdated(resource.uri));
   }
 
-  // If a pairing code is provided, pre-register it
   if (pairingCode) {
     const EXPIRY_MS = 24 * 60 * 60 * 1000;
     const timer = setTimeout(() => { pendingPairs.delete(pairingCode); }, EXPIRY_MS);
@@ -171,9 +160,6 @@ export async function startHttpTransport(
     return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
   }
 
-  /**
-   * Publish an event via NATS and SSE.
-   */
   async function publishEvent(taskId: string, payload: Record<string, unknown>): Promise<void> {
     const sc = StringCodec();
     const subject = `host-event.${config.hostId}.${taskId}`;
@@ -191,8 +177,6 @@ export async function startHttpTransport(
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const pathname = url.pathname;
 
-    // ── MCP streamable HTTP endpoint ──────────────────────────────────
-
     if (req.method === "POST" && pathname === "/mcp") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
@@ -204,7 +188,7 @@ export async function startHttpTransport(
           res.setHeader("Mcp-Session-Id", result.sessionId);
         }
         if (result.stream && sessionId) {
-          // Keep response open as SSE stream for server-initiated notifications
+          // Keep the response open as SSE for server-initiated notifications.
           res.writeHead(200, {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -226,8 +210,6 @@ export async function startHttpTransport(
       }
       return;
     }
-
-    // ── Auto-generated REST endpoints from MCP tool registry ──────────
 
     if (req.method === "POST" && agentToolMap.has(pathname.slice(1))) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
@@ -258,8 +240,6 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── Auto-generated REST endpoints from MCP resource registry ────
-
     const matchedResource = req.method === "GET" && agentResources.find((r) => r.restPath === pathname);
     if (matchedResource) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
@@ -280,8 +260,6 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── Event queue pop (used by event-triggered palmier run) ─────────
-
     if (req.method === "POST" && pathname === "/task-event/pop") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       const taskId = url.searchParams.get("taskId");
@@ -292,8 +270,6 @@ export async function startHttpTransport(
       sendJson(res, 200, popEvent(taskId));
       return;
     }
-
-    // ── Localhost-only endpoints (no auth) ─────────────────────────────
 
     if (req.method === "POST" && pathname === "/event") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
@@ -333,8 +309,6 @@ export async function startHttpTransport(
       } catch { sendJson(res, 400, { error: "Invalid JSON" }); }
       return;
     }
-
-    // ── POST /request-permission — held connection ──────────────────────
 
     if (req.method === "POST" && pathname === "/request-permission") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
@@ -376,8 +350,6 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── Public pair endpoint — no auth, PWA posts pairing code here ────────
-
     if (req.method === "POST" && pathname === "/pair") {
       try {
         const body = await readBody(req);
@@ -404,16 +376,14 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── PWA assets (on-the-fly, cached) ────────────────────────────────
-
-    // Skip service worker and manifest — they require HTTPS which LAN mode doesn't use
+    // Service worker and manifest require HTTPS, which LAN mode doesn't use.
     const SKIP = new Set(["/registerSW.js", "/service-worker.js", "/manifest.webmanifest"]);
 
     const isApiRoute = pathname === "/events" || pathname.startsWith("/rpc/");
     if (!isApiRoute) {
       if (SKIP.has(pathname)) { sendJson(res, 404, { error: "Not found" }); return; }
 
-      // Try exact path, then fall back to index.html (SPA routing)
+      // Fall back to index.html for SPA routing.
       let asset = getAsset(pathname);
       if (!asset && pathname !== "/") {
         asset = getAsset("/");
@@ -428,14 +398,12 @@ export async function startHttpTransport(
       return;
     }
 
-    // ── API endpoints require auth (localhost is trusted) ───────────────
-
+    // Localhost is trusted; all other API callers require a client token.
     if (!isLocalhost(req) && !checkAuth(req)) {
       sendJson(res, 401, { error: "Unauthorized" });
       return;
     }
 
-    // SSE event stream
     if (req.method === "GET" && pathname === "/events") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -456,7 +424,6 @@ export async function startHttpTransport(
       return;
     }
 
-    // RPC endpoint: POST /rpc/<method>
     if (req.method === "POST" && pathname.startsWith("/rpc/")) {
       const method = pathname.slice("/rpc/".length);
       if (!method) { sendJson(res, 400, { error: "Missing RPC method" }); return; }

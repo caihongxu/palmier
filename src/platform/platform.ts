@@ -1,9 +1,6 @@
 import type { HostConfig, ParsedTask } from "../types.js";
 
-/**
- * Abstracts OS-specific daemon, scheduling, and process management.
- * Linux uses systemd; Windows uses Task Scheduler; macOS will use launchd.
- */
+/** Linux: systemd. Windows: Task Scheduler. macOS: launchd (planned). */
 export interface PlatformService {
   /** Install the main `palmier serve` daemon to start at boot. */
   installDaemon(config: HostConfig): void;

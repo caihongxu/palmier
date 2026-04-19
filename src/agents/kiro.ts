@@ -19,7 +19,7 @@ export class Kiro implements AgentTool {
     if (yolo) {
       args.push("--trust-all-tools");
     }
-    if (followupPrompt) {args.push("--resume");} // continue mode for followups
+    if (followupPrompt) {args.push("--resume");}
     args.push("--no-interactive", prompt);
 
     return { command: "kiro-cli", args};

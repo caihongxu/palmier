@@ -19,7 +19,7 @@ export class Hermes implements AgentTool {
     if (yolo) {
       args.push("--trust-all-tools");
     }
-    if (followupPrompt) {args.push("--continue");} // continue mode for followups
+    if (followupPrompt) {args.push("--continue");}
     args.push("-q", prompt);
 
     return { command: "hermes", args};

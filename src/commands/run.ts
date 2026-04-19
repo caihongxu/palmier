@@ -13,10 +13,6 @@ import { publishHostEvent } from "../events.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
 
-/**
- * Shared context for agent invocation retry loops.
- * Passed around to avoid threading many individual parameters.
- */
 interface InvocationContext {
   agent: AgentTool;
   task: ParsedTask;
@@ -35,11 +31,9 @@ interface InvocationResult {
 }
 
 /**
- * Invoke the agent CLI with a continuation loop for permissions and user input.
- *
- * Both standard and command-triggered execution use this.
- * The `invokeTask` is the ParsedTask whose prompt is passed to the agent
- * (for command-triggered mode this is the per-line augmented task).
+ * Invoke the agent CLI in a continuation loop to handle permission requests.
+ * `invokeTask` is the ParsedTask whose prompt is passed to the agent (in
+ * command-triggered mode this is the per-line augmented task).
  */
 async function invokeAgentWithRetries(
   ctx: InvocationContext,
@@ -47,7 +41,6 @@ async function invokeAgentWithRetries(
 ): Promise<InvocationResult> {
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    // Stream agent output to TASKRUN.md in real-time, throttled to 500ms
     const writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now());
     let lineBuf = "";
     let notifyPending = false;
@@ -89,12 +82,10 @@ async function invokeAgentWithRetries(
     const reportFiles = parseReportFiles(result.output);
     const requiredPermissions = parsePermissions(result.output);
 
-    // Flush remaining buffered content
     if (lineBuf && !lineBuf.startsWith("[PALMIER")) {
       writer.write(lineBuf);
     }
 
-    // Include permission requests in the assistant message
     if (requiredPermissions.length > 0) {
       const permLines = requiredPermissions.map((p) => `- **${p.name}** ${p.description}`).join("\n");
       writer.write(`\n\n**Permissions requested:**\n${permLines}\n`);
@@ -112,7 +103,6 @@ async function invokeAgentWithRetries(
       });
     }
 
-    // Permission handling — agent requested permissions
     if (requiredPermissions.length > 0) {
       const response = await requestPermission(ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
 
@@ -146,27 +136,20 @@ async function invokeAgentWithRetries(
         ctx.transientPermissions = [...ctx.transientPermissions, ...newPerms];
       }
 
-      // If the agent actually failed, retry with the new permissions
+      // Retry with the new permissions if the agent failed.
       if (outcome === "failed") {
         continue;
       }
     }
 
-    // Normal completion (success or terminal failure)
     return { outcome };
   }
 }
 
-/**
- * Strip [PALMIER_*] marker lines from agent output.
- */
 export function stripPalmierMarkers(output: string): string {
   return output.split("\n").filter((l) => !l.startsWith("[PALMIER")).join("\n").trim();
 }
 
-/**
- * Append a conversation message to the RESULT file and notify connected clients.
- */
 async function appendAndNotify(
   ctx: InvocationContext,
   msg: Parameters<typeof appendRunMessage>[2],
@@ -175,9 +158,7 @@ async function appendAndNotify(
   await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 }
 
-/**
- * Find the latest run dir that has no status messages yet (just created by the RPC handler).
- */
+/** The latest run dir with no status messages yet — freshly created by the RPC handler. */
 function findLatestPendingRunId(taskDir: string): string | null {
   const dirs = fs.readdirSync(taskDir)
     .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
@@ -190,8 +171,8 @@ function findLatestPendingRunId(taskDir: string): string | null {
 }
 
 /**
- * If the RPC handler already wrote "aborted" to status.json (e.g. via task.abort),
- * respect that instead of overwriting with the process's own outcome.
+ * If the RPC handler already wrote "aborted" (via task.abort), respect that
+ * instead of overwriting with the process's own outcome.
  */
 function resolveOutcome(taskDir: string, outcome: TaskRunningState): TaskRunningState {
   const current = readTaskStatus(taskDir);
@@ -199,9 +180,6 @@ function resolveOutcome(taskDir: string, outcome: TaskRunningState): TaskRunning
   return outcome;
 }
 
-/**
- * Execute a task by ID.
- */
 export async function runCommand(taskId: string): Promise<void> {
   const config = loadConfig();
   const taskDir = getTaskDir(config.projectRoot, taskId);
@@ -211,7 +189,6 @@ export async function runCommand(taskId: string): Promise<void> {
   let nc: NatsConnection | undefined;
   const taskName = task.frontmatter.name;
 
-  // Use existing run dir if just created by RPC, otherwise create a new one
   const existingRunId = findLatestPendingRunId(taskDir);
   const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now(), task.frontmatter.agent);
   if (!existingRunId) {
@@ -231,7 +208,6 @@ export async function runCommand(taskId: string): Promise<void> {
     appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "started" });
     await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
 
-    // If requires_confirmation, notify clients and wait
     if (task.frontmatter.requires_confirmation) {
       const confirmed = await requestConfirmation(config, task, taskDir);
       const confirmPrompt = `**Task Confirmation**\n\nRun task "${taskName || task.frontmatter.user_prompt}"?`;
@@ -252,7 +228,6 @@ export async function runCommand(taskId: string): Promise<void> {
       await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
     }
 
-    // Shared invocation context
     const guiEnv = getPlatform().getGuiEnv();
     const agent = getAgent(task.frontmatter.agent);
     const ctx: InvocationContext = {
@@ -261,7 +236,6 @@ export async function runCommand(taskId: string): Promise<void> {
     };
 
     if (task.frontmatter.command) {
-      // Command-triggered mode
       const result = await runCommandTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
@@ -269,14 +243,12 @@ export async function runCommand(taskId: string): Promise<void> {
       console.log(`Task ${taskId} completed (command-triggered).`);
     } else if (task.frontmatter.schedule_type === "on_new_notification"
                || task.frontmatter.schedule_type === "on_new_sms") {
-      // Event-triggered mode (driven by NATS pub/sub of device notifications/SMS)
       const result = await runEventTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (event-triggered).`);
     } else {
-      // Standard execution — add user prompt as first message
       await appendAndNotify(ctx, {
         role: "user",
         time: Date.now(),
@@ -312,11 +284,9 @@ const MAX_LOG_ENTRIES = 1000;
 const MAX_LINE_LENGTH = 200_000;
 
 /**
- * Command-triggered execution mode.
- *
- * Spawns a long-running shell command and, for each line of stdout,
- * invokes the agent CLI with the user's prompt augmented by that line.
- * Processes lines sequentially with a bounded queue.
+ * Spawn a long-running shell command and invoke the agent CLI once per stdout
+ * line, with the user's prompt augmented by that line. Sequential with a
+ * bounded queue.
  */
 async function runCommandTriggeredMode(
   ctx: InvocationContext,
@@ -346,7 +316,6 @@ async function runCommandTriggeredMode(
     const entry = `[${new Date().toISOString()}] (${outcome}) input: ${line}\n${agentOutput}\n---\n`;
     fs.appendFileSync(logPath, entry, "utf-8");
 
-    // Trim log if too large (keep last MAX_LOG_ENTRIES entries)
     try {
       const content = fs.readFileSync(logPath, "utf-8");
       const entries = content.split("\n---\n").filter(Boolean);
@@ -380,7 +349,7 @@ async function runCommandTriggeredMode(
     }
     appendLog(line, "", result.outcome);
 
-    // Append monitoring status so the UI shows the task is waiting for more input
+    // Signal "waiting for more input" in the UI.
     appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
     await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
   }
@@ -422,7 +391,6 @@ async function runCommandTriggeredMode(
     process.stderr.write(d);
   });
 
-  // Wait for command to exit
   const exitCode = await new Promise<number | null>((resolve) => {
     child.on("close", (code: number | null) => {
       commandExited = true;
@@ -438,7 +406,6 @@ async function runCommandTriggeredMode(
     });
   });
 
-  // Wait for any remaining queued lines to finish processing
   if (lineQueue.length > 0 || processing) {
     await new Promise<void>((resolve) => {
       resolveWhenDone = resolve;
@@ -464,13 +431,10 @@ async function runCommandTriggeredMode(
 }
 
 /**
- * Event-triggered execution mode.
- *
- * Drains the daemon-owned per-task event queue via the local /task-event/pop
- * HTTP endpoint, invoking the agent once per event with the payload spliced
- * into the user prompt. The run process itself holds no NATS subscription;
- * the daemon handles that and atomically clears the active flag when we see
- * an empty pop, so it can fire up a fresh run on the next incoming event.
+ * Drain the daemon-owned per-task event queue via /task-event/pop, invoking
+ * the agent once per event. The run process holds no NATS subscription — the
+ * daemon owns that and atomically clears the active flag on empty pop so it
+ * can fire a fresh run on the next incoming event.
  */
 async function runEventTriggeredMode(
   ctx: InvocationContext,
@@ -590,10 +554,6 @@ async function requestConfirmation(
   return confirmed;
 }
 
-/**
- * Extract report file names from agent output.
- * Looks for lines matching: [PALMIER_REPORT] <filename>
- */
 const ALLOWED_REPORT_EXT = [".md", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
 
 export function parseReportFiles(output: string): string[] {
@@ -602,7 +562,7 @@ export function parseReportFiles(output: string): string[] {
   let match;
   while ((match = regex.exec(output)) !== null) {
     const name = match[1].trim();
-    // Skip placeholder examples echoed from the prompt (e.g. "<filename>")
+    // Skip placeholder examples echoed from the prompt (e.g. "<filename>").
     if (!name || name.startsWith("<")) continue;
     const ext = name.lastIndexOf(".") >= 0 ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
     if (!ALLOWED_REPORT_EXT.includes(ext)) continue;
@@ -611,17 +571,13 @@ export function parseReportFiles(output: string): string[] {
   return files;
 }
 
-/**
- * Extract required permissions from agent output.
- * Looks for lines matching: [PALMIER_PERMISSION] <tool> | <description>
- */
 export function parsePermissions(output: string): RequiredPermission[] {
   const regex = new RegExp(`^\\${TASK_PERMISSION_PREFIX}\\s+(.+)$`, "gm");
   const perms: RequiredPermission[] = [];
   let match;
   while ((match = regex.exec(output)) !== null) {
     const raw = match[1].trim();
-    // Skip placeholder examples echoed from the prompt (e.g. "<tool_name> | <description>")
+    // Skip placeholder examples echoed from the prompt (e.g. "<tool_name> | <description>").
     if (raw.startsWith("<")) continue;
     const sep = raw.indexOf("|");
     if (sep !== -1) {
@@ -633,10 +589,7 @@ export function parsePermissions(output: string): RequiredPermission[] {
   return perms;
 }
 
-/**
- * Parse the agent's output for success/failure markers.
- * Falls back to "finished" if no marker is found.
- */
+/** Falls back to "finished" if no success/failure marker is found. */
 export function parseTaskOutcome(output: string): TaskRunningState {
   const lastChunk = output.slice(-500);
   const regex = new RegExp(`^\\${TASK_FAILURE_MARKER}$|^\\${TASK_SUCCESS_MARKER}$`, "gm");

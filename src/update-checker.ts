@@ -12,10 +12,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "
 export const isDevBuild = fs.existsSync(path.join(packageRoot, ".git"));
 export const currentVersion = isDevBuild ? `${pkg.version}-dev` : pkg.version;
 
-/**
- * Run the update and restart the daemon.
- * Returns an error message if the update fails.
- */
+/** Returns an error message if the update fails. */
 export async function performUpdate(): Promise<string | null> {
   try {
     const { output, exitCode } = await spawnCommand("npm", ["update", "-g", "palmier"], {
@@ -28,7 +25,7 @@ export async function performUpdate(): Promise<string | null> {
       return `Update failed. Please run manually:\nnpm update -g palmier`;
     }
     console.log("[update] Update installed, restarting daemon...");
-    // Small delay to allow the RPC response to be sent
+    // Delay so the RPC response finishes sending first.
     setTimeout(() => {
       getPlatform().restartDaemon().catch((err) => {
         console.error("[update] Restart failed:", err);

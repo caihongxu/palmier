@@ -33,32 +33,25 @@ export function scheduleValueToXml(scheduleType: "crons" | "specific_times", val
   if (parts.length !== 5) throw new Error(`Invalid cron expression: ${value}`);
   const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
   const st = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`;
-  // StartBoundary needs a full date; use a past date as the anchor
+  // StartBoundary needs a full date; anchor to a past one.
   const base = `2000-01-01T${st}`;
 
-  // Hourly
   if (hour === "*") {
     return `<TimeTrigger><StartBoundary>${base}</StartBoundary><Repetition><Interval>PT1H</Interval></Repetition></TimeTrigger>`;
   }
 
-  // Weekly
   if (dayOfMonth === "*" && dayOfWeek !== "*") {
     const day = DOW_NAMES[Number(dayOfWeek)] ?? "Monday";
     return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByWeek><DaysOfWeek><${day} /></DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek></CalendarTrigger>`;
   }
 
-  // Monthly
   if (dayOfMonth !== "*" && dayOfWeek === "*") {
     return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByMonth><DaysOfMonth><Day>${dayOfMonth}</Day></DaysOfMonth><Months><January /><February /><March /><April /><May /><June /><July /><August /><September /><October /><November /><December /></Months></ScheduleByMonth></CalendarTrigger>`;
   }
 
-  // Daily
   return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>`;
 }
 
-/**
- * Build a complete Task Scheduler XML definition.
- */
 export function buildTaskXml(tr: string, triggers: string[], foreground?: boolean): string {
   const [command, ...argParts] = tr.match(/"[^"]*"|[^\s]+/g) ?? [];
   const commandStr = command?.replace(/"/g, "") ?? "";
@@ -98,10 +91,7 @@ export class WindowsPlatform implements PlatformService {
   installDaemon(config: HostConfig): void {
     const script = process.argv[1] || "palmier";
 
-    // Create the Task Scheduler entry for the daemon (BootTrigger starts it at system boot)
     this.ensureDaemonTask(script);
-
-    // Start the daemon now
     this.startDaemonTask();
 
     console.log("\nHost initialization complete!");
@@ -110,12 +100,11 @@ export class WindowsPlatform implements PlatformService {
   uninstallDaemon(): void {
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
 
-    // Stop the daemon via Task Scheduler
     try {
       execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
     } catch { /* task may not be running */ }
 
-    // Remove daemon scheduled task (elevated — S4U task requires elevation to delete)
+    // Deleting an S4U task requires elevation.
     try {
       execFileSync("powershell", [
         "-Command", `Start-Process -Verb RunAs -Wait -FilePath schtasks -ArgumentList '/delete /tn "${tn}" /f'`,
@@ -123,7 +112,6 @@ export class WindowsPlatform implements PlatformService {
       console.log("Daemon task removed.");
     } catch { /* task may not exist */ }
 
-    // Remove all Palmier task timers
     try {
       const out = execFileSync("schtasks", ["/query", "/fo", "CSV", "/nh"], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
       for (const line of out.split("\n")) {
@@ -142,16 +130,14 @@ export class WindowsPlatform implements PlatformService {
   async restartDaemon(): Promise<void> {
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
 
-    // Stop the daemon via Task Scheduler
     try {
       execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true, stdio: "pipe" });
     } catch { /* task may not be running */ }
 
-    // Start it again
     this.startDaemonTask();
   }
 
-  /** Create or update the Task Scheduler entry for the daemon (requires elevation for S4U). */
+  /** S4U LogonType requires elevation to create. */
   private ensureDaemonTask(script: string): void {
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
     const tr = `"${process.execPath}" "${script}" serve`;
@@ -160,7 +146,7 @@ export class WindowsPlatform implements PlatformService {
     try {
       const bom = Buffer.from([0xFF, 0xFE]);
       fs.writeFileSync(xmlPath, Buffer.concat([bom, Buffer.from(xml, "utf16le")]));
-      // S4U LogonType requires elevation — spawn schtasks via RunAs
+      // S4U requires elevation — spawn schtasks via RunAs.
       const args = `/create /tn "${tn}" /xml "${xmlPath}" /f`;
       execFileSync("powershell", [
         "-Command", `Start-Process -Verb RunAs -Wait -FilePath schtasks -ArgumentList '${args}'`,
@@ -174,7 +160,7 @@ export class WindowsPlatform implements PlatformService {
 
   }
 
-  /** Start the daemon via Task Scheduler (runs outside any session's job object). */
+  /** Starting via Task Scheduler runs the daemon outside any session's job object. */
   private startDaemonTask(): void {
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
     try {
@@ -192,9 +178,8 @@ export class WindowsPlatform implements PlatformService {
     const script = process.argv[1] || "palmier";
     const tr = `"${process.execPath}" "${script}" run ${taskId}`;
 
-    // Build trigger XML elements. Event-based schedule types (on_new_notification,
-    // on_new_sms) carry no values and are driven by the run process, not the OS
-    // scheduler — they intentionally produce only the dummy trigger below.
+    // Event-based schedule types (on_new_notification/on_new_sms) are driven by
+    // the run process, not the OS scheduler — they fall through to the dummy trigger.
     const triggerElements: string[] = [];
     const scheduleType = task.frontmatter.schedule_type;
     const scheduleValues = task.frontmatter.schedule_values;
@@ -208,19 +193,19 @@ export class WindowsPlatform implements PlatformService {
         }
       }
     }
-    // Always include a dummy trigger so startTask (/run) works
+    // Dummy trigger so schtasks /run still works.
     if (triggerElements.length === 0) {
       triggerElements.push(`<TimeTrigger><StartBoundary>2000-01-01T00:00:00</StartBoundary></TimeTrigger>`);
     }
 
-    // Write XML and register via schtasks — gives us full control over
-    // settings like MultipleInstancesPolicy that schtasks flags don't expose.
-    // S4U LogonType ensures no console window (unless foreground_mode is set).
-    // Works without elevation because the daemon (which calls this) runs elevated.
+    // XML registration (vs schtasks flags) gives us access to settings like
+    // MultipleInstancesPolicy. S4U keeps the console hidden unless
+    // foreground_mode is set. Works unelevated because the caller (daemon)
+    // runs elevated.
     const xml = buildTaskXml(tr, triggerElements, task.frontmatter.foreground_mode);
     const xmlPath = path.join(CONFIG_DIR, `task-${taskId}.xml`);
     try {
-      // schtasks /xml requires UTF-16LE with BOM
+      // schtasks /xml requires UTF-16LE with BOM.
       const bom = Buffer.from([0xFF, 0xFE]);
       fs.writeFileSync(xmlPath, Buffer.concat([bom, Buffer.from(xml, "utf16le")]));
       execFileSync("schtasks", [
@@ -239,9 +224,7 @@ export class WindowsPlatform implements PlatformService {
     const tn = schtasksTaskName(taskId);
     try {
       execFileSync("schtasks", ["/delete", "/tn", tn, "/f"], { encoding: "utf-8", windowsHide: true });
-    } catch {
-      // Task might not exist — that's fine
-    }
+    } catch { /* task may not exist */ }
   }
 
   async startTask(taskId: string): Promise<void> {
@@ -255,8 +238,8 @@ export class WindowsPlatform implements PlatformService {
   }
 
   async stopTask(taskId: string): Promise<void> {
-    // Try to kill the entire process tree via the PID recorded in status.json.
-    // schtasks /end only kills the top-level process, leaving agent children orphaned.
+    // schtasks /end leaves agent children orphaned, so kill the process tree
+    // via the PID recorded in status.json first.
     try {
       const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
       const status = readTaskStatus(taskDir);
@@ -265,10 +248,9 @@ export class WindowsPlatform implements PlatformService {
         return;
       }
     } catch {
-      // PID may be stale or config unavailable; fall through to schtasks /end
+      // PID may be stale or config unavailable; fall through to schtasks /end.
     }
 
-    // Fallback: schtasks /end (kills top-level process only)
     const tn = schtasksTaskName(taskId);
     try {
       execFileSync("schtasks", ["/end", "/tn", tn], { encoding: "utf-8", windowsHide: true });
@@ -279,7 +261,6 @@ export class WindowsPlatform implements PlatformService {
   }
 
   isTaskRunning(taskId: string): boolean {
-    // Check Task Scheduler first (for scheduled/on-demand runs)
     const tn = schtasksTaskName(taskId);
     try {
       const out = execFileSync("schtasks", ["/query", "/tn", tn, "/fo", "CSV", "/nh"], {
@@ -289,18 +270,17 @@ export class WindowsPlatform implements PlatformService {
       if (out.includes('"Running"')) return true;
     } catch { /* task may not exist in scheduler */ }
 
-    // Fall back to PID check (for follow-up runs spawned directly, not via schtasks)
+    // Follow-up runs are spawned directly (not via schtasks), so check PID too.
     try {
       const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
       const status = readTaskStatus(taskDir);
       if (status?.pid) {
-        // tasklist exits 0 if the PID is found
         execFileSync("tasklist", ["/fi", `PID eq ${status.pid}`, "/nh"], {
           encoding: "utf-8",
           windowsHide: true,
           stdio: "pipe",
         });
-        // tasklist always exits 0; check if output contains the PID
+        // tasklist always exits 0, so match the output for the PID.
         const out = execFileSync("tasklist", ["/fi", `PID eq ${status.pid}`, "/fo", "CSV", "/nh"], {
           encoding: "utf-8",
           windowsHide: true,
@@ -314,7 +294,6 @@ export class WindowsPlatform implements PlatformService {
   }
 
   getGuiEnv(): Record<string, string> {
-    // Windows GUI is always available — no special env vars needed
     return {};
   }
 }

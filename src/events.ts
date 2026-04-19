@@ -3,12 +3,6 @@ import { loadConfig } from "./config.js";
 
 const sc = StringCodec();
 
-/**
- * Broadcast an event to connected clients via NATS and HTTP SSE.
- *
- * - NATS: publishes to `host-event.{hostId}.{taskId}`
- * - HTTP: POSTs to the serve daemon's `/event` endpoint
- */
 export async function publishHostEvent(
   nc: NatsConnection | undefined,
   hostId: string,
@@ -31,7 +25,5 @@ export async function publishHostEvent(
       body: JSON.stringify({ task_id: taskId, ...payload }),
     });
     console.log(`[http] host-event: ${taskId} →`, payload);
-  } catch {
-    // Serve HTTP may not be ready yet — ignore
-  }
+  } catch { /* serve HTTP may not be ready yet */ }
 }

@@ -1,9 +1,6 @@
 import { connect, jwtAuthenticator, type NatsConnection } from "nats";
 import type { HostConfig } from "./types.js";
 
-/**
- * Connect to NATS using the host config's JWT credentials.
- */
 export async function connectNats(config: HostConfig): Promise<NatsConnection> {
   if (!config.natsJwt || !config.natsNkeySeed) {
     throw new Error("NATS JWT credentials not configured. Re-run palmier init.");
@@ -17,6 +14,6 @@ export async function connectNats(config: HostConfig): Promise<NatsConnection> {
     ),
   });
 
-  // Do not log anything as that will pollute stdout for mcp server.
+  // Do not log — it would pollute stdout for the MCP server.
   return nc;
 }

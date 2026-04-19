@@ -26,10 +26,6 @@ export interface CommandLine {
   env?: Record<string, string>;
 }
 
-/**
- * Interface that each agent tool must implement.
- * Abstracts how plans are generated and tasks are executed across different AI agents.
- */
 export interface AgentTool {
   /** Return the command and args for a short, non-interactive prompt (e.g. generating a task name). */
   getPromptCommandLine(prompt: string): CommandLine;

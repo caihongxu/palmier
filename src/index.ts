@@ -101,7 +101,6 @@ program
     await uninstallCommand();
   });
 
-// No subcommand → default to serve
 if (process.argv.length <= 2) {
   process.argv.push("serve");
 }

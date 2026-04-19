@@ -19,7 +19,7 @@ export class Cursor implements AgentTool {
     if (yolo) {
       args.push("--force");
     }
-    if (followupPrompt) {args.push("--continue");} // continue mode for followups
+    if (followupPrompt) {args.push("--continue");}
     args.push("-p", prompt);
 
     return { command: "cursor", args};

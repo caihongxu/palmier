@@ -24,7 +24,7 @@ export class ClaudeAgent implements AgentTool {
       }
     }
 
-    if (followupPrompt) {args.push("-c");} // continue mode for followups
+    if (followupPrompt) {args.push("-c");}
     return { command: "claude", args, stdin: prompt };
   }
 

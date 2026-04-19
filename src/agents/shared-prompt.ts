@@ -12,9 +12,6 @@ const AGENT_INSTRUCTIONS_TEMPLATE = fs.readFileSync(
   "utf-8",
 );
 
-/**
- * Build the full agent prompt: instructions + endpoint docs + task description.
- */
 export function getAgentInstructions(task: ParsedTask, skipPermissions?: boolean): string {
   const port = loadConfig().httpPort ?? 7256;
   const taskDescription = task.frontmatter.user_prompt;

@@ -22,10 +22,9 @@ export interface PendingRequest {
 const pending = new Map<string, PendingRequest>();
 
 /**
- * Register a pending request keyed by either a sessionId (confirmation / input)
- * or a taskId (permission). The `meta` is surfaced to PWAs that connect after
- * the request was opened, so their modals can render without replaying events.
- * Only one pending request per key at a time.
+ * Key is sessionId for confirmation/input, taskId for permission. Only one
+ * pending request per key at a time. `meta` is surfaced via host.info so a
+ * freshly-connected PWA can render the modal without replaying events.
  */
 export function registerPending(
   key: string,
@@ -42,10 +41,6 @@ export function registerPending(
   });
 }
 
-/**
- * Resolve a pending request with the user's response.
- * Returns true if a pending request was found and resolved.
- */
 export function resolvePending(key: string, value: string[]): boolean {
   const entry = pending.get(key);
   if (!entry) return false;
@@ -54,24 +49,15 @@ export function resolvePending(key: string, value: string[]): boolean {
   return true;
 }
 
-/**
- * Get the current pending request for a key (if any).
- */
 export function getPending(key: string): PendingRequest | undefined {
   return pending.get(key);
 }
 
-/**
- * Remove a pending request without resolving it.
- */
 export function removePending(key: string): void {
   pending.delete(key);
 }
 
-/**
- * List all currently-pending requests, stripped of the unserializable `resolve`
- * callback. Used by `host.info` so the PWA can seed its modal state on connect.
- */
+/** Pending requests stripped of the unserializable `resolve` callback. */
 export function listPending(): Array<{
   key: string;
   type: PendingRequest["type"];

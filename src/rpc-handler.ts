@@ -18,9 +18,6 @@ import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./comma
 import { clearTaskQueue } from "./event-queues.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
-/**
- * Parse RESULT frontmatter and conversation messages.
- */
 export function parseResultFrontmatter(raw: string): Record<string, unknown> {
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!fmMatch) return { messages: [] };
@@ -34,19 +31,16 @@ export function parseResultFrontmatter(raw: string): Record<string, unknown> {
 
   const messages = parseConversationMessages(fmMatch[2]);
 
-  // Derive state from status messages — just look at the last one
   const statusMessages = messages.filter((m: ConversationMessage) => m.role === "status");
   const lastStatus = statusMessages[statusMessages.length - 1];
   const startedMsg = statusMessages.find((m: ConversationMessage) => m.type === "started");
   const terminalStates = ["finished", "failed", "aborted"];
   const terminalMsg = [...statusMessages].reverse().find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
 
-  // If last status is "started" (or continuation like "confirmation"/"monitoring"),
-  // determine if it's a task run or follow-up
   const activeStates = ["started", "monitoring", "confirmation"];
   let runningState: string | undefined;
   if (lastStatus?.type === "monitoring") {
-    // Only show monitoring if no assistant/user message came after it
+    // Show "monitoring" only if no assistant/user message followed it.
     const lastStatusIdx = messages.lastIndexOf(lastStatus);
     const hasMessageAfter = messages.slice(lastStatusIdx + 1).some((m: ConversationMessage) => m.role === "assistant" || m.role === "user");
     runningState = hasMessageAfter ? "started" : "monitoring";
@@ -66,16 +60,13 @@ export function parseResultFrontmatter(raw: string): Record<string, unknown> {
   };
 }
 
-/**
- * Parse conversation messages from the body of a RESULT file.
- */
 function parseConversationMessages(body: string): ConversationMessage[] {
   const delimiterRegex = /<!-- palmier:message\s+(.*?)\s*-->/g;
   const messages: ConversationMessage[] = [];
   const matches = [...body.matchAll(delimiterRegex)];
 
   if (matches.length === 0) {
-    // No delimiters — treat entire body as single assistant message if non-empty
+    // No delimiters — treat entire body as a single assistant message.
     const content = body.trim();
     if (content) {
       messages.push({ role: "assistant", time: 0, content });
@@ -107,10 +98,6 @@ function parseAttr(attrs: string, name: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
-/**
- * Generate a concise task name from a user prompt using the given agent.
- * Falls back to the raw prompt on failure.
- */
 async function generateName(
   projectRoot: string,
   userPrompt: string,
@@ -137,9 +124,6 @@ async function generateName(
 /** Active follow-up child processes, keyed by "taskId:runId". */
 const activeFollowups = new Map<string, ChildProcess>();
 
-/**
- * Create a transport-agnostic RPC handler bound to the given config.
- */
 export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
@@ -151,8 +135,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   }
 
   async function handleRpc(request: RpcMessage): Promise<unknown> {
-    // Client token validation: skip for trusted localhost requests and
-    // task.user_input (server-originated push responses; gated by getPending instead)
+    // task.user_input comes from server-originated push responses; it's gated
+    // by getPending() rather than a client token.
     const skipAuth = request.method === "task.user_input";
     if (!skipAuth && !request.localhost && (!request.clientToken || !validateClient(request.clientToken))) {
       return { error: "Unauthorized" };
@@ -160,9 +144,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
     switch (request.method) {
       case "host.info": {
-        // Bootstrap metadata the PWA needs on connect, independent of which tab
-        // is active. Includes any prompts already waiting so a reconnecting
-        // PWA can render their modals without replaying events.
         const capabilities: Record<string, string | null> = {};
         for (const capability of ["location", "notifications", "sms-read", "sms-send", "contacts", "calendar", "alarm", "battery", "dnd", "send-email"] as const) {
           capabilities[capability] = getCapabilityDevice(capability)?.clientToken ?? null;
@@ -251,11 +232,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const taskDir = getTaskDir(config.projectRoot, params.id);
         const existing = parseTaskFile(taskDir);
 
-        // Detect whether name needs regeneration
         const promptChanged = params.user_prompt !== undefined && params.user_prompt !== existing.frontmatter.user_prompt;
         const agentChanged = params.agent !== undefined && params.agent !== existing.frontmatter.agent;
 
-        // Merge updates
         if (params.user_prompt !== undefined) existing.frontmatter.user_prompt = params.user_prompt;
         if (params.agent !== undefined) existing.frontmatter.agent = params.agent;
         if (params.schedule_type !== undefined) {
@@ -288,7 +267,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
         }
 
-        // Regenerate name when prompt or agent changes
         if (promptChanged || agentChanged) {
           existing.frontmatter.name = existing.frontmatter.user_prompt.length <= 50
             ? existing.frontmatter.user_prompt
@@ -297,8 +275,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         writeTaskFile(taskDir, existing);
 
-        // Update timers — installTaskTimer overwrites in-place (schtasks /f,
-        // systemd unit rewrite) without killing a running task process.
+        // installTaskTimer overwrites in-place (schtasks /f, systemd unit rewrite)
+        // without killing a running task process.
         getPlatform().installTaskTimer(config, existing);
 
         return flattenTask(existing);
@@ -342,13 +320,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         };
 
         writeTaskFile(taskDir, task);
-        // Do NOT append to tasks.jsonl — this is a one-off run
+        // One-off run: do NOT append to tasks.jsonl.
 
-        // Create initial result file so it appears in runs list immediately
         const runId = createRunDir(taskDir, name, Date.now(), params.agent);
         appendHistory(config.projectRoot, { task_id: id, run_id: runId });
 
-        // Spawn `palmier run <id>` directly as a detached process
         const script = process.argv[1] || "palmier";
         const child = spawn(process.execPath, [script, "run", id], {
           detached: true,
@@ -366,13 +342,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           const runTaskDir = getTaskDir(config.projectRoot, params.id);
           const platform = getPlatform();
 
-          // If the task is already running, kill the stale process and start fresh
           if (platform.isTaskRunning(params.id)) {
             console.log(`[task.run] Task ${params.id} is already running, killing stale process`);
             await platform.stopTask(params.id);
           }
 
-          // Create initial result file so it appears in runs list immediately
           const runTask = parseTaskFile(runTaskDir);
           const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
@@ -400,7 +374,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const followupTask = parseTaskFile(followupTaskDir);
         const followupRunDir = getRunDir(followupTaskDir, params.run_id);
 
-        // Append user message + started status
         appendRunMessage(followupTaskDir, params.run_id, {
           role: "user",
           time: Date.now(),
@@ -414,13 +387,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
 
-        // Fire-and-forget: invoke agent inline as a child of the serve process
         const followupAgent = getAgent(followupTask.frontmatter.agent);
         const { command: cmd, args: cmdArgs, stdin, env: followupAgentEnv } = followupAgent.getTaskRunCommandLine(
           followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
         );
 
-        // Spawn directly via crossSpawn so we can track and kill the child
         const child = crossSpawn(cmd, cmdArgs, {
           cwd: followupRunDir,
           stdio: [stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
@@ -430,14 +401,13 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (stdin != null) child.stdin!.end(stdin);
         activeFollowups.set(followupKey, child);
 
-        // Collect output
         const chunks: Buffer[] = [];
         child.stdout?.on("data", (d: Buffer) => chunks.push(d));
         child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
 
         child.on("close", async (code: number | null) => {
           activeFollowups.delete(followupKey);
-          // If killed by stop_followup, the stopped status is already written
+          // stop_followup already wrote the stopped status.
           if (child.killed) return;
 
           const output = Buffer.concat(chunks).toString("utf-8");
@@ -485,7 +455,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           return { error: "No active follow-up for this run" };
         }
 
-        // Kill the child process tree
         if (process.platform === "win32" && child.pid) {
           try {
             const { execFileSync } = await import("child_process");
@@ -495,7 +464,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           child.kill();
         }
 
-        // Append stopped status (child.killed prevents the close handler from writing)
+        // child.killed stops the close handler from double-writing the status.
         const stopTaskDir = getTaskDir(config.projectRoot, params.id);
         appendRunMessage(stopTaskDir, params.run_id, {
           role: "status",
@@ -511,17 +480,16 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       case "task.abort": {
         const params = request.params as { id: string };
         const abortTaskDir = getTaskDir(config.projectRoot, params.id);
-        // Read the PID before overwriting status — stopTask needs it to
-        // kill the entire process tree on Windows.
+        // Read PID before overwriting — stopTask needs it to kill the
+        // process tree on Windows.
         const abortPrevStatus = readTaskStatus(abortTaskDir);
-        // Write abort status BEFORE killing so the dying process's signal
-        // handler can detect this was RPC-initiated and skip publishing.
+        // Write abort status before killing so the dying process's signal
+        // handler sees this was RPC-initiated and skips publishing.
         writeTaskStatus(abortTaskDir, {
           running_state: "aborted",
           time_stamp: Date.now(),
           ...(abortPrevStatus?.pid ? { pid: abortPrevStatus.pid } : {}),
         });
-        // Append aborted status to the latest run
         try {
           const runDirs = fs.readdirSync(abortTaskDir)
             .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(abortTaskDir, f, "TASKRUN.md")))
@@ -544,7 +512,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           console.error(`task.abort failed for ${params.id}: ${e.stderr || e.message}`);
           return { error: `Failed to abort task: ${e.stderr || e.message}` };
         }
-        // Notify connected clients (NATS + HTTP SSE if LAN server is running)
         const abortPayload: Record<string, unknown> = { event_type: "running-state", running_state: "aborted" };
         await publishHostEvent(nc, config.hostId, params.id, abortPayload);
         return { ok: true, task_id: params.id };
@@ -696,9 +663,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       }
 
       case "device.notifications.apps": {
-        // Return the host-side app-name cache, populated as notifications arrive.
-        // Used by the task editor's app filter to resolve package names to
-        // display names without round-tripping to the listening device.
         return { apps: listApps() };
       }
 
