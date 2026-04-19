@@ -280,7 +280,8 @@ export class MacOsPlatform implements PlatformService {
     const domain = guiDomain();
     runLaunchctl(["bootout", `${domain}/${taskLabel(taskId)}`], { ignoreFailure: true });
     try { fs.unlinkSync(taskPlistPath(taskId)); } catch { /* ignore */ }
-    try { fs.unlinkSync(taskLogPath(taskId)); } catch { /* ignore */ }
+    // Keep the log file — parity with journald retention on Linux, and
+    // needed to debug the last fire of one-shot specific_times tasks.
   }
 
   async startTask(taskId: string): Promise<void> {
