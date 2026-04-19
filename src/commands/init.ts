@@ -3,6 +3,7 @@ import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
+import { detectDefaultInterface } from "../network.js";
 import { listTasks } from "../task.js";
 import type { HostConfig } from "../types.js";
 
@@ -92,6 +93,8 @@ export async function initCommand(): Promise<void> {
       }
     }
 
+    const defaultInterface = (await detectDefaultInterface()) ?? undefined;
+
     const config: HostConfig = {
       hostId: registerResponse.hostId,
       projectRoot: process.cwd(),
@@ -101,6 +104,7 @@ export async function initCommand(): Promise<void> {
       natsNkeySeed: registerResponse.natsNkeySeed,
       agents,
       httpPort,
+      defaultInterface,
     };
 
     saveConfig(config);

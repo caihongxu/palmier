@@ -156,6 +156,7 @@ palmier clients revoke-all
 The wizard:
 - Detects installed agent CLIs and caches the result
 - Asks for the HTTP port
+- Detects the default network interface (used for auto-LAN)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
 - Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows)
@@ -166,6 +167,10 @@ The daemon automatically recovers existing tasks by reinstalling their system ti
 > **macOS note:** Palmier installs as a user-level LaunchAgent, so it runs without `sudo`. LaunchAgents only run while the user is logged into the GUI session — after a reboot, scheduled tasks stay dormant until you log in at least once. Enable auto-login in System Settings → Users & Groups if you need unattended operation across reboots.
 
 Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
+
+### Re-detecting the LAN Network
+
+The default network interface is detected once during `palmier init` and saved to `host.json`. The daemon derives the current IP live from that interface on each client connect, so DHCP-assigned IP changes on the same adapter are picked up automatically. If you physically switch to a different network adapter (e.g., plug in Ethernet after running on WiFi, or add a new USB-tethered interface), run `palmier init` again to re-detect.
 
 ## CLI Reference
 
