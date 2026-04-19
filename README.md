@@ -29,12 +29,12 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 ### Prerequisites
 
 - **Node.js 24+**
-- **Linux with systemd** or **Windows 10/11** (macOS coming soon)
+- **Linux with systemd**, **macOS 13+**, or **Windows 10/11**
 - At least one supported agent CLI
 
 ## How It Works
 
-Palmier runs as a background daemon (systemd on Linux, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications and full-screen alarms, reading SMS/notifications, managing contacts and calendar, and more.
+Palmier runs as a background daemon (systemd on Linux, launchd on macOS, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications and full-screen alarms, reading SMS/notifications, managing contacts and calendar, and more.
 
 ### MCP Server
 
@@ -148,10 +148,12 @@ The wizard:
 - Configures access modes (HTTP port, LAN access)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
-- Installs a background daemon (systemd user service on Linux, Task Scheduler on Windows)
+- Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows)
 - Auto-enters pair mode to connect your first device
 
 The daemon automatically recovers existing tasks by reinstalling their system timers on startup.
+
+> **macOS note:** Palmier installs as a user-level LaunchAgent, so it runs without `sudo`. LaunchAgents only run while the user is logged into the GUI session — after a reboot, scheduled tasks stay dormant until you log in at least once. Enable auto-login in System Settings → Users & Groups if you need unattended operation across reboots.
 
 Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
 
@@ -190,7 +192,7 @@ To fully remove Palmier from a machine:
 
 4. **(Optional) Remove configuration and task data:**
 
-   **Linux:**
+   **Linux / macOS:**
    ```bash
    rm -rf ~/.config/palmier
    rm -rf ~/palmier   # or wherever your Palmier root directory is
