@@ -1,4 +1,5 @@
 import * as http from "node:http";
+import * as os from "node:os";
 import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
@@ -21,6 +22,7 @@ function buildPairResponse(config: HostConfig, label?: string) {
   return {
     hostId: config.hostId,
     clientToken: client.token,
+    hostName: os.hostname(),
   };
 }
 

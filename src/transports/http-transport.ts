@@ -365,6 +365,7 @@ export async function startHttpTransport(
           hostId: config.hostId,
           clientToken: client.token,
           directUrl: `http://${ip}:${port}`,
+          hostName: os.hostname(),
         };
 
         clearTimeout(pending.timer);
