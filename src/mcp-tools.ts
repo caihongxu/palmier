@@ -505,7 +505,7 @@ const sendSmsTool: ToolDefinition = {
 const sendAlarmTool: ToolDefinition = {
   name: "send-alarm",
   description: [
-    "Send an alarm to the user's mobile device with an alarm sound and full-screen popup.",
+    "Trigger an alarm on the user's mobile device with an alarm sound and full-screen popup.",
     "Use this to urgently get the user's attention. The device will play an alarm sound and show a full-screen dialog even on the lock screen.",
     "Blocks until the device responds (up to 30 seconds).",
     'Response: `{"ok": true}` on success, or `{"error": "..."}` on failure.',

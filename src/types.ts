@@ -7,12 +7,10 @@ export interface HostConfig {
   natsJwt?: string;
   natsNkeySeed?: string;
 
-  // Detected agent CLIs
   agents?: Array<{ key: string; label: string; supportsPermissions: boolean; supportsYolo: boolean }>;
 
-  // HTTP server port (default 7256)
   httpPort?: number;
-  // Whether to accept non-localhost HTTP connections
+  /** Whether to accept non-localhost HTTP connections. */
   lanEnabled?: boolean;
 }
 
@@ -25,8 +23,8 @@ export interface TaskFrontmatter {
    * Task schedule.
    * - `crons`: `schedule_values` holds cron expressions (e.g. "0 9 * * *")
    * - `specific_times`: `schedule_values` holds local datetime strings (e.g. "2026-04-20T09:00")
-   * - `on_new_notification`: fires on each new Android notification from NATS; no `schedule_values`
-   * - `on_new_sms`: fires on each new SMS from NATS; no `schedule_values`
+   * - `on_new_notification`: fires on each new Android notification from NATS. Optional `schedule_values` holds a single-entry packageName filter; empty/unset matches any app.
+   * - `on_new_sms`: fires on each new SMS from NATS. Optional `schedule_values` holds a single-entry sender filter; compared after normalization (strip spaces/dashes/parens/plus, lowercase). Empty/unset matches any sender.
    */
   schedule_type?: "crons" | "specific_times" | "on_new_notification" | "on_new_sms";
   schedule_values?: string[];
@@ -50,11 +48,6 @@ export interface ParsedTask {
  */
 export type TaskRunningState = "started" | "finished" | "aborted" | "failed";
 
-/**
- * Persisted to `status.json` in the task directory. Used for crash detection
- * (checkStaleTasks) and abort signalling. Interactive request flows (confirmation,
- * permission, input) are handled via held HTTP connections on the serve daemon.
- */
 export interface TaskStatus {
   running_state: TaskRunningState;
   time_stamp: number;

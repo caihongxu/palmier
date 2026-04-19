@@ -48,21 +48,21 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `notify` | Send a push notification to the user's device | None |
 | `request-input` | Request input from the user (blocks until response) | None |
 | `request-confirmation` | Request confirmation from the user (blocks until response) | None |
-| `device-geolocation` | Get GPS location of the user's mobile device | Location Access |
-| `read-contacts` | Read the contact list from the user's device | Contacts Access |
-| `create-contact` | Create a new contact on the user's device | Contacts Access |
-| `read-calendar` | Read calendar events (with time range filter) | Calendar Access |
-| `create-calendar-event` | Create a calendar event on the user's device | Calendar Access |
-| `send-sms-message` | Send an SMS message from the user's device | SMS Send |
-| `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) | Full-Screen Alarm |
+| `device-geolocation` | Get GPS location of the user's mobile device | Get Location |
+| `read-contacts` | Read the contact list from the user's device | Manage Contacts |
+| `create-contact` | Create a new contact on the user's device | Manage Contacts |
+| `read-calendar` | Read calendar events (with time range filter) | Manage Calendar |
+| `create-calendar-event` | Create a calendar event on the user's device | Manage Calendar |
+| `send-sms-message` | Send an SMS message from the user's device | Send SMS |
+| `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) | Trigger Alarms |
 | `read-battery` | Get battery level and charging status | None |
-| `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Do Not Disturb Control |
+| `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Set Ringer Mode |
 
 **Available resources:**
 | Resource | URI | Permission | Description |
 |----------|-----|------------|-------------|
-| Device Notifications | `notifications://device` | Notification Access | Recent notifications from the user's Android device |
-| Device SMS | `sms-messages://device` | SMS Read | Recent SMS messages from the user's Android device |
+| Device Notifications | `notifications://device` | Read Notifications | Recent notifications from the user's Android device |
+| Device SMS | `sms-messages://device` | Read SMS | Recent SMS messages from the user's Android device |
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 

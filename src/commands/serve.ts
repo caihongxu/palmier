@@ -22,11 +22,8 @@ const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
 
 /**
- * Scan all tasks for any stuck in "started" state whose process is no longer alive.
- * Uses the system scheduler (Task Scheduler / systemd) as the authoritative source.
- *
- * Since run.ts creates the RESULT file and history entry at start, we just need to
- * finalize the existing RESULT file, append a failed status entry, and broadcast.
+ * Reconcile tasks stuck in "started" whose process is no longer alive.
+ * The system scheduler (Task Scheduler / systemd) is the authoritative source.
  */
 async function checkStaleTasks(
   config: HostConfig,
@@ -47,14 +44,12 @@ async function checkStaleTasks(
     const status = readTaskStatus(taskDir);
     if (!status || status.running_state !== "started") continue;
 
-    // Ask the system scheduler if the task is still running
     if (platform.isTaskRunning(taskId)) continue;
 
     console.log(`[monitor] Task ${taskId} process exited unexpectedly, marking as failed.`);
     const endTime = Date.now();
     writeTaskStatus(taskDir, { running_state: "failed", time_stamp: endTime });
 
-    // Find the latest run directory (created by run.ts at start)
     const runId = fs.readdirSync(taskDir)
       .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
       .sort()
@@ -72,7 +67,7 @@ async function checkStaleTasks(
     let taskName = taskId;
     try {
       taskName = parseTaskFile(taskDir).frontmatter.name || taskId;
-    } catch { /* use taskId as fallback */ }
+    } catch { /* fallback to taskId */ }
 
     await publishHostEvent(nc, config.hostId, taskId, {
       event_type: "running-state",
@@ -82,18 +77,14 @@ async function checkStaleTasks(
   }
 }
 
-/**
- * Start the persistent RPC handler (NATS + HTTP).
- */
 export async function serveCommand(): Promise<void> {
   const config = loadConfig();
 
-  // Write PID so `palmier restart` can find us regardless of how we were started
+  // PID file lets `palmier restart` find us regardless of how we were started
   fs.writeFileSync(DAEMON_PID_FILE, String(process.pid), "utf-8");
 
   console.log("Starting...");
 
-  // Re-detect agents on every daemon start
   const agents = await detectAgents();
   config.agents = agents;
   saveConfig(config);
@@ -107,10 +98,9 @@ export async function serveCommand(): Promise<void> {
     console.warn(`[nats] Connection failed (server mode unavailable): ${err}`);
   }
 
-  // Reconcile any tasks stuck from before daemon started
   await checkStaleTasks(config, nc);
 
-  // Ensure all tasks have their scheduler entries (recovery after init/reinstall)
+  // Reinstall scheduler entries for all tasks (recovery after init/reinstall)
   const platform = getPlatform();
   const allTasks = listTasks(config.projectRoot);
   for (const task of allTasks) {
@@ -121,7 +111,6 @@ export async function serveCommand(): Promise<void> {
     }
   }
 
-  // Poll for crashed tasks every 30 seconds
   setInterval(() => {
     checkStaleTasks(config, nc).catch((err) => {
       console.error("[monitor] Error checking stale tasks:", err);
@@ -131,16 +120,16 @@ export async function serveCommand(): Promise<void> {
   const handleRpc = createRpcHandler(config, nc);
   const httpPort = config.httpPort ?? 7256;
 
-  // Start NATS transport (loops forever, fire-and-forget)
   if (nc) {
     startNatsTransport(config, handleRpc, nc);
 
-    // Subscribe to device notifications and SMS from Android
     const sc = StringCodec();
 
-    // Dispatch a raw event payload to every task whose schedule matches. For
-    // notification tasks, schedule_values (when non-empty) acts as a packageName
-    // whitelist; empty/unset means "any app".
+    // Match phone numbers regardless of formatting; letters preserved for shortcodes.
+    function normalizeSender(raw: string): string {
+      return raw.replace(/[\s\-()+]/g, "").toLowerCase();
+    }
+
     function dispatchDeviceEvent(scheduleType: "on_new_notification" | "on_new_sms", payload: string, parsed?: unknown): void {
       for (const task of listTasks(config.projectRoot)) {
         if (task.frontmatter.schedule_type !== scheduleType) continue;
@@ -148,6 +137,11 @@ export async function serveCommand(): Promise<void> {
         if (scheduleType === "on_new_notification" && task.frontmatter.schedule_values && task.frontmatter.schedule_values.length > 0) {
           const pkg = (parsed as { packageName?: string } | undefined)?.packageName;
           if (!pkg || !task.frontmatter.schedule_values.includes(pkg)) continue;
+        }
+        if (scheduleType === "on_new_sms" && task.frontmatter.schedule_values && task.frontmatter.schedule_values.length > 0) {
+          const sender = (parsed as { sender?: string } | undefined)?.sender;
+          const normalizedSender = sender ? normalizeSender(sender) : "";
+          if (!normalizedSender || !task.frontmatter.schedule_values.some((s) => normalizeSender(s) === normalizedSender)) continue;
         }
         const { shouldStart } = enqueueEvent(task.frontmatter.id, payload);
         if (shouldStart) {
@@ -179,17 +173,17 @@ export async function serveCommand(): Promise<void> {
     (async () => {
       for await (const msg of smsSub) {
         const raw = sc.decode(msg.data);
+        let parsed: unknown;
         try {
-          const data = JSON.parse(raw);
-          addSmsMessage({ ...data, receivedAt: Date.now() });
+          parsed = JSON.parse(raw);
+          addSmsMessage({ ...(parsed as object), receivedAt: Date.now() } as Parameters<typeof addSmsMessage>[0]);
         } catch (err) {
           console.error("[nats] Failed to parse device SMS:", err);
         }
-        dispatchDeviceEvent("on_new_sms", raw);
+        dispatchDeviceEvent("on_new_sms", raw, parsed);
       }
     })();
   }
 
-  // Start HTTP transport (loops forever)
   await startHttpTransport(config, handleRpc, httpPort, nc);
 }
