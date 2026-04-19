@@ -16,7 +16,6 @@ import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
 import { enqueueEvent } from "../event-queues.js";
-import { recordApp } from "../app-registry.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -159,9 +158,7 @@ export async function serveCommand(): Promise<void> {
         let parsed: unknown;
         try {
           parsed = JSON.parse(raw);
-          const data = parsed as { packageName?: string; appName?: string };
           addNotification({ ...(parsed as object), receivedAt: Date.now() } as Parameters<typeof addNotification>[0]);
-          if (data.packageName && data.appName) recordApp(data.packageName, data.appName);
         } catch (err) {
           console.error("[nats] Failed to parse device notification:", err);
         }

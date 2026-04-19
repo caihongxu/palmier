@@ -12,7 +12,6 @@ import { getAgent } from "./agents/agent.js";
 import { validateClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type DeviceCapability } from "./device-capabilities.js";
-import { listApps } from "./app-registry.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
@@ -660,10 +659,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.capability) return { error: "capability is required" };
         clearCapabilityDevice(params.capability);
         return { ok: true };
-      }
-
-      case "device.notifications.apps": {
-        return { apps: listApps() };
       }
 
       default:
