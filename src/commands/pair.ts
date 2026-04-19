@@ -4,6 +4,7 @@ import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addClient } from "../client-store.js";
+import { detectLanIp } from "../transports/http-transport.js";
 import type { HostConfig } from "../types.js";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
@@ -19,9 +20,11 @@ export function generatePairingCode(): string {
 
 function buildPairResponse(config: HostConfig, label?: string) {
   const client = addClient(label);
+  const port = config.httpPort ?? 7256;
   return {
     hostId: config.hostId,
     clientToken: client.token,
+    directUrl: `http://${detectLanIp()}:${port}`,
     hostName: os.hostname(),
   };
 }

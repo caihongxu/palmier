@@ -37,25 +37,21 @@ export async function initCommand(): Promise<void> {
 
     console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}\n`);
 
-    const lanAnswer = await ask("Enable LAN access (direct HTTP from local network)? (y/N): ");
-    const lanEnabled = lanAnswer.trim().toLowerCase() === "y";
-
     let httpPort = 7256;
-    const portLabel = lanEnabled ? "HTTP port for local and LAN access" : "HTTP port for local access";
-    const portAnswer = await ask(`${portLabel} (default ${httpPort}): `);
+    const portAnswer = await ask(`HTTP port (default ${httpPort}): `);
     const parsed = parseInt(portAnswer.trim(), 10);
     if (parsed > 0 && parsed < 65536) httpPort = parsed;
+
+    const lanIp = detectLanIp();
 
     console.log(`\n${bold("Setup summary:")}\n`);
     console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
     console.log(`  ${dim("Local access:")}   ${cyan(`http://localhost:${httpPort}`)}`);
-    console.log(`                  Always available — no internet required.\n`);
-    if (lanEnabled) {
-      const ip = detectLanIp();
-      console.log(`  ${dim("LAN access:")}     ${cyan(`http://${ip}:${httpPort}`)}`);
-      console.log(`                  Accessible from other devices on your local network. Pairing required.\n`);
-    }
+    console.log(`                  Open in a browser on this machine — no internet required.\n`);
+    console.log(`  ${dim("Remote access:")}  ${cyan("https://app.palmier.me")}`);
+    console.log(`                  Pair the app to your host. The app uses ${cyan(`http://${lanIp}:${httpPort}`)}`);
+    console.log(`                  for direct RPC when on the same network, otherwise the relay.\n`);
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
     const existingTasks = listTasks(process.cwd());
@@ -106,7 +102,6 @@ export async function initCommand(): Promise<void> {
       natsNkeySeed: registerResponse.natsNkeySeed,
       agents,
       httpPort,
-      lanEnabled,
     };
 
     saveConfig(config);

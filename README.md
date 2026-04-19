@@ -104,31 +104,28 @@ All device tools work while the Palmier Android app is in the background — the
                                        │   SMS, contacts, │
                                        │   calendar, GPS) │
                                        └──────────────────┘
-        Local / LAN: direct HTTP
-        Server mode: via relay server + FCM
+        Local mode (loopback): direct HTTP on the host machine
+        Server mode: via relay (events) + auto-LAN direct HTTP for RPC when reachable (native app)
 ```
 
 ## Access Modes
 
-Local always works. Enable LAN and/or Server mode during `palmier init`.
+Two modes — Local always works on the host machine; Server pairs other devices through the cloud relay.
 
-| Mode | Transport | URL | Pairing | Features |
-|------|-----------|-----|---------|----------|
-| **Local** | HTTP (localhost) | `http://localhost:<port>` | Not required | Full access from the host machine, no internet needed |
-| **LAN** | HTTP (direct) | `http://<host-ip>:<port>` | Required | Access from other devices on the local network |
-| **Server** | Cloud relay (NATS) | [https://app.palmier.me](https://app.palmier.me) | Required | Push notifications, remote access from anywhere |
+| Mode | URL | Pairing | Notes |
+|------|-----|---------|-------|
+| **Local** | `http://localhost:<port>` | Not required | Loopback only — open in a browser on the host machine. No internet needed. |
+| **Server** | [https://app.palmier.me](https://app.palmier.me) | Required | Pair the device with a one-time code. Push notifications, remote access from anywhere. |
 
-**LAN mode** binds the daemon to `0.0.0.0` so the PWA is accessible from other devices on your network. Devices must pair with a pairing code.
-
-**Server mode** relays communication through the Palmier cloud server (via [NATS](https://nats.io)). All features including push notifications are available. Server mode and LAN mode can be active at the same time.
+**Auto-LAN (native app only).** When the Capacitor Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:<port>/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Browser PWAs can't do this and stay on the relay.
 
 ## Security & Privacy
 
-**Local mode** — all traffic stays on `127.0.0.1`. No data leaves your machine.
-
-**LAN mode** — traffic stays on your local network. Devices must pair with a one-time pairing code before they can access the host. Unpaired requests are rejected.
+**Local mode** — all traffic stays on `127.0.0.1`. No data leaves your machine. The web UI, `/pair`, and `/events` reject any non-loopback caller; only `/rpc/<method>` (bearer-auth) and `/health` are reachable from the LAN.
 
 **Server mode** — communication between your device and host is relayed through the Palmier cloud server over TLS-encrypted NATS connections. The server acts as a passthrough relay only — it does not store, log, or inspect any user data, task content, or agent output. The only data the server persists is a host registration ID used for message routing and Web Push subscription info for delivering notifications. See the [Privacy Policy](https://www.palmier.me/privacy) for full details.
+
+**Auto-LAN** — direct LAN HTTP requests use the same client token (Bearer auth) generated during pairing. The host validates every `/rpc/*` call regardless of source.
 
 In all modes, client tokens are generated and validated entirely on your host. The Palmier server never sees or stores them.
 
@@ -138,7 +135,7 @@ In all modes, client tokens are generated and validated entirely on your host. T
 
 Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
-For LAN or server mode, run `palmier pair` on the host to generate a pairing code. Enter it in the PWA — either at `http://<host-ip>:<port>` (LAN mode) or [https://app.palmier.me](https://app.palmier.me) (server mode).
+For other devices, run `palmier pair` on the host to generate a code, then enter it at [https://app.palmier.me](https://app.palmier.me). Pairing always goes through the relay; auto-LAN kicks in transparently afterward when the device is on the same network.
 
 ### Managing Clients
 
@@ -157,7 +154,7 @@ palmier clients revoke-all
 
 The wizard:
 - Detects installed agent CLIs and caches the result
-- Configures access modes (HTTP port, LAN access)
+- Asks for the HTTP port
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
 - Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows)

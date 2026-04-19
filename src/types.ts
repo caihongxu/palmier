@@ -10,8 +10,6 @@ export interface HostConfig {
   agents?: Array<{ key: string; label: string; supportsPermissions: boolean; supportsYolo: boolean }>;
 
   httpPort?: number;
-  /** Whether to accept non-localhost HTTP connections. */
-  lanEnabled?: boolean;
 }
 
 export interface TaskFrontmatter {

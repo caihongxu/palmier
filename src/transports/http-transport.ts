@@ -94,8 +94,9 @@ export async function startHttpTransport(
 ): Promise<void> {
   const sseClients = new Set<SseClient>();
   const mcpStreams = new Map<string, http.ServerResponse>();
-  const lanEnabled = config.lanEnabled ?? false;
-  const bindAddress = lanEnabled ? "0.0.0.0" : "127.0.0.1";
+  // Always bind 0.0.0.0 so other devices on the LAN can reach /rpc and /health.
+  // The web UI, /pair, and /events are individually gated to loopback.
+  const bindAddress = "0.0.0.0";
 
   /** Push notifications/resources/updated to all MCP clients subscribed to the given URI. */
   function broadcastResourceUpdated(uri: string) {
@@ -176,6 +177,15 @@ export async function startHttpTransport(
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const pathname = url.pathname;
+
+    if (req.method === "GET" && pathname === "/health") {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(JSON.stringify({ ok: true, hostId: config.hostId }));
+      return;
+    }
 
     if (req.method === "POST" && pathname === "/mcp") {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
@@ -351,6 +361,7 @@ export async function startHttpTransport(
     }
 
     if (req.method === "POST" && pathname === "/pair") {
+      if (!isLocalhost(req)) { sendJson(res, 404, { error: "Not found" }); return; }
       try {
         const body = await readBody(req);
         const { code, label } = JSON.parse(body) as { code: string; label?: string };
@@ -377,35 +388,11 @@ export async function startHttpTransport(
       return;
     }
 
-    // Service worker and manifest require HTTPS, which LAN mode doesn't use.
+    // Service worker and manifest require HTTPS, which loopback HTTP doesn't use.
     const SKIP = new Set(["/registerSW.js", "/service-worker.js", "/manifest.webmanifest"]);
 
-    const isApiRoute = pathname === "/events" || pathname.startsWith("/rpc/");
-    if (!isApiRoute) {
-      if (SKIP.has(pathname)) { sendJson(res, 404, { error: "Not found" }); return; }
-
-      // Fall back to index.html for SPA routing.
-      let asset = getAsset(pathname);
-      if (!asset && pathname !== "/") {
-        asset = getAsset("/");
-      }
-
-      if (asset) {
-        res.writeHead(200, { "Content-Type": asset.contentType });
-        res.end(asset.data);
-      } else {
-        sendJson(res, 502, { error: "Failed to fetch PWA assets" });
-      }
-      return;
-    }
-
-    // Localhost is trusted; all other API callers require a client token.
-    if (!isLocalhost(req) && !checkAuth(req)) {
-      sendJson(res, 401, { error: "Unauthorized" });
-      return;
-    }
-
     if (req.method === "GET" && pathname === "/events") {
+      if (!isLocalhost(req)) { sendJson(res, 404, { error: "Not found" }); return; }
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -426,6 +413,10 @@ export async function startHttpTransport(
     }
 
     if (req.method === "POST" && pathname.startsWith("/rpc/")) {
+      if (!isLocalhost(req) && !checkAuth(req)) {
+        sendJson(res, 401, { error: "Unauthorized" });
+        return;
+      }
       const method = pathname.slice("/rpc/".length);
       if (!method) { sendJson(res, 400, { error: "Missing RPC method" }); return; }
 
@@ -451,7 +442,21 @@ export async function startHttpTransport(
       return;
     }
 
-    sendJson(res, 404, { error: "Not found" });
+    // PWA static assets — loopback only. Other devices must load the PWA from app.palmier.me.
+    if (!isLocalhost(req)) { sendJson(res, 404, { error: "Not found" }); return; }
+    if (SKIP.has(pathname)) { sendJson(res, 404, { error: "Not found" }); return; }
+
+    let asset = getAsset(pathname);
+    if (!asset && pathname !== "/") {
+      asset = getAsset("/");
+    }
+
+    if (asset) {
+      res.writeHead(200, { "Content-Type": asset.contentType });
+      res.end(asset.data);
+    } else {
+      sendJson(res, 404, { error: "Not found" });
+    }
   });
 
   return new Promise<void>((resolve, reject) => {
