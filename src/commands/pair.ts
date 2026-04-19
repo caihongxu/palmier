@@ -1,10 +1,10 @@
 import * as http from "node:http";
 import * as os from "node:os";
 import { StringCodec } from "nats";
-import { loadConfig } from "../config.js";
+import { loadConfig, saveConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addClient } from "../client-store.js";
-import { detectLanIp } from "../transports/http-transport.js";
+import { detectDefaultInterface } from "../network.js";
 import type { HostConfig } from "../types.js";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no O/0/I/1/L
@@ -18,13 +18,16 @@ export function generatePairingCode(): string {
   return Array.from(bytes, (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
 }
 
-function buildPairResponse(config: HostConfig, label?: string) {
+async function buildPairResponse(config: HostConfig, label?: string) {
   const client = addClient(label);
-  const port = config.httpPort ?? 7256;
+  const iface = await detectDefaultInterface();
+  if (iface && iface !== config.defaultInterface) {
+    config.defaultInterface = iface;
+    saveConfig(config);
+  }
   return {
     hostId: config.hostId,
     clientToken: client.token,
-    directUrl: `http://${detectLanIp()}:${port}`,
     hostName: os.hostname(),
   };
 }
@@ -105,7 +108,7 @@ export async function pairCommand(): Promise<void> {
         }
       } catch { /* empty body is fine */ }
 
-      const response = buildPairResponse(config, label);
+      const response = await buildPairResponse(config, label);
       if (msg.reply) {
         msg.respond(sc.encode(JSON.stringify(response)));
       }

@@ -110,14 +110,15 @@ All device tools work while the Palmier Android app is in the background — the
 
 ## Access Modes
 
-Two modes — Local always works on the host machine; Server pairs other devices through the cloud relay.
+Three ways to reach your host, ordered by setup effort:
 
-| Mode | URL | Pairing | Notes |
-|------|-----|---------|-------|
-| **Local** | `http://localhost:<port>` | Not required | Loopback only — open in a browser on the host machine. No internet needed. |
-| **Server** | [https://app.palmier.me](https://app.palmier.me) | Required | Pair the device with a one-time code. Push notifications, remote access from anywhere. |
+| Mode | Where | Pairing | Notes |
+|------|-------|---------|-------|
+| **Local** | `http://localhost:<port>` in a browser on the host machine | Not required | Loopback only. No internet needed. |
+| **Remote (web)** | [https://app.palmier.me](https://app.palmier.me) in any browser | Required | Always goes through the cloud relay. |
+| **Remote (app)** | [Android APK](https://github.com/caihongxu/palmier-android/releases) | Required | Push notifications, background device capabilities, and **auto-LAN**. |
 
-**Auto-LAN (native app only).** When the Capacitor Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:<port>/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Browser PWAs can't do this and stay on the relay.
+**Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:<port>/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Pairing always goes through the relay regardless. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
 
 ## Security & Privacy
 
@@ -135,7 +136,7 @@ In all modes, client tokens are generated and validated entirely on your host. T
 
 Local access (`http://localhost:<port>`) works immediately — no pairing needed.
 
-For other devices, run `palmier pair` on the host to generate a code, then enter it at [https://app.palmier.me](https://app.palmier.me). Pairing always goes through the relay; auto-LAN kicks in transparently afterward when the device is on the same network.
+For remote access (web or app), run `palmier pair` on the host to generate a code, then enter it at [https://app.palmier.me](https://app.palmier.me) or in the Android app. Pairing always goes through the relay; auto-LAN kicks in transparently afterward in the native app when on the same network.
 
 ### Managing Clients
 

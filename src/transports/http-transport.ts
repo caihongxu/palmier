@@ -6,6 +6,8 @@ import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
+import { saveConfig } from "../config.js";
+import { detectDefaultInterface } from "../network.js";
 import { agentToolMap, agentResources, ToolError, type ToolContext } from "../mcp-tools.js";
 import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
 import { getTaskDir } from "../task.js";
@@ -72,16 +74,12 @@ interface PendingPair {
 
 const pendingPairs = new Map<string, PendingPair>();
 
-export function detectLanIp(): string {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) {
-        return iface.address;
-      }
-    }
+async function persistDefaultInterface(config: HostConfig): Promise<void> {
+  const iface = await detectDefaultInterface();
+  if (iface && iface !== config.defaultInterface) {
+    config.defaultInterface = iface;
+    saveConfig(config);
   }
-  return "127.0.0.1";
 }
 
 export async function startHttpTransport(
@@ -371,11 +369,10 @@ export async function startHttpTransport(
         if (!pending) { sendJson(res, 401, { error: "Invalid code" }); return; }
 
         const client = addClient(label);
-        const ip = detectLanIp();
+        await persistDefaultInterface(config);
         const response: Record<string, unknown> = {
           hostId: config.hostId,
           clientToken: client.token,
-          directUrl: `http://${ip}:${port}`,
           hostName: os.hostname(),
         };
 

@@ -3,7 +3,6 @@ import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
-import { detectLanIp } from "../transports/http-transport.js";
 import { listTasks } from "../task.js";
 import type { HostConfig } from "../types.js";
 
@@ -42,16 +41,16 @@ export async function initCommand(): Promise<void> {
     const parsed = parseInt(portAnswer.trim(), 10);
     if (parsed > 0 && parsed < 65536) httpPort = parsed;
 
-    const lanIp = detectLanIp();
-
     console.log(`\n${bold("Setup summary:")}\n`);
     console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
-    console.log(`  ${dim("Local access:")}   ${cyan(`http://localhost:${httpPort}`)}`);
+    console.log(`  ${dim("Local:")}          ${cyan(`http://localhost:${httpPort}`)}`);
     console.log(`                  Open in a browser on this machine — no internet required.\n`);
-    console.log(`  ${dim("Remote access:")}  ${cyan("https://app.palmier.me")}`);
-    console.log(`                  Pair the app to your host. The app uses ${cyan(`http://${lanIp}:${httpPort}`)}`);
-    console.log(`                  for direct RPC when on the same network, otherwise the relay.\n`);
+    console.log(`  ${dim("Remote (web):")}   ${cyan("https://app.palmier.me")}`);
+    console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
+    console.log(`  ${dim("Remote (app):")}   ${cyan("https://github.com/caihongxu/palmier-android/releases")}`);
+    console.log(`                  Download the Android APK. The app uses LAN for direct RPC`);
+    console.log(`                  when on the same network, otherwise the relay.\n`);
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
     const existingTasks = listTasks(process.cwd());

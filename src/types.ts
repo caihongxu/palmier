@@ -10,6 +10,11 @@ export interface HostConfig {
   agents?: Array<{ key: string; label: string; supportsPermissions: boolean; supportsYolo: boolean }>;
 
   httpPort?: number;
+
+  /** OS network interface name of the IPv4 default route, captured on the
+   * most recent `palmier pair`. Used to resolve the host's LAN URL live for
+   * `host.info` so the client can track IP changes (laptop roaming, DHCP). */
+  defaultInterface?: string;
 }
 
 export interface TaskFrontmatter {

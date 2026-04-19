@@ -15,6 +15,7 @@ import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type D
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
+import { buildLanUrl } from "./network.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
 export function parseResultFrontmatter(raw: string): Record<string, unknown> {
@@ -153,6 +154,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           host_platform: process.platform,
           capability_tokens: capabilities,
           pending_prompts: listPending(),
+          lan_url: buildLanUrl(config.httpPort ?? 7256, config.defaultInterface),
         };
       }
 
