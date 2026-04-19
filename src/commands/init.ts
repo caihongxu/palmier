@@ -3,7 +3,7 @@ import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
-import { detectDefaultInterface } from "../network.js";
+import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
 import { listTasks } from "../task.js";
 import type { HostConfig } from "../types.js";
 
@@ -42,6 +42,9 @@ export async function initCommand(): Promise<void> {
     const parsed = parseInt(portAnswer.trim(), 10);
     if (parsed > 0 && parsed < 65536) httpPort = parsed;
 
+    const defaultInterface = (await detectDefaultInterface()) ?? undefined;
+    const lanIp = defaultInterface ? getInterfaceIpv4(defaultInterface) : null;
+
     console.log(`\n${bold("Setup summary:")}\n`);
     console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
@@ -50,8 +53,14 @@ export async function initCommand(): Promise<void> {
     console.log(`  ${dim("Remote (web):")}   ${cyan("https://app.palmier.me")}`);
     console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
     console.log(`  ${dim("Remote (app):")}   ${cyan("https://github.com/caihongxu/palmier-android/releases")}`);
-    console.log(`                  Download the Android APK. The app uses LAN for direct RPC`);
-    console.log(`                  when on the same network, otherwise the relay.\n`);
+    if (lanIp) {
+      console.log(`                  Download the Android APK. The app uses LAN for direct RPC`);
+      console.log(`                  on the same network (detected ${cyan(`http://${lanIp}:${httpPort}`)}),`);
+      console.log(`                  otherwise the relay.\n`);
+    } else {
+      console.log(`                  Download the Android APK. Traffic will go through the relay —`);
+      console.log(`                  ${red("could not detect a LAN interface")} for direct RPC.\n`);
+    }
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
     const existingTasks = listTasks(process.cwd());
@@ -92,8 +101,6 @@ export async function initCommand(): Promise<void> {
         }
       }
     }
-
-    const defaultInterface = (await detectDefaultInterface()) ?? undefined;
 
     const config: HostConfig = {
       hostId: registerResponse.hostId,
