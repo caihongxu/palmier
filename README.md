@@ -15,6 +15,18 @@ It runs on your machine as a background daemon and connects to a mobile-friendly
 
 1. Install a supported agent CLI — [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents).
 2. Install Palmier:
+
+   **Linux / macOS:**
+   ```bash
+   curl -fsSL https://palmier.me/install.sh | bash
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   irm https://palmier.me/install.ps1 | iex
+   ```
+
+   The one-liner installs Node.js 24+ if needed (via [fnm](https://github.com/Schniz/fnm) on Linux/macOS, winget on Windows), then `palmier` globally. If you already have Node.js 24+ and npm:
    ```bash
    npm install -g palmier
    ```
