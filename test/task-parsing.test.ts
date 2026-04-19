@@ -35,16 +35,15 @@ requires_confirmation: false
     assert.equal(result.frontmatter.agent, "claude");
   });
 
-  it("defaults triggers_enabled to true", () => {
+  it("defaults schedule_enabled to true", () => {
     const content = `---
 id: abc123
 user_prompt: Do something
-triggers: []
 requires_confirmation: false
 ---`;
 
     const result = parseTaskContent(content);
-    assert.equal(result.frontmatter.triggers_enabled, true);
+    assert.equal(result.frontmatter.schedule_enabled, true);
   });
 
   it("derives name from user_prompt when not specified", () => {
