@@ -53,7 +53,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `create-contact` | Create a new contact on the user's device | Contacts Access |
 | `read-calendar` | Read calendar events (with time range filter) | Calendar Access |
 | `create-calendar-event` | Create a calendar event on the user's device | Calendar Access |
-| `send-sms-message` | Send an SMS message from the user's device | SMS Access |
+| `send-sms-message` | Send an SMS message from the user's device | SMS Send |
 | `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) | Full-Screen Alarm |
 | `read-battery` | Get battery level and charging status | None |
 | `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Do Not Disturb Control |
@@ -62,7 +62,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | Resource | URI | Permission | Description |
 |----------|-----|------------|-------------|
 | Device Notifications | `notifications://device` | Notification Access | Recent notifications from the user's Android device |
-| Device SMS | `sms-messages://device` | SMS Access | Recent SMS messages from the user's Android device |
+| Device SMS | `sms-messages://device` | SMS Read | Recent SMS messages from the user's Android device |
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 

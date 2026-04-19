@@ -462,8 +462,8 @@ const sendSmsTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("sms");
-    if (!device) throw new ToolError("No device has SMS access enabled", 400);
+    const device = getCapabilityDevice("sms-send");
+    if (!device) throw new ToolError("No device has SMS Send enabled", 400);
 
     const { to, body } = args as { to: string; body: string };
     if (!to || !body) throw new ToolError("to and body are required", 400);

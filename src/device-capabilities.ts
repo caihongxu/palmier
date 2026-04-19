@@ -12,7 +12,8 @@ export interface RegisteredDevice {
 export type DeviceCapability =
   | "location"
   | "notifications"
-  | "sms"
+  | "sms-read"
+  | "sms-send"
   | "contacts"
   | "calendar"
   | "alarm"
