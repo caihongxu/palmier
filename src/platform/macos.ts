@@ -27,6 +27,10 @@ function taskPlistPath(taskId: string): string {
   return path.join(AGENT_DIR, `${taskLabel(taskId)}.plist`);
 }
 
+function taskLogPath(taskId: string): string {
+  return path.join(CONFIG_DIR, `task-${taskId}.log`);
+}
+
 function guiDomain(): string {
   const uid = process.getuid?.();
   if (uid === undefined) throw new Error("getuid() unavailable — macOS platform requires POSIX uid");
@@ -225,12 +229,16 @@ export class MacOsPlatform implements PlatformService {
     const plistPath = taskPlistPath(taskId);
     const palmierBin = process.argv[1] || "palmier";
 
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    const logPath = taskLogPath(taskId);
     const dict: Record<string, unknown> = {
       Label: label,
       ProgramArguments: [process.execPath, palmierBin, "run", taskId],
       WorkingDirectory: config.projectRoot,
       RunAtLoad: false,
       EnvironmentVariables: { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin" },
+      StandardOutPath: logPath,
+      StandardErrorPath: logPath,
     };
 
     const scheduleType = task.frontmatter.schedule_type;
@@ -263,6 +271,7 @@ export class MacOsPlatform implements PlatformService {
     const domain = guiDomain();
     runLaunchctl(["bootout", `${domain}/${taskLabel(taskId)}`], { ignoreFailure: true });
     try { fs.unlinkSync(taskPlistPath(taskId)); } catch { /* ignore */ }
+    try { fs.unlinkSync(taskLogPath(taskId)); } catch { /* ignore */ }
   }
 
   async startTask(taskId: string): Promise<void> {
