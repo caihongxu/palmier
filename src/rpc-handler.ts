@@ -148,6 +148,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
+          host_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           linked_client_token: getLinkedDevice()?.clientToken ?? null,
           pending_prompts: listPending(),
           lan_url: buildLanUrl(config.httpPort ?? 7256, config.defaultInterface),
