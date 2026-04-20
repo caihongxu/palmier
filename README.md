@@ -66,6 +66,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `read-calendar` | Read calendar events (with time range filter) |
 | `create-calendar-event` | Create a calendar event on the user's device |
 | `send-sms-message` | Send an SMS message from the user's device |
+| `send-email` | Send an email from the user's device (opens the email app with the draft pre-filled for review) |
 | `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) |
 | `read-battery` | Get battery level and charging status |
 | `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) |
