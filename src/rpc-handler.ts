@@ -9,9 +9,9 @@ import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
 import { getAgent } from "./agents/agent.js";
-import { validateClient } from "./client-store.js";
+import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
-import { getCapabilityDevice, setCapabilityDevice, clearCapabilityDevice, type DeviceCapability } from "./device-capabilities.js";
+import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
 import { currentVersion, performUpdate } from "./update-checker.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
@@ -144,15 +144,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
     switch (request.method) {
       case "host.info": {
-        const capabilities: Record<string, string | null> = {};
-        for (const capability of ["location", "notifications", "sms-read", "sms-send", "contacts", "calendar", "alarm", "battery", "dnd", "send-email"] as const) {
-          capabilities[capability] = getCapabilityDevice(capability)?.clientToken ?? null;
-        }
         return {
           agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
-          capability_tokens: capabilities,
+          linked_client_token: getLinkedDevice()?.clientToken ?? null,
           pending_prompts: listPending(),
           lan_url: buildLanUrl(config.httpPort ?? 7256, config.defaultInterface),
         };
@@ -635,31 +631,27 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         return { ok: true };
       }
 
-      case "device.location.enable": {
+      case "device.link": {
         const params = request.params as { fcmToken: string };
         if (!params.fcmToken) return { error: "fcmToken is required" };
         const clientToken = request.clientToken ?? "";
-        setCapabilityDevice("location", clientToken, params.fcmToken);
+        if (!clientToken) return { error: "Unauthorized" };
+        setLinkedDevice(clientToken, params.fcmToken);
         return { ok: true };
       }
 
-      case "device.location.disable": {
-        clearCapabilityDevice("location");
-        return { ok: true };
-      }
-
-      case "device.capability.enable": {
-        const params = request.params as { capability: DeviceCapability; fcmToken: string };
-        if (!params.capability || !params.fcmToken) return { error: "capability and fcmToken are required" };
+      case "device.unlink": {
         const clientToken = request.clientToken ?? "";
-        setCapabilityDevice(params.capability, clientToken, params.fcmToken);
+        const current = getLinkedDevice();
+        if (current?.clientToken === clientToken) clearLinkedDevice();
         return { ok: true };
       }
 
-      case "device.capability.disable": {
-        const params = request.params as { capability: DeviceCapability };
-        if (!params.capability) return { error: "capability is required" };
-        clearCapabilityDevice(params.capability);
+      case "clients.revoke_self": {
+        const clientToken = request.clientToken ?? "";
+        if (!clientToken) return { error: "Unauthorized" };
+        clearLinkedDeviceIfMatches(clientToken);
+        revokeClient(clientToken);
         return { ok: true };
       }
 

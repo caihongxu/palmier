@@ -1,6 +1,6 @@
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
-import { getCapabilityDevice } from "./device-capabilities.js";
+import { getLinkedDevice } from "./linked-device.js";
 import { getNotifications, onNotificationsChanged } from "./notification-store.js";
 import { getSmsMessages, onSmsChanged } from "./sms-store.js";
 import type { HostConfig } from "./types.js";
@@ -179,8 +179,8 @@ const deviceGeolocationTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("location");
-    if (!device) throw new ToolError("No device has location access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const sc = StringCodec();
 
@@ -227,8 +227,8 @@ const readContactsTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("contacts");
-    if (!device) throw new ToolError("No device has contacts access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const sc = StringCodec();
 
@@ -280,8 +280,8 @@ const createContactTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("contacts");
-    if (!device) throw new ToolError("No device has contacts access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const { name, phone, email } = args as { name: string; phone?: string; email?: string };
     if (!name) throw new ToolError("name is required", 400);
@@ -338,8 +338,8 @@ const readCalendarTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("calendar");
-    if (!device) throw new ToolError("No device has calendar access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const { startDate, endDate } = args as { startDate?: number; endDate?: number };
     const sc = StringCodec();
@@ -399,8 +399,8 @@ const createCalendarEventTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("calendar");
-    if (!device) throw new ToolError("No device has calendar access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const { title, startTime, endTime, location, description } = args as {
       title: string; startTime: number; endTime: number; location?: string; description?: string;
@@ -462,7 +462,7 @@ const sendSmsTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("sms-send");
+    const device = getLinkedDevice();
     if (!device) throw new ToolError("No device has SMS Send enabled", 400);
 
     const { to, body } = args as { to: string; body: string };
@@ -521,8 +521,8 @@ const sendAlarmTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("alarm");
-    if (!device) throw new ToolError("No device has alarm access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const { title, description } = args as { title: string; description?: string };
     if (!title) throw new ToolError("title is required", 400);
@@ -578,8 +578,8 @@ const readBatteryTool: ToolDefinition = {
   async handler(_args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("battery");
-    if (!device) throw new ToolError("No device has battery access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const sc = StringCodec();
 
@@ -629,7 +629,7 @@ const setRingerModeTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("dnd");
+    const device = getLinkedDevice();
     if (!device) throw new ToolError("No device has Do Not Disturb control enabled", 400);
 
     const { mode } = args as { mode: string };
@@ -687,8 +687,8 @@ const sendEmailTool: ToolDefinition = {
   async handler(args, ctx) {
     if (!ctx.nc) throw new ToolError("Not connected to server (NATS unavailable)", 503);
 
-    const device = getCapabilityDevice("send-email");
-    if (!device) throw new ToolError("No device has send-email access enabled", 400);
+    const device = getLinkedDevice();
+    if (!device) throw new ToolError("No linked device configured", 400);
 
     const { to, subject, body, cc, bcc } = args as { to: string; subject?: string; body?: string; cc?: string; bcc?: string };
     if (!to) throw new ToolError("to is required", 400);

@@ -78,7 +78,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 
-All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Permissions listed above must be granted via toggles in the Android app's settings menu.
+All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link to this device" checkbox) or later from the drawer. Permissions listed above must be granted via toggles in the linked device's drawer.
 
 ### Architecture
 
@@ -150,6 +150,8 @@ palmier clients revoke <token>
 # Revoke all clients (unpair all devices)
 palmier clients revoke-all
 ```
+
+Revoking the linked device also clears the host's linked-device record; device capabilities stop working until another paired device is linked from its drawer.
 
 ### The `init` Command
 
