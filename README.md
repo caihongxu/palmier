@@ -55,30 +55,30 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 **MCP server URL:** `http://localhost:<port>/mcp`
 
 **Available tools:**
-| Tool | Description | Permission |
-|------|-------------|------------|
-| `notify` | Send a push notification to the user's device | None |
-| `request-input` | Request input from the user (blocks until response) | None |
-| `request-confirmation` | Request confirmation from the user (blocks until response) | None |
-| `device-geolocation` | Get GPS location of the user's mobile device | Get Location |
-| `read-contacts` | Read the contact list from the user's device | Manage Contacts |
-| `create-contact` | Create a new contact on the user's device | Manage Contacts |
-| `read-calendar` | Read calendar events (with time range filter) | Manage Calendar |
-| `create-calendar-event` | Create a calendar event on the user's device | Manage Calendar |
-| `send-sms-message` | Send an SMS message from the user's device | Send SMS |
-| `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) | Trigger Alarms |
-| `read-battery` | Get battery level and charging status | None |
-| `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) | Set Ringer Mode |
+| Tool | Description |
+|------|-------------|
+| `notify` | Send a push notification to the user's device |
+| `request-input` | Request input from the user (blocks until response) |
+| `request-confirmation` | Request confirmation from the user (blocks until response) |
+| `device-geolocation` | Get GPS location of the user's mobile device |
+| `read-contacts` | Read the contact list from the user's device |
+| `create-contact` | Create a new contact on the user's device |
+| `read-calendar` | Read calendar events (with time range filter) |
+| `create-calendar-event` | Create a calendar event on the user's device |
+| `send-sms-message` | Send an SMS message from the user's device |
+| `send-alarm` | Trigger a full-screen alarm popup with ringtone on the user's device (pierces DND) |
+| `read-battery` | Get battery level and charging status |
+| `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) |
 
 **Available resources:**
-| Resource | URI | Permission | Description |
-|----------|-----|------------|-------------|
-| Device Notifications | `notifications://device` | Notifications from Other Apps | Recent notifications from the user's Android device |
-| Device SMS | `sms-messages://device` | Read SMS | Recent SMS messages from the user's Android device |
+| Resource | URI | Description |
+|----------|-----|-------------|
+| Device Notifications | `notifications://device` | Recent notifications from the user's Android device |
+| Device SMS | `sms-messages://device` | Recent SMS messages from the user's Android device |
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 
-All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link to this device" checkbox) or later from the drawer. Permissions listed above must be granted via toggles in the linked device's drawer.
+All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
 
 ### Architecture
 
