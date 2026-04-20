@@ -116,6 +116,27 @@ export function readTaskStatus(taskDir: string): TaskStatus | undefined {
   }
 }
 
+export interface FollowupStatus {
+  pid: number;
+  spawned_at: number;
+}
+
+export function writeFollowupStatus(runDir: string, status: FollowupStatus): void {
+  fs.writeFileSync(path.join(runDir, "followup.json"), JSON.stringify(status), "utf-8");
+}
+
+export function readFollowupStatus(runDir: string): FollowupStatus | undefined {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(runDir, "followup.json"), "utf-8")) as FollowupStatus;
+  } catch {
+    return undefined;
+  }
+}
+
+export function deleteFollowupStatus(runDir: string): void {
+  try { fs.unlinkSync(path.join(runDir, "followup.json")); } catch { /* ignore */ }
+}
+
 /** Returns the run ID (timestamp string used as directory name). */
 export function createRunDir(
   taskDir: string,

@@ -199,6 +199,9 @@ export async function runCommand(taskId: string): Promise<void> {
     if (nc && !nc.isClosed()) {
       await nc.drain();
     }
+    if (task.frontmatter.one_off) {
+      try { getPlatform().removeTaskTimer(taskId); } catch { /* best-effort */ }
+    }
   };
 
   try {

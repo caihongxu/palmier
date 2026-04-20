@@ -1,9 +1,9 @@
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
-import { spawn, type ChildProcess } from "child_process";
+import { type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
@@ -310,6 +310,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             agent: params.agent,
             schedule_enabled: false,
             requires_confirmation: params.requires_confirmation ?? false,
+            one_off: true,
             ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
@@ -322,13 +323,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const runId = createRunDir(taskDir, name, Date.now(), params.agent);
         appendHistory(config.projectRoot, { task_id: id, run_id: runId });
 
-        const script = process.argv[1] || "palmier";
-        const child = spawn(process.execPath, [script, "run", id], {
-          detached: true,
-          stdio: "ignore",
-          windowsHide: true,
-        });
-        child.unref();
+        const platform = getPlatform();
+        platform.installTaskTimer(config, task);
+        await platform.startTask(id);
 
         return { ok: true, task_id: id, run_id: runId };
       }
@@ -397,6 +394,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         });
         if (stdin != null) child.stdin!.end(stdin);
         activeFollowups.set(followupKey, child);
+        if (child.pid) writeFollowupStatus(followupRunDir, { pid: child.pid, spawned_at: Date.now() });
 
         const chunks: Buffer[] = [];
         child.stdout?.on("data", (d: Buffer) => chunks.push(d));
@@ -404,6 +402,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         child.on("close", async (code: number | null) => {
           activeFollowups.delete(followupKey);
+          deleteFollowupStatus(followupRunDir);
           // stop_followup already wrote the stopped status.
           if (child.killed) return;
 
@@ -428,6 +427,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         child.on("error", async (err: Error) => {
           activeFollowups.delete(followupKey);
+          deleteFollowupStatus(followupRunDir);
           console.error(`Follow-up failed for ${followupKey}:`, err);
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "status",
@@ -447,22 +447,33 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           return { error: "run_id is required" };
         }
         const stopKey = `${params.id}:${params.run_id}`;
+        const stopTaskDir = getTaskDir(config.projectRoot, params.id);
+        const stopRunDir = getRunDir(stopTaskDir, params.run_id);
         const child = activeFollowups.get(stopKey);
+
+        let pidToKill: number | undefined = child?.pid;
         if (!child) {
-          return { error: "No active follow-up for this run" };
+          // Daemon restarted since spawn — the in-memory handle is gone but
+          // the child may still be running. Fall back to the persisted PID.
+          const persisted = readFollowupStatus(stopRunDir);
+          if (!persisted) return { error: "No active follow-up for this run" };
+          pidToKill = persisted.pid;
         }
 
-        if (process.platform === "win32" && child.pid) {
-          try {
-            const { execFileSync } = await import("child_process");
-            execFileSync("taskkill", ["/pid", String(child.pid), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
-          } catch { /* may have already exited */ }
-        } else {
-          child.kill();
+        if (pidToKill !== undefined) {
+          if (process.platform === "win32") {
+            try {
+              const { execFileSync } = await import("child_process");
+              execFileSync("taskkill", ["/pid", String(pidToKill), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
+            } catch { /* may have already exited */ }
+          } else if (child) {
+            child.kill();
+          } else {
+            try { process.kill(pidToKill, "SIGTERM"); } catch { /* already dead */ }
+          }
         }
 
         // child.killed stops the close handler from double-writing the status.
-        const stopTaskDir = getTaskDir(config.projectRoot, params.id);
         appendRunMessage(stopTaskDir, params.run_id, {
           role: "status",
           time: Date.now(),
@@ -470,6 +481,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           type: "stopped",
         });
         activeFollowups.delete(stopKey);
+        deleteFollowupStatus(stopRunDir);
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
         return { ok: true, task_id: params.id, run_id: params.run_id };
       }
@@ -509,6 +521,10 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           console.error(`task.abort failed for ${params.id}: ${e.stderr || e.message}`);
           return { error: `Failed to abort task: ${e.stderr || e.message}` };
         }
+        try {
+          const aborted = parseTaskFile(abortTaskDir);
+          if (aborted.frontmatter.one_off) getPlatform().removeTaskTimer(params.id);
+        } catch { /* best-effort cleanup */ }
         const abortPayload: Record<string, unknown> = { event_type: "running-state", running_state: "aborted" };
         await publishHostEvent(nc, config.hostId, params.id, abortPayload);
         return { ok: true, task_id: params.id };

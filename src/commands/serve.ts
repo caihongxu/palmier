@@ -5,7 +5,7 @@ import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
 import { startHttpTransport } from "../transports/http-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage, listTasks } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage, listTasks, readFollowupStatus, deleteFollowupStatus } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -21,58 +21,83 @@ const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
 
 /**
- * Reconcile tasks stuck in "started" whose process is no longer alive.
+ * Reconcile tasks stuck in "started" whose process is no longer alive, and
+ * clean up OS scheduler units for one-off tasks that have already terminated.
  * The system scheduler (Task Scheduler / systemd) is the authoritative source.
  */
 async function checkStaleTasks(
   config: HostConfig,
   nc: NatsConnection | undefined,
 ): Promise<void> {
-  const tasksJsonl = path.join(config.projectRoot, "tasks.jsonl");
-  if (!fs.existsSync(tasksJsonl)) return;
+  const tasksRoot = path.join(config.projectRoot, "tasks");
+  if (!fs.existsSync(tasksRoot)) return;
 
   const platform = getPlatform();
-  const lines = fs.readFileSync(tasksJsonl, "utf-8").split("\n").filter(Boolean);
-  for (const line of lines) {
-    let taskId: string;
-    try {
-      taskId = (JSON.parse(line) as { task_id: string }).task_id;
-    } catch { continue; }
+  const taskIds = fs.readdirSync(tasksRoot).filter((f) =>
+    fs.statSync(path.join(tasksRoot, f)).isDirectory()
+  );
 
+  for (const taskId of taskIds) {
     const taskDir = getTaskDir(config.projectRoot, taskId);
     const status = readTaskStatus(taskDir);
-    if (!status || status.running_state !== "started") continue;
+    if (!status) continue;
 
-    if (platform.isTaskRunning(taskId)) continue;
+    let task;
+    try { task = parseTaskFile(taskDir); } catch { continue; }
 
-    console.log(`[monitor] Task ${taskId} process exited unexpectedly, marking as failed.`);
-    const endTime = Date.now();
-    writeTaskStatus(taskDir, { running_state: "failed", time_stamp: endTime });
+    if (status.running_state === "started" && !platform.isTaskRunning(taskId)) {
+      console.log(`[monitor] Task ${taskId} process exited unexpectedly, marking as failed.`);
+      const endTime = Date.now();
+      writeTaskStatus(taskDir, { running_state: "failed", time_stamp: endTime });
 
-    const runId = fs.readdirSync(taskDir)
-      .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
-      .sort()
-      .pop();
+      const runId = fs.readdirSync(taskDir)
+        .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
+        .sort()
+        .pop();
 
-    if (runId) {
-      appendRunMessage(taskDir, runId, {
-        role: "status",
-        time: endTime,
-        content: "",
-        type: "failed",
+      if (runId) {
+        appendRunMessage(taskDir, runId, {
+          role: "status",
+          time: endTime,
+          content: "",
+          type: "failed",
+        });
+      }
+
+      await publishHostEvent(nc, config.hostId, taskId, {
+        event_type: "running-state",
+        running_state: "failed",
+        name: task.frontmatter.name || taskId,
       });
     }
 
-    let taskName = taskId;
-    try {
-      taskName = parseTaskFile(taskDir).frontmatter.name || taskId;
-    } catch { /* fallback to taskId */ }
+    if (task.frontmatter.one_off && status.running_state !== "started") {
+      try { platform.removeTaskTimer(taskId); } catch { /* best-effort */ }
+    }
 
-    await publishHostEvent(nc, config.hostId, taskId, {
-      event_type: "running-state",
-      running_state: "failed",
-      name: taskName,
-    });
+    // Reconcile orphaned follow-ups: if a run has a persisted follow-up PID
+    // but that process is no longer alive, clear the file and mark the run
+    // as failed so the UI doesn't claim it's still running.
+    const runIds = fs.readdirSync(taskDir).filter((f) =>
+      /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md"))
+    );
+    for (const runId of runIds) {
+      const runDir = path.join(taskDir, runId);
+      const followup = readFollowupStatus(runDir);
+      if (!followup) continue;
+      try {
+        process.kill(followup.pid, 0);
+      } catch {
+        deleteFollowupStatus(runDir);
+        appendRunMessage(taskDir, runId, {
+          role: "status",
+          time: Date.now(),
+          content: "",
+          type: "failed",
+        });
+        await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+      }
+    }
   }
 }
 

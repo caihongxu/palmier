@@ -37,6 +37,10 @@ export interface TaskFrontmatter {
   foreground_mode?: boolean;
   permissions?: RequiredPermission[];
   command?: string;
+  /** Set when the task was created via task.run_oneoff. Used so the run process
+   * can tear down its OS scheduler unit when it finishes — one-off tasks aren't
+   * in tasks.jsonl so the daemon's recovery/sweep logic doesn't cover them. */
+  one_off?: boolean;
 }
 
 export interface ParsedTask {
