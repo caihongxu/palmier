@@ -634,10 +634,23 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.task_id || !params.run_id) {
           return { error: "task_id and run_id are required" };
         }
+        const deleteTaskDir = getTaskDir(config.projectRoot, params.task_id);
+        let isOneOff = false;
+        try { isOneOff = !!parseTaskFile(deleteTaskDir).frontmatter.one_off; } catch { /* ignore */ }
+
         const deleted = deleteHistoryEntry(config.projectRoot, params.task_id, params.run_id);
         if (!deleted) {
           return { error: "History entry not found" };
         }
+
+        // A one-off task exists only to hold its single run — no run means no
+        // reason for the task to stick around.
+        if (isOneOff) {
+          try { getPlatform().removeTaskTimer(params.task_id); } catch { /* best-effort */ }
+          clearTaskQueue(params.task_id);
+          try { fs.rmSync(deleteTaskDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+        }
+
         return { ok: true, task_id: params.task_id, run_id: params.run_id };
       }
 
