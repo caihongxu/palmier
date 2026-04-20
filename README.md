@@ -78,7 +78,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 
 Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
 
-All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
+All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link the host to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
 
 ### Architecture
 
