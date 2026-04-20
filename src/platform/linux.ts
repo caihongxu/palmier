@@ -185,6 +185,15 @@ Environment=PATH=${process.env.PATH || "/usr/local/bin:/usr/bin:/bin"}
 `;
 
     fs.writeFileSync(path.join(UNIT_DIR, serviceName), serviceContent, "utf-8");
+
+    // Tear down any previously installed timer unit so on-demand tasks don't
+    // keep firing on the old schedule. Service unit stays so startTask works.
+    const timerPath = path.join(UNIT_DIR, timerName);
+    if (fs.existsSync(timerPath)) {
+      try { execSync(`systemctl --user stop ${timerName}`, { encoding: "utf-8" }); } catch { /* not running */ }
+      try { execSync(`systemctl --user disable ${timerName}`, { encoding: "utf-8" }); } catch { /* not enabled */ }
+      fs.unlinkSync(timerPath);
+    }
     daemonReload();
 
     if (!task.frontmatter.schedule_enabled) return;
