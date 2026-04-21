@@ -223,7 +223,7 @@ To fully remove Palmier from a machine:
 
 ## Disclaimer
 
-Palmier spawns AI agents that can read, write, and execute on your machine. [Read the full disclaimer](DISCLAIMER.md) before use.
+Palmier spawns AI agents that can read, write, and execute on your machine. [Read the full disclaimer](DISCLAIMER.md) before use. By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy).
 
 ## License
 
