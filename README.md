@@ -34,7 +34,7 @@ It runs on your machine as a background daemon and pairs with a mobile-friendly 
    palmier init
    ```
    This detects your agents, configures access, installs the background daemon, and starts pairing.
-4. Open `http://localhost:<port>` to access the app locally — no pairing needed.
+4. Open `http://localhost:7256` to access the app locally — no pairing needed.
 5. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me).
 
 ### Prerequisites
@@ -49,9 +49,9 @@ Palmier runs as a background daemon (systemd on Linux, launchd on macOS, Task Sc
 
 ### MCP Server
 
-Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:<port>/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also available as REST endpoints for curl-based agents.
+Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:7256/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also available as REST endpoints for curl-based agents.
 
-**MCP server URL:** `http://localhost:<port>/mcp`
+**MCP server URL:** `http://localhost:7256/mcp`
 
 **Available tools:**
 | Tool | Description |
@@ -114,11 +114,11 @@ Three ways to reach your host, ordered by setup effort:
 
 | Mode | Where | Pairing | Notes |
 |------|-------|---------|-------|
-| **Local** | `http://localhost:<port>` in a browser on the host machine | Not required | Loopback only. No internet needed. |
+| **Local** | `http://localhost:7256` in a browser on the host machine | Not required | Loopback only. No internet needed. |
 | **Remote (web)** | [https://app.palmier.me](https://app.palmier.me) in any browser | Required | Always goes through the cloud relay. |
 | **Remote (app)** | [Android APK](https://github.com/caihongxu/palmier-android/releases) | Required | Push notifications, device capabilities, and **auto-LAN**. |
 
-**Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:<port>/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Pairing always goes through the relay regardless. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
+**Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:7256/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Pairing always goes through the relay regardless. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
 
 ## Security & Privacy
 
@@ -134,7 +134,7 @@ In all modes, client tokens are generated and validated entirely on your host. T
 
 ### Pairing Devices
 
-Local access (`http://localhost:<port>`) works immediately — no pairing needed.
+Local access (`http://localhost:7256`) works immediately — no pairing needed.
 
 For remote access (web or app), run `palmier pair` on the host to generate a code, then enter it at [https://app.palmier.me](https://app.palmier.me) or in the Android app. Pairing always goes through the relay; auto-LAN kicks in transparently afterward in the native app when on the same network.
 
