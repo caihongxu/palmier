@@ -118,7 +118,7 @@ Three ways to reach your host, ordered by setup effort:
 | **Remote (web)** | [https://app.palmier.me](https://app.palmier.me) in any browser | Required | Always goes through the cloud relay. |
 | **Remote (app)** | [Android APK](https://github.com/caihongxu/palmier-android/releases/latest) | Required | Push notifications, device capabilities, and **auto-LAN**. |
 
-**Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:7256/rpc/...`) instead of through the relay — lower latency, no protocol change. Events still flow over the relay. Pairing always goes through the relay regardless. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
+**Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:7256/rpc/...`) instead of through the relay — lower latency, no protocol change. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
 
 ## Security & Privacy
 
