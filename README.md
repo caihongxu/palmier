@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/palmier)](https://www.npmjs.com/package/palmier)
 [![license](https://img.shields.io/npm/l/palmier)](https://github.com/caihongxu/palmier/blob/master/LICENSE)
 
-**Website:** [palmier.me](https://www.palmier.me) | **App:** [app.palmier.me](https://app.palmier.me)
+**Website:** [palmier.me](https://www.palmier.me) | **Web App:** [app.palmier.me](https://app.palmier.me) | **Android:** [caihongxu/palmier-android](https://github.com/caihongxu/palmier-android)
 
 You have AI agents on your machine. Palmier is a two-way bridge between them and your phone: you reach your agents from anywhere, and they reach you wherever you are.
 
