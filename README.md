@@ -9,7 +9,6 @@
 You have AI agents on your machine. Palmier is a two-way bridge between them and your phone. From your phone, dispatch one-off sessions, schedule recurring tasks, approve permission requests, and check results. From your machine, agents push notifications and alarms, ask you questions, and tap into phone-side capabilities like SMS, contacts, and calendar — so they can act on real-world events, not just sit idle until you open a terminal.
 
 It runs on your machine as a background daemon and pairs with a mobile-friendly PWA.
-> **Important:** By using Palmier, you agree to the [Terms of Service](https://www.palmier.me/terms) and [Privacy Policy](https://www.palmier.me/privacy). See the [Disclaimer](#disclaimer) section below.
 
 ## Quick Start
 
