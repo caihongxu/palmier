@@ -50,7 +50,7 @@ export async function initCommand(): Promise<void> {
     console.log(`                  All tasks and execution data will be stored here.\n`);
     console.log(`  ${dim("Local:")}          ${cyan(`http://localhost:${httpPort}`)}`);
     console.log(`                  Open in a browser on this machine — no internet required.\n`);
-    console.log(`  ${dim("Remote (app):")}   ${cyan("https://github.com/caihongxu/palmier-android/releases")}`);
+    console.log(`  ${dim("Remote (app):")}   ${cyan("https://github.com/caihongxu/palmier-android/releases/latest")}`);
     if (lanIp) {
       console.log(`                  Download the Android APK. The app uses LAN for direct RPC`);
       console.log(`                  on the same network (detected ${cyan(`http://${lanIp}:${httpPort}`)}),`);
