@@ -50,6 +50,19 @@ export function appendTaskList(projectRoot: string, taskId: string): void {
   fs.appendFileSync(listPath, JSON.stringify({ task_id: taskId }) + "\n", "utf-8");
 }
 
+export function isTaskInList(projectRoot: string, taskId: string): boolean {
+  const listPath = path.join(projectRoot, "tasks.jsonl");
+  if (!fs.existsSync(listPath)) return false;
+
+  const lines = fs.readFileSync(listPath, "utf-8").split("\n").filter(Boolean);
+  for (const line of lines) {
+    try {
+      if ((JSON.parse(line) as { task_id: string }).task_id === taskId) return true;
+    } catch { /* skip malformed */ }
+  }
+  return false;
+}
+
 export function removeFromTaskList(projectRoot: string, taskId: string): boolean {
   const listPath = path.join(projectRoot, "tasks.jsonl");
   if (!fs.existsSync(listPath)) return false;

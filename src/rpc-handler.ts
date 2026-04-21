@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
@@ -636,17 +636,14 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           return { error: "task_id and run_id are required" };
         }
         const deleteTaskDir = getTaskDir(config.projectRoot, params.task_id);
-        let isOneOff = false;
-        try { isOneOff = !!parseTaskFile(deleteTaskDir).frontmatter.one_off; } catch { /* ignore */ }
 
         const deleted = deleteHistoryEntry(config.projectRoot, params.task_id, params.run_id);
         if (!deleted) {
           return { error: "History entry not found" };
         }
 
-        // A one-off task exists only to hold its single run — no run means no
-        // reason for the task to stick around.
-        if (isOneOff) {
+        const { total: remainingRuns } = readHistory(config.projectRoot, { task_id: params.task_id, limit: 1 });
+        if (remainingRuns === 0 && !isTaskInList(config.projectRoot, params.task_id)) {
           try { getPlatform().removeTaskTimer(params.task_id); } catch { /* best-effort */ }
           clearTaskQueue(params.task_id);
           try { fs.rmSync(deleteTaskDir, { recursive: true, force: true }); } catch { /* best-effort */ }
