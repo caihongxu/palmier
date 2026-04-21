@@ -124,7 +124,7 @@ Three ways to reach your host, ordered by setup effort:
 
 **Local mode** — all traffic stays on `127.0.0.1`. No data leaves your machine. The web UI, `/pair`, and `/events` reject any non-loopback caller; only `/rpc/<method>` (bearer-auth) and `/health` are reachable from the LAN.
 
-**Server mode** — communication between your device and host is relayed through the Palmier cloud server over TLS-encrypted NATS connections. The server acts as a passthrough relay only — it does not store, log, or inspect any user data, task content, or agent output. The only data the server persists is a host registration ID used for message routing and Web Push subscription info for delivering notifications. See the [Privacy Policy](https://www.palmier.me/privacy) for full details.
+**Server mode** — communication between your device and host is relayed through the Palmier cloud server over TLS-encrypted NATS connections. The server acts as a passthrough relay only — it does not store, log, or inspect any user data, task content, or agent output. The only data the server persists is a host registration ID used for message routing and push subscription tokens for delivering notifications. See the [Privacy Policy](https://www.palmier.me/privacy) for full details.
 
 **Auto-LAN** — direct LAN HTTP requests use the same client token (Bearer auth) generated during pairing. The host validates every `/rpc/*` call regardless of source.
 
