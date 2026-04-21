@@ -50,8 +50,6 @@ export async function initCommand(): Promise<void> {
     console.log(`                  All tasks and execution data will be stored here.\n`);
     console.log(`  ${dim("Local:")}          ${cyan(`http://localhost:${httpPort}`)}`);
     console.log(`                  Open in a browser on this machine — no internet required.\n`);
-    console.log(`  ${dim("Remote (web):")}   ${cyan("https://app.palmier.me")}`);
-    console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
     console.log(`  ${dim("Remote (app):")}   ${cyan("https://github.com/caihongxu/palmier-android/releases")}`);
     if (lanIp) {
       console.log(`                  Download the Android APK. The app uses LAN for direct RPC`);
@@ -61,6 +59,8 @@ export async function initCommand(): Promise<void> {
       console.log(`                  Download the Android APK. Traffic will go through the relay —`);
       console.log(`                  ${red("could not detect a LAN interface")} for direct RPC.\n`);
     }
+    console.log(`  ${dim("Remote (web):")}   ${cyan("https://app.palmier.me")}`);
+    console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
 
     const existingTasks = listTasks(process.cwd());
