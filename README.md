@@ -6,9 +6,27 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **Web App:** [app.palmier.me](https://app.palmier.me) | **Android App:** [caihongxu/palmier-android](https://github.com/caihongxu/palmier-android)
 
-You have AI agents on your machine. Palmier is a two-way bridge between them and your phone. From your phone, dispatch one-off sessions, schedule recurring tasks, approve permission requests, and check results. From your machine, agents push notifications and alarms, ask you questions, and tap into phone-side capabilities like SMS, contacts, and calendar — so they can act on real-world events, not just sit idle until you open a terminal.
+You already have AI agents running on your machine. Palmier is an agent-agnostic bridge between those agents and your phone.
+
+From your phone, you can start sessions, schedule tasks, approve requests, and review results. From your machine, your agents can use phone-side capabilities like notifications, location, SMS, contacts, and calendar — so they can react to the real world, not just the terminal.
 
 It runs on your machine as a background daemon and pairs with a mobile-friendly PWA.
+
+## What Palmier is
+
+Palmier is an **agent-agnostic phone bridge and mobile control layer** for the agents you already use.
+
+It is not:
+
+* an agent runtime itself
+* a replacement for Claude Code / Codex CLI / Gemini CLI / OpenClaw / Hermes
+* a system for driving your phone UI like a human tapping through apps
+
+Instead, Palmier focuses on:
+
+* letting agents access phone-side capabilities and context in the background
+* letting you talk to, manage, and schedule your agents from your phone
+* making phone integrations work out of the box without requiring users to wire up separate calendar/email/contact stacks
 
 ## Quick Start
 
