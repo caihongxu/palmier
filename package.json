@@ -18,6 +18,10 @@
   "bin": {
     "palmier": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "DISCLAIMER.md"
+  ],
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc && node -e \"const fs=require('fs');fs.cpSync('src/agents/agent-instructions.md','dist/agents/agent-instructions.md');const p=process.env.PALMIER_PWA_DIST||'../palmier-server/pwa/dist';if(fs.existsSync(p))fs.cpSync(p,'dist/pwa',{recursive:true});else console.warn('PWA dist not found at '+p+', skipping')\"",
