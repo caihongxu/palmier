@@ -20,6 +20,12 @@
   },
   "files": [
     "dist",
+    "!dist/pwa/service-worker.js",
+    "!dist/pwa/registerSW.js",
+    "!dist/pwa/manifest.webmanifest",
+    "!dist/pwa/apple-touch-icon.png",
+    "!dist/pwa/pwa-192x192.png",
+    "!dist/pwa/pwa-512x512.png",
     "DISCLAIMER.md"
   ],
   "scripts": {
