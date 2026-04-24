@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
+import { StringCodec } from "nats";
 import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
@@ -12,6 +13,22 @@ import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
+
+async function sendPushNotification(
+  nc: NatsConnection | undefined,
+  hostId: string,
+  title: string,
+  body: string,
+): Promise<void> {
+  if (!nc) return;
+  try {
+    const sc = StringCodec();
+    const subject = `host.${hostId}.push.send`;
+    await nc.request(subject, sc.encode(JSON.stringify({ hostId, title, body })), { timeout: 15_000 });
+  } catch (err) {
+    console.warn(`[push] failed to send notification:`, err);
+  }
+}
 
 interface InvocationContext {
   agent: AgentTool;
@@ -349,6 +366,13 @@ async function runCommandTriggeredMode(
       invocationsSucceeded++;
     } else {
       invocationsFailed++;
+      const taskLabel = ctx.task.frontmatter.name || ctx.task.frontmatter.user_prompt;
+      await sendPushNotification(
+        ctx.nc,
+        ctx.config.hostId,
+        `Task "${taskLabel}" invocation failed`,
+        line.length > 200 ? line.slice(0, 200) + "…" : line,
+      );
     }
     appendLog(line, "", result.outcome);
 
@@ -452,6 +476,7 @@ async function runEventTriggeredMode(
   await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
   let eventsProcessed = 0;
+  let lastOutcome: TaskRunningState = "finished";
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -468,7 +493,8 @@ async function runEventTriggeredMode(
         frontmatter: { ...ctx.task.frontmatter, user_prompt: perEventPrompt },
       };
 
-      await invokeAgentWithRetries(ctx, perEventTask);
+      const result = await invokeAgentWithRetries(ctx, perEventTask);
+      lastOutcome = result.outcome;
 
       appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
       await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
@@ -480,7 +506,7 @@ async function runEventTriggeredMode(
     return { outcome: "failed", endTime: Date.now() };
   }
 
-  return { outcome: "finished", endTime: Date.now() };
+  return { outcome: lastOutcome, endTime: Date.now() };
 }
 
 async function publishTaskEvent(
