@@ -257,6 +257,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         if (params.user_prompt !== undefined) existing.frontmatter.user_prompt = params.user_prompt;
         if (params.agent !== undefined) existing.frontmatter.agent = params.agent;
+        // Permissions are agent-specific tool names — drop them when the agent changes.
+        if (agentChanged) delete existing.frontmatter.permissions;
         if (params.schedule_type !== undefined) {
           if (params.schedule_type) {
             existing.frontmatter.schedule_type = params.schedule_type;
