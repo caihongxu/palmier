@@ -1,11 +1,33 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import type { ParsedTask } from "../src/types.js";
+
+// getTaskRunCommandLine -> getAgentInstructions -> loadConfig() reads
+// ~/.config/palmier/host.json. CI has no such file, so point HOME at a temp
+// dir with a stub config before any module that might call loadConfig loads.
+const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "palmier-test-home-"));
+process.env.HOME = tmpHome;
+process.env.USERPROFILE = tmpHome;
+fs.mkdirSync(path.join(tmpHome, ".config", "palmier"), { recursive: true });
+fs.writeFileSync(path.join(tmpHome, ".config", "palmier", "host.json"), JSON.stringify({
+  hostId: "test-host",
+  projectRoot: tmpHome,
+  natsUrl: "nats://localhost:4222",
+  natsJwt: "test-jwt",
+  natsNkeySeed: "test-seed",
+  httpPort: 7256,
+}));
+
 // Import via agent.ts first so the full agent registry loads before gemini.ts
 // is touched directly. shared-prompt.ts re-imports agent.ts, so a direct
 // import of any single agent module would otherwise trip a class-TDZ error.
-import "../src/agents/agent.js";
-import { GeminiAgent, renderPolicyToml } from "../src/agents/gemini.js";
-import type { ParsedTask } from "../src/types.js";
+// Dynamic imports keep these AFTER the env setup above (static ESM imports are
+// hoisted to module-eval, before any top-level statements).
+await import("../src/agents/agent.js");
+const { GeminiAgent, renderPolicyToml } = await import("../src/agents/gemini.js");
 
 function makeTask(perms: Array<{ name: string; description: string }> = []): ParsedTask {
   return {
