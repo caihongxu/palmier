@@ -604,12 +604,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             reports.push({ file, error: `unsupported file type: ${ext}` });
             continue;
           }
-          const basename = path.basename(file);
-          if (basename !== file) {
-            reports.push({ file, error: "must be a plain filename" });
-            continue;
-          }
-          const reportPath = path.join(runDir, basename);
+          const reportPath = path.isAbsolute(file) ? file : path.join(runDir, file);
           try {
             if (IMAGE_EXT.includes(ext)) {
               const buf = fs.readFileSync(reportPath);
