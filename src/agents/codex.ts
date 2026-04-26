@@ -19,7 +19,7 @@ export class CodexAgent implements AgentTool {
     if (followupPrompt) {args.push("resume", "--last");}
     args.push("-");
 
-    return { command: "codex", args, stdin: prompt };
+    return { command: "codex", args, stdin: prompt, env: { RUST_LOG: "warn" } };
   }
 
   async init(): Promise<boolean> {
