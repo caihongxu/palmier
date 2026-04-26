@@ -1,5 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+// Import via agent.ts first so the full agent registry loads before gemini.ts
+// is touched directly. shared-prompt.ts re-imports agent.ts, so a direct
+// import of any single agent module would otherwise trip a class-TDZ error.
+import "../src/agents/agent.js";
 import { GeminiAgent, renderPolicyToml } from "../src/agents/gemini.js";
 import type { ParsedTask } from "../src/types.js";
 
@@ -46,7 +50,7 @@ describe("GeminiAgent.getTaskRunCommandLine", () => {
     const cl = agent.getTaskRunCommandLine(makeTask(), undefined, []);
     assert.ok(cl.files && cl.files.length === 1);
     assert.equal(cl.files![0].path, "gemini-policy.toml");
-    assert.match(cl.files![0].content, /toolName = \["run_shell_command", "web_fetch"\]/);
+    assert.match(cl.files![0].content, /toolName = \["run_shell_command\(curl\)", "web_fetch"\]/);
     const idx = cl.args.indexOf("--admin-policy");
     assert.notEqual(idx, -1);
     assert.equal(cl.args[idx + 1], "gemini-policy.toml");
@@ -59,7 +63,7 @@ describe("GeminiAgent.getTaskRunCommandLine", () => {
     const policy = cl.files![0].content;
     assert.match(policy, /"read_file"/);
     assert.match(policy, /"write_file"/);
-    assert.match(policy, /"run_shell_command"/);
+    assert.match(policy, /"run_shell_command\(curl\)"/);
     assert.match(policy, /"web_fetch"/);
   });
 

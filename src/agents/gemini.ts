@@ -30,7 +30,7 @@ export class GeminiAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? getAgentInstructions(task, yolo || !this.supportsPermissions);
+    const prompt = followupPrompt ?? getAgentInstructions(task);
     const args = ["--approval-mode", yolo ? "yolo" : "auto_edit"];
     const files: CommandLine["files"] = [];
 

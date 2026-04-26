@@ -13,7 +13,7 @@ export class ClaudeAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? getAgentInstructions(task, yolo || !this.supportsPermissions);
+    const prompt = followupPrompt ?? getAgentInstructions(task);
     const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
 
     if (!yolo) {

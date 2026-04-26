@@ -11,7 +11,7 @@ export class OpenClawAgent implements AgentTool {
   }
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const prompt = followupPrompt ?? getAgentInstructions(task, true);
+    const prompt = followupPrompt ?? getAgentInstructions(task);
     // OpenClaw does not support stdin as prompt.
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];
 

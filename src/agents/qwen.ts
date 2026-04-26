@@ -13,7 +13,7 @@ export class QwenAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? getAgentInstructions(task, yolo || !this.supportsPermissions);
+    const prompt = followupPrompt ?? getAgentInstructions(task);
     const args = ["--approval-mode", yolo ? "yolo" : "auto-edit"];
 
     if (followupPrompt) { args.push("-c"); }

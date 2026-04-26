@@ -13,7 +13,7 @@ export class CodexAgent implements AgentTool {
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
-    const prompt = followupPrompt ?? getAgentInstructions(task, true);
+    const prompt = followupPrompt ?? getAgentInstructions(task);
     const args = ["exec", "--skip-git-repo-check", "--sandbox", yolo ? "danger-full-access" : "workspace-write"];
 
     if (followupPrompt) {args.push("resume", "--last");}
