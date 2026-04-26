@@ -91,12 +91,16 @@ async function invokeAgentWithRetries(
       throttledNotify();
     }
 
-    const { command, args, stdin, env: agentEnv } = ctx.agent.getTaskRunCommandLine(
+    const { command, args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(
       invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
     );
+    const runDir = getRunDir(ctx.taskDir, ctx.runId);
+    if (files) {
+      for (const f of files) fs.writeFileSync(path.join(runDir, f.path), f.content, "utf-8");
+    }
     const result = await spawnCommand(command, args, {
-      cwd: getRunDir(ctx.taskDir, ctx.runId),
-      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7256) },
+      cwd: runDir,
+      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_RUN_DIR: runDir, PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7256) },
       echoStdout: true,
       resolveOnFailure: true,
       stdin,

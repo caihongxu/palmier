@@ -24,6 +24,8 @@ export interface CommandLine {
   stdin?: string;
   /** Additional environment variables to set for the spawned process. */
   env?: Record<string, string>;
+  /** Files to write into the spawned process's cwd before invocation. Path is relative to cwd. */
+  files?: Array<{ path: string; content: string }>;
 }
 
 export interface AgentTool {

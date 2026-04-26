@@ -415,9 +415,12 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
-        const { command: cmd, args: cmdArgs, stdin, env: followupAgentEnv } = followupAgent.getTaskRunCommandLine(
+        const { command: cmd, args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(
           followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
         );
+        if (followupFiles) {
+          for (const f of followupFiles) fs.writeFileSync(path.join(followupRunDir, f.path), f.content, "utf-8");
+        }
 
         const child = crossSpawn(cmd, cmdArgs, {
           cwd: followupRunDir,
