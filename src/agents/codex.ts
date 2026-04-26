@@ -19,8 +19,7 @@ export class CodexAgent implements AgentTool {
     if (!yolo) {
       const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
       for (const p of allPerms) {
-        args.push("--config");
-        args.push(`apps.${p.name}.default_tools_approval_mode="approve"`);
+        args.push("--config", `apps.${p.name}.default_tools_approval_mode="approve"`);
       }
     }
     if (followupPrompt) {args.push("resume", "--last");}

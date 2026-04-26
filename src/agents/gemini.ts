@@ -35,7 +35,7 @@ export class GeminiAgent implements AgentTool {
     const files: CommandLine["files"] = [];
 
     if (!yolo) {
-      const tools = ["run_shell_command", "web_fetch"];
+      const tools = ["run_shell_command(curl)", "web_fetch"];
       const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
       for (const p of allPerms) {
         tools.push(p.name);

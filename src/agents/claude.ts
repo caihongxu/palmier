@@ -17,10 +17,10 @@ export class ClaudeAgent implements AgentTool {
     const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
 
     if (!yolo) {
-      args.push("--allowedTools", "WebFetch");
+      args.push("--allowedTools", "Bash(curl)", "WebFetch");
       const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
       for (const p of allPerms) {
-        args.push("--allowedTools", p.name);
+        args.push(p.name);
       }
     }
 
