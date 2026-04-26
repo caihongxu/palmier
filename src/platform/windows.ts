@@ -4,7 +4,7 @@ import { execFileSync } from "child_process";
 import type { PlatformService } from "./platform.js";
 import type { HostConfig, ParsedTask } from "../types.js";
 import { CONFIG_DIR, loadConfig } from "../config.js";
-import { getTaskDir, readTaskStatus } from "../task.js";
+import { getTaskDir, readTaskStatus, parseTaskFile } from "../task.js";
 
 
 const TASK_PREFIX = "\\Palmier\\PalmierTask-";
@@ -85,6 +85,58 @@ export function buildTaskXml(tr: string, triggers: string[], foreground?: boolea
 
 function schtasksTaskName(taskId: string): string {
   return `${TASK_PREFIX}${taskId}`;
+}
+
+interface SchtasksStatus {
+  status: string;
+  lastResult: string;
+}
+
+function querySchtasksStatus(tn: string): SchtasksStatus | undefined {
+  try {
+    const out = execFileSync("schtasks", ["/query", "/tn", tn, "/v", "/fo", "LIST"], {
+      encoding: "utf-8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+    });
+    const status = out.match(/^\s*Status:\s*(.+?)\s*$/im)?.[1] ?? "";
+    const lastResult = out.match(/^\s*Last Result:\s*(.+?)\s*$/im)?.[1] ?? "";
+    return { status, lastResult };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Map common Last Result HRESULTs to a human-readable cause. */
+function explainLastResult(lastResult: string, foreground: boolean): string | undefined {
+  const code = lastResult.trim();
+  // Decimal forms emitted by schtasks: 267011 = 0x41303 SCHED_S_TASK_HAS_NOT_RUN.
+  if (code === "267011" || /0x0*41303/i.test(code)) {
+    return foreground
+      ? "Foreground mode requires an active Windows session, but no user is logged in. Sign in to Windows and try again, or disable foreground mode for this task."
+      : "Task Scheduler reported the task did not run. Check that the daemon has permission to launch it.";
+  }
+  if (code === "0" || code === "0x0") return undefined;
+  return `Task Scheduler reported Last Result=${code}.`;
+}
+
+/**
+ * 2s after `schtasks /run`, confirm the action actually launched. Some failure
+ * modes — most notably foreground tasks with no interactive session — make
+ * /run return success while the action is silently skipped (Status stays
+ * "Ready", Last Result stays at 0x41303). If the run process has already
+ * written status.json by then, it clearly launched; skip the Scheduler query.
+ */
+async function verifyTaskLaunched(tn: string, taskDir: string, startTime: number, foreground: boolean): Promise<void> {
+  await new Promise((r) => setTimeout(r, 2000));
+  const status = readTaskStatus(taskDir);
+  if (status && status.time_stamp >= startTime) return;
+
+  const last = querySchtasksStatus(tn);
+  if (last && /running/i.test(last.status)) return;
+  const explained = explainLastResult(last?.lastResult ?? "", foreground);
+  if (explained) throw new Error(explained);
+  throw new Error(
+    `Task Scheduler did not launch the task within 2s (status=${last?.status || "unknown"}, last_result=${last?.lastResult || "unknown"}).`,
+  );
 }
 
 export class WindowsPlatform implements PlatformService {
@@ -229,12 +281,22 @@ export class WindowsPlatform implements PlatformService {
 
   async startTask(taskId: string): Promise<void> {
     const tn = schtasksTaskName(taskId);
+    const taskDir = getTaskDir(loadConfig().projectRoot, taskId);
+
+    let foreground = false;
+    try {
+      foreground = !!parseTaskFile(taskDir).frontmatter.foreground_mode;
+    } catch { /* fall through; verifyTaskLaunched still detects most failures */ }
+
+    const startTime = Date.now();
     try {
       execFileSync("schtasks", ["/run", "/tn", tn], { encoding: "utf-8", windowsHide: true });
     } catch (err: unknown) {
       const e = err as { stderr?: string; message?: string };
       throw new Error(`Failed to start task via schtasks: ${e.stderr || e.message}`);
     }
+
+    await verifyTaskLaunched(tn, taskDir, startTime, foreground);
   }
 
   async stopTask(taskId: string): Promise<void> {

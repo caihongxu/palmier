@@ -126,6 +126,26 @@ async function generateName(
 /** Active follow-up child processes, keyed by "taskId:runId". */
 const activeFollowups = new Map<string, ChildProcess>();
 
+/**
+ * The run process never started, so write a `started` + `failed` status pair
+ * directly to TASKRUN.md (run.ts normally does this) and notify clients.
+ */
+async function recordStartFailure(
+  this: void,
+  taskDir: string,
+  taskId: string,
+  runId: string,
+  detail: string,
+  ctx?: { nc?: NatsConnection; hostId: string },
+): Promise<void> {
+  const now = Date.now();
+  appendRunMessage(taskDir, runId, { role: "status", time: now, content: "", type: "started" });
+  appendRunMessage(taskDir, runId, { role: "status", time: now, content: detail, type: "failed" });
+  if (ctx?.nc) {
+    await publishHostEvent(ctx.nc, ctx.hostId, taskId, { event_type: "result-updated", run_id: runId });
+  }
+}
+
 export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
@@ -328,15 +348,23 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
         const platform = getPlatform();
         platform.installTaskTimer(config, task);
-        await platform.startTask(id);
+        try {
+          await platform.startTask(id);
+        } catch (err: unknown) {
+          const e = err as { stderr?: string; message?: string };
+          const detail = (e.stderr || e.message || String(err)).trim();
+          await recordStartFailure(taskDir, id, runId, detail, { nc, hostId: config.hostId });
+          return { error: `Failed to start task: ${detail}` };
+        }
 
         return { ok: true, task_id: id, run_id: runId };
       }
 
       case "task.run": {
         const params = request.params as { id: string };
+        const runTaskDir = getTaskDir(config.projectRoot, params.id);
+        let taskRunId: string | undefined;
         try {
-          const runTaskDir = getTaskDir(config.projectRoot, params.id);
           const platform = getPlatform();
 
           if (platform.isTaskRunning(params.id)) {
@@ -345,15 +373,17 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
 
           const runTask = parseTaskFile(runTaskDir);
-          const taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
+          taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await platform.startTask(params.id);
           return { ok: true, task_id: params.id, run_id: taskRunId };
         } catch (err: unknown) {
           const e = err as { stderr?: string; message?: string };
-          console.error(`task.run failed for ${params.id}: ${e.stderr || e.message}`);
-          return { error: `Failed to start task: ${e.stderr || e.message}` };
+          const detail = (e.stderr || e.message || String(err)).trim();
+          console.error(`task.run failed for ${params.id}: ${detail}`);
+          if (taskRunId) await recordStartFailure(runTaskDir, params.id, taskRunId, detail, { nc, hostId: config.hostId });
+          return { error: `Failed to start task: ${detail}` };
         }
       }
 
