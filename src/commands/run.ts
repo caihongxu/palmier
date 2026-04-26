@@ -58,8 +58,9 @@ async function invokeAgentWithRetries(
 ): Promise<InvocationResult> {
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now());
-    let lineBuf = "";
+    let writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), "stdout");
+    let activeStream: "stdout" | "stderr" = "stdout";
+    const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
     let notifyPending = false;
     let notifyTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -72,6 +73,21 @@ async function invokeAgentWithRetries(
       }, 500);
     }
 
+    function emit(stream: "stdout" | "stderr", chunk: string): void {
+      lineBufs[stream] += chunk;
+      const lines = lineBufs[stream].split("\n");
+      lineBufs[stream] = lines.pop() ?? "";
+      const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
+      if (filtered.length === 0) return;
+      if (stream !== activeStream) {
+        writer.end();
+        writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), stream);
+        activeStream = stream;
+      }
+      writer.write(filtered.join("\n") + "\n");
+      throttledNotify();
+    }
+
     const { command, args, stdin, env: agentEnv } = ctx.agent.getTaskRunCommandLine(
       invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
     );
@@ -81,16 +97,8 @@ async function invokeAgentWithRetries(
       echoStdout: true,
       resolveOnFailure: true,
       stdin,
-      onData: (chunk) => {
-        lineBuf += chunk;
-        const lines = lineBuf.split("\n");
-        lineBuf = lines.pop() ?? "";
-        const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
-        if (filtered.length > 0) {
-          writer.write(filtered.join("\n") + "\n");
-          throttledNotify();
-        }
-      },
+      onStdout: (chunk) => emit("stdout", chunk),
+      onStderr: (chunk) => emit("stderr", chunk),
     });
 
     if (notifyTimer) clearTimeout(notifyTimer);
@@ -99,15 +107,33 @@ async function invokeAgentWithRetries(
     const reportFiles = parseReportFiles(result.output);
     const requiredPermissions = parsePermissions(result.output);
 
-    if (lineBuf && !lineBuf.startsWith("[PALMIER")) {
-      writer.write(lineBuf);
+    for (const stream of ["stdout", "stderr"] as const) {
+      const trailing = lineBufs[stream];
+      if (trailing && !trailing.startsWith("[PALMIER")) {
+        if (stream !== activeStream) {
+          writer.end();
+          writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), stream);
+          activeStream = stream;
+        }
+        writer.write(trailing);
+      }
     }
 
     if (requiredPermissions.length > 0) {
+      if (activeStream !== "stdout") {
+        writer.end();
+        writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), "stdout");
+        activeStream = "stdout";
+      }
       const permLines = requiredPermissions.map((p) => `- **${p.name}** ${p.description}`).join("\n");
       writer.write(`\n\n**Permissions requested:**\n${permLines}\n`);
     }
 
+    if (reportFiles.length > 0 && activeStream !== "stdout") {
+      writer.end();
+      writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), "stdout");
+      activeStream = "stdout";
+    }
     writer.end(reportFiles.length > 0 ? reportFiles : undefined);
     await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 

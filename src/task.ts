@@ -177,6 +177,7 @@ export function appendRunMessage(
 ): void {
   const attrs = [`role="${msg.role}"`, `time="${msg.time}"`];
   if (msg.type) attrs.push(`type="${msg.type}"`);
+  if (msg.stream) attrs.push(`stream="${msg.stream}"`);
   if (msg.attachments?.length) attrs.push(`attachments="${msg.attachments.join(",")}"`);
 
   const delimiter = `<!-- palmier:message ${attrs.join(" ")} -->`;
@@ -188,9 +189,10 @@ export function beginStreamingMessage(
   taskDir: string,
   runId: string,
   time: number,
+  stream: "stdout" | "stderr" = "stdout",
 ): StreamingMessageWriter {
   const filePath = path.join(taskDir, runId, "TASKRUN.md");
-  const delimiter = `<!-- palmier:message role="assistant" time="${time}" -->`;
+  const delimiter = `<!-- palmier:message role="assistant" time="${time}" stream="${stream}" -->`;
   fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
   return new StreamingMessageWriter(filePath);
 }
@@ -209,7 +211,7 @@ export class StreamingMessageWriter {
     if (attachments?.length) {
       const raw = fs.readFileSync(this.filePath, "utf-8");
       // spliceUserMessage may have created a newer assistant delimiter.
-      const pattern = /<!-- palmier:message role="assistant" time="\d+" -->/g;
+      const pattern = /<!-- palmier:message role="assistant"[^>]*-->/g;
       let lastMatch: RegExpExecArray | null = null;
       let m;
       while ((m = pattern.exec(raw)) !== null) lastMatch = m;
@@ -242,7 +244,7 @@ export function spliceUserMessage(
   }
   fs.appendFileSync(filePath, "\n\n", "utf-8");
   appendRunMessage(taskDir, runId, userMsg);
-  const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" -->`;
+  const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" stream="stdout" -->`;
   fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
 }
 
@@ -267,6 +269,7 @@ export function readRunMessages(taskDir: string, runId: string): ConversationMes
     const roleAttr = attrs.match(/role="([^"]*)"/)?.[1] ?? "assistant";
     const timeAttr = attrs.match(/time="([^"]*)"/)?.[1] ?? "0";
     const typeAttr = attrs.match(/type="([^"]*)"/)?.[1];
+    const streamAttr = attrs.match(/stream="([^"]*)"/)?.[1];
     const attachmentsAttr = attrs.match(/attachments="([^"]*)"/)?.[1];
 
     messages.push({
@@ -274,6 +277,7 @@ export function readRunMessages(taskDir: string, runId: string): ConversationMes
       time: Number(timeAttr),
       content,
       ...(typeAttr ? { type: typeAttr as ConversationMessage["type"] } : {}),
+      ...(streamAttr === "stdout" || streamAttr === "stderr" ? { stream: streamAttr } : {}),
       ...(attachmentsAttr ? { attachments: attachmentsAttr.split(",").map((f) => f.trim()).filter(Boolean) } : {}),
     });
   }

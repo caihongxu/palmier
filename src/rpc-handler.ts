@@ -84,10 +84,12 @@ function parseConversationMessages(body: string): ConversationMessage[] {
     const role = (parseAttr(attrs, "role") ?? "assistant") as "assistant" | "user";
     const time = Number(parseAttr(attrs, "time") ?? "0");
     const type = parseAttr(attrs, "type") as ConversationMessage["type"];
+    const streamRaw = parseAttr(attrs, "stream");
+    const stream = streamRaw === "stdout" || streamRaw === "stderr" ? streamRaw : undefined;
     const attachmentsRaw = parseAttr(attrs, "attachments");
     const attachments = attachmentsRaw ? attachmentsRaw.split(",").map((f) => f.trim()).filter(Boolean) : undefined;
 
-    messages.push({ role, time, content, ...(type ? { type } : {}), ...(attachments ? { attachments } : {}) });
+    messages.push({ role, time, content, ...(type ? { type } : {}), ...(stream ? { stream } : {}), ...(attachments ? { attachments } : {}) });
   }
 
   return messages;

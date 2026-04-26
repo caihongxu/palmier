@@ -50,6 +50,10 @@ export interface SpawnCommandOptions {
   stdin?: string;
   /** Called on each chunk of output (stdout + stderr combined). */
   onData?: (chunk: string) => void;
+  /** Called on each chunk from stdout only. Fires alongside `onData`. */
+  onStdout?: (chunk: string) => void;
+  /** Called on each chunk from stderr only. Fires alongside `onData`. */
+  onStderr?: (chunk: string) => void;
 }
 
 /**
@@ -93,11 +97,15 @@ export function spawnCommand(
     child.stdout!.on("data", (d: Buffer) => {
       chunks.push(d);
       if (opts.echoStdout) process.stdout.write(d);
-      if (opts.onData) opts.onData(d.toString("utf-8"));
+      const s = d.toString("utf-8");
+      opts.onData?.(s);
+      opts.onStdout?.(s);
     });
     child.stderr!.on("data", (d: Buffer) => {
       process.stderr.write(d);
-      if (opts.onData) opts.onData(d.toString("utf-8"));
+      const s = d.toString("utf-8");
+      opts.onData?.(s);
+      opts.onStderr?.(s);
     });
 
     let timer: ReturnType<typeof setTimeout> | undefined;

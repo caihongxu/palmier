@@ -78,6 +78,9 @@ export interface ConversationMessage {
   content: string;
   type?: "input" | "permission" | "confirmation" | "monitoring" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error";
   attachments?: string[];
+  /** For assistant messages, identifies which stream the agent CLI emitted this segment on.
+   *  Absent on non-assistant messages and on legacy entries written before the split. */
+  stream?: "stdout" | "stderr";
 }
 
 export interface RpcMessage {
