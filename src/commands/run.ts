@@ -105,7 +105,7 @@ async function invokeAgentWithRetries(
       resolveOnFailure: true,
       stdin,
       onStdout: (chunk) => emit("stdout", chunk),
-      onStderr: (chunk) => emit("stderr", chunk),
+      onStderr: ctx.agent.suppressStdErr ? undefined : (chunk) => emit("stderr", chunk),
     });
 
     if (notifyTimer) clearTimeout(notifyTimer);

@@ -7,6 +7,7 @@ import { SHELL } from "../platform/index.js";
 export class GooseAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
+  suppressStdErr = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "goose", args: ["run", "--text", prompt] };
   }

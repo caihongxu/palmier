@@ -7,6 +7,7 @@ import { SHELL } from "../platform/index.js";
 export class ClaudeAgent implements AgentTool {
   supportsPermissions = true;
   supportsYolo = true;
+  suppressStdErr = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "claude", args: ["-p", prompt] };
   }

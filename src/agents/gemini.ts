@@ -24,6 +24,7 @@ export function renderPolicyToml(allowedTools: string[]): string {
 export class GeminiAgent implements AgentTool {
   supportsPermissions = true;
   supportsYolo = true;
+  suppressStdErr = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "gemini", args: ["--prompt", prompt] };
   }

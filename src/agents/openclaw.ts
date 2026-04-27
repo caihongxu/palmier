@@ -6,6 +6,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export class OpenClawAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = false;
+  suppressStdErr = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "openclaw", args: ["agent", "--local", "--agent", "main", "--message", prompt] };
   }

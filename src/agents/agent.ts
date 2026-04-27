@@ -45,6 +45,9 @@ export interface AgentTool {
   /** Whether this agent supports yolo mode (auto-approve all tools). */
   supportsYolo: boolean;
 
+  /** When true, the run loop will not listen to or persist the agent's stderr output. */
+  suppressStdErr: boolean;
+
   /** Detect whether the agent CLI is available and perform any agent-specific
    *  initialization. Returns true if the agent was detected and initialized successfully. */
   init(): Promise<boolean>;

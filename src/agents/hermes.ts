@@ -7,6 +7,7 @@ import { SHELL } from "../platform/index.js";
 export class Hermes implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
+  suppressStdErr = false;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "hermes", args: ["chat", "-q", prompt] };
   }
