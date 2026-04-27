@@ -7,7 +7,7 @@ import { SHELL } from "../platform/index.js";
 export class CopilotAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
-  suppressStdErr = false;
+  suppressStdErr = true;
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "copilot", args: ["-p", prompt] };
   }
