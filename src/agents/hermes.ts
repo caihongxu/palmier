@@ -6,9 +6,7 @@ export const hermesAgent: AgentTool = {
   command: "hermes",
   promptCommandLineArgs: ["chat", "-q"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

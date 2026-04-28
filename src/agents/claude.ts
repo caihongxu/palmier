@@ -8,7 +8,6 @@ export const claudeAgent: AgentTool = {
   versionCommandLineArg: "--version",
   supportsPermissions: true,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "@anthropic-ai/claude-code",
   freeUsage: "Free with Claude Pro",
 

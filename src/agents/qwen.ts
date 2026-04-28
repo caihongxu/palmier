@@ -6,9 +6,7 @@ export const qwenAgent: AgentTool = {
   command: "qwen",
   promptCommandLineArgs: ["-p"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "@qwen-code/qwen-code",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

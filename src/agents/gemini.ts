@@ -25,7 +25,6 @@ export const geminiAgent: AgentTool = {
   versionCommandLineArg: "--version",
   supportsPermissions: true,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "@google/gemini-cli",
   freeUsage: "Free Tier",
 

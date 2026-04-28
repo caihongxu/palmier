@@ -6,9 +6,7 @@ export const qoderAgent: AgentTool = {
   command: "qodercli",
   promptCommandLineArgs: ["-p"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "@qoder-ai/qodercli",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

@@ -7,7 +7,7 @@ export interface HostConfig {
   natsJwt?: string;
   natsNkeySeed?: string;
 
-  agents?: Array<{ key: string; label: string; supportsPermissions: boolean; supportsYolo: boolean }>;
+  agents?: Array<{ key: string; label: string; supportsPermissions?: boolean; supportsYolo?: boolean }>;
 
   httpPort?: number;
 

@@ -6,7 +6,6 @@ export const codexAgent: AgentTool = {
   command: "codex",
   promptCommandLineArgs: ["exec", "--skip-git-repo-check"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@openai/codex",

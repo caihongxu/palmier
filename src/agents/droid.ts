@@ -6,9 +6,7 @@ export const droidAgent: AgentTool = {
   command: "droid",
   promptCommandLineArgs: ["exec"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "@factory/cli",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

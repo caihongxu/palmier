@@ -6,9 +6,7 @@ export const kiroAgent: AgentTool = {
   command: "kiro-cli",
   promptCommandLineArgs: ["--no-interactive"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

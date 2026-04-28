@@ -6,9 +6,7 @@ export const openCodeAgent: AgentTool = {
   command: "opencode",
   promptCommandLineArgs: ["run"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
   npmPackage: "opencode-ai",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

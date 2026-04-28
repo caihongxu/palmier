@@ -6,9 +6,7 @@ export const deepAgentsAgent: AgentTool = {
   command: "deepagents",
   promptCommandLineArgs: ["--non-interactive"],
   versionCommandLineArg: "--version",
-  supportsPermissions: false,
   supportsYolo: true,
-  suppressStdErr: false,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

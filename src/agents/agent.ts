@@ -40,14 +40,14 @@ export interface AgentTool {
   versionCommandLineArg: string;
 
   /** Whether this agent supports permission overrides (e.g. --allowedTools).
-   *  If false, the permissions section is omitted from agent instructions. */
-  supportsPermissions: boolean;
+   *  When falsy, the permissions section is omitted from agent instructions. */
+  supportsPermissions?: boolean;
 
   /** Whether this agent supports yolo mode (auto-approve all tools). */
-  supportsYolo: boolean;
+  supportsYolo?: boolean;
 
   /** When true, the run loop will not listen to or persist the agent's stderr output. */
-  suppressStdErr: boolean;
+  suppressStdErr?: boolean;
 
   /** npm package that provides this agent's CLI, if installable via `npm install -g`.
    *  Used by `palmier init` to offer one-click installation when no agents are detected. */
@@ -121,8 +121,8 @@ const agentLabels: Record<string, string> = {
 export interface DetectedAgent {
   key: string;
   label: string;
-  supportsPermissions: boolean;
-  supportsYolo: boolean;
+  supportsPermissions?: boolean;
+  supportsYolo?: boolean;
 }
 
 export interface InstallableAgent {
