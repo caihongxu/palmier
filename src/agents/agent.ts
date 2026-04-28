@@ -49,8 +49,6 @@ export interface AgentTool {
   /** When true, the run loop will not listen to or persist the agent's stderr output. */
   suppressStdErr?: boolean;
 
-  /** npm package that provides this agent's CLI, if installable via `npm install -g`.
-   *  Used by `palmier init` to offer one-click installation when no agents are detected. */
   npmPackage?: string;
 
   /** Optional human-readable note about free-usage availability (e.g. "Free Tier").
@@ -145,12 +143,9 @@ export interface DetectedAgent {
   label: string;
   supportsPermissions?: boolean;
   supportsYolo?: boolean;
-  /** npm package name, present iff the agent is installable via npm. */
   npmPackage?: string;
-  /** Currently-installed version (resolved via `npm ls -g`) for npm-installed agents. */
+  /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
   version?: string;
-  /** True when this agent was installed by Palmier (the init wizard). Persists across detections. */
-  palmierManaged?: boolean;
 }
 
 export interface InstallableAgent {
@@ -183,16 +178,14 @@ export async function detectAgents(previous?: DetectedAgent[]): Promise<Detected
     const label = agentLabels[key] ?? key;
     const ok = await probeAgent(agent);
     if (!ok) continue;
-    const version = agent.npmPackage ? getNpmInstalledVersion(agent.npmPackage) ?? undefined : undefined;
-    const prevManaged = previousByKey.get(key)?.palmierManaged;
+    const prevVersion = previousByKey.get(key)?.version;
     detected.push({
       key,
       label,
       supportsPermissions: agent.supportsPermissions,
       supportsYolo: agent.supportsYolo,
       ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),
-      ...(version ? { version } : {}),
-      ...(prevManaged ? { palmierManaged: true } : {}),
+      ...(prevVersion ? { version: prevVersion } : {}),
     });
   }
   return detected;

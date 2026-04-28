@@ -13,8 +13,8 @@ export interface HostConfig {
     supportsPermissions?: boolean;
     supportsYolo?: boolean;
     npmPackage?: string;
+    /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
     version?: string;
-    palmierManaged?: boolean;
   }>;
 
   httpPort?: number;

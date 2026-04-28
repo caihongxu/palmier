@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import { spawnSync } from "child_process";
 import { loadConfig, saveConfig } from "../config.js";
-import { detectAgents, listInstallableAgents, type DetectedAgent, type InstallableAgent } from "../agents/agent.js";
+import { detectAgents, getNpmInstalledVersion, listInstallableAgents, type DetectedAgent, type InstallableAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
@@ -176,7 +176,8 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
       console.log(`${red(`${choice.label} still not detected after install.`)} It may not be on PATH yet — open a new terminal and run ${cyan("palmier init")} again.`);
       return agents;
     }
-    installedAgent.palmierManaged = true;
+    const version = getNpmInstalledVersion(choice.npmPackage);
+    if (version) installedAgent.version = version;
 
     console.log(green(`  ${choice.label} installed.`));
     console.log(`\n${bold("Next: authenticate the CLI.")}`);

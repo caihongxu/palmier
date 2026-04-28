@@ -698,8 +698,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!params.key) return { error: "key is required" };
         const entry = (config.agents ?? []).find((a) => a.key === params.key);
         if (!entry) return { error: `Unknown agent: ${params.key}` };
+        if (!entry.version) return { error: `Agent ${params.key} is not managed by Palmier` };
         if (!entry.npmPackage) return { error: `Agent ${params.key} has no npm package` };
-        if (!entry.palmierManaged) return { error: `Agent ${params.key} is not managed by Palmier` };
 
         const error = await performAgentUpdate(entry.npmPackage);
         if (error) return { error };
