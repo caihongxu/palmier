@@ -159,7 +159,7 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
       hint: `npm install -g ${a.npmPackage}`,
     }));
     const choices = canFinish
-      ? [{ label: "No — continue setup", hint: "skip installation" }, ...installChoices]
+      ? [{ label: "No — continue to the next step ", hint: "skip installation" }, ...installChoices]
       : installChoices;
 
     const idx = await selectFromList(message, choices);
