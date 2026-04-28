@@ -23,6 +23,6 @@ export const copilotAgent: AgentTool = {
       args.push(`--allow-tool=${["web_fetch", ...allPerms.map((p) => p.name)].join(",")}`);
     }
     if (followupPrompt) { args.push("--continue"); }
-    return { command: this.command, args };
+    return { args };
   },
 };

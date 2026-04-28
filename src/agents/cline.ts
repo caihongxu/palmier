@@ -20,6 +20,6 @@ export const clineAgent: AgentTool = {
     }
     args.push(prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

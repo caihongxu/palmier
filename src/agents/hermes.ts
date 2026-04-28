@@ -21,6 +21,6 @@ export const hermesAgent: AgentTool = {
     if (followupPrompt) {args.push("--continue");}
     args.push("-q", prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

@@ -21,6 +21,6 @@ export const deepAgentsAgent: AgentTool = {
     if (followupPrompt) {args.push("--resume");}
     args.push("--non-interactive", prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

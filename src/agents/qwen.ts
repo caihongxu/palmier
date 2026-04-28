@@ -18,6 +18,6 @@ export const qwenAgent: AgentTool = {
 
     if (followupPrompt) { args.push("-c"); }
     args.push("-p", prompt);
-    return { command: this.command, args };
+    return { args };
   },
 };

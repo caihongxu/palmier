@@ -21,6 +21,6 @@ export const kiroAgent: AgentTool = {
     if (followupPrompt) {args.push("--resume");}
     args.push("--no-interactive", prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

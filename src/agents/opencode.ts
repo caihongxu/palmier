@@ -22,6 +22,6 @@ export const openCodeAgent: AgentTool = {
     if (followupPrompt) {args.push("--continue");}
     args.push(prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

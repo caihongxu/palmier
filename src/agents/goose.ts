@@ -18,6 +18,6 @@ export const gooseAgent: AgentTool = {
     if (followupPrompt) {args.push("--resume");}
     args.push("--text", prompt);
 
-    return { command: this.command, args, ...(yolo ? { env: { GOOSE_MODE: "auto" } } : {}) };
+    return { args, ...(yolo ? { env: { GOOSE_MODE: "auto" } } : {}) };
   },
 };

@@ -107,7 +107,8 @@ async function generateName(
 ): Promise<string> {
   const prompt = `Generate a concise 3-6 word name for this task. Reply with ONLY the name, nothing else.\n\nTask: ${userPrompt}`;
   const agent = getAgent(agentName);
-  const { command, args, stdin, env: agentEnv } = getPromptCommandLine(agent, prompt);
+  const { args, stdin, env: agentEnv } = getPromptCommandLine(agent, prompt);
+  const command = agent.command;
 
   try {
     const { output } = await spawnCommand(command, args, {
@@ -417,9 +418,10 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
-        const { command: cmd, args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(
+        const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(
           followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
         );
+        const cmd = followupAgent.command;
         if (followupFiles) {
           for (const f of followupFiles) fs.writeFileSync(path.join(followupRunDir, f.path), f.content, "utf-8");
         }

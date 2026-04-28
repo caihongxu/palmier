@@ -19,6 +19,6 @@ export const codexAgent: AgentTool = {
     if (followupPrompt) {args.push("resume", "--last");}
     args.push("-");
 
-    return { command: this.command, args, stdin: prompt, env: { RUST_LOG: "warn" } };
+    return { args, stdin: prompt, env: { RUST_LOG: "warn" } };
   },
 };

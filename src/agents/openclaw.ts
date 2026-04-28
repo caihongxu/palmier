@@ -15,6 +15,6 @@ export const openClawAgent: AgentTool = {
     // OpenClaw does not support stdin as prompt.
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];
 
-    return { command: this.command, args };
+    return { args };
   },
 };

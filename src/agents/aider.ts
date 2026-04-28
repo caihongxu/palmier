@@ -20,6 +20,6 @@ export const aiderAgent: AgentTool = {
     }
     args.push("--message", prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

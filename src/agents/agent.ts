@@ -20,7 +20,6 @@ import { qoderAgent } from "./qoder.js";
 import { hermesAgent } from "./hermes.js";
 
 export interface CommandLine {
-  command: string;
   args: string[];
   /** If provided, the string is written to the process's stdin and then the pipe is closed. */
   stdin?: string;
@@ -40,12 +39,6 @@ export interface AgentTool {
   /** Args passed to `command` to probe whether the CLI is installed. Usually `["--version"]`. */
   versionCommandLineArgs: string[];
 
-  /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
-   *  and treat it as a continuation of the original run (reuse the same session, etc).
-   *  extraPermissions: pass an array of RequiredPermission for transient permissions granted for this run only,
-   *  or pass `"yolo"` to enable yolo mode (auto-approve all tools, skip permission instructions). */
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine;
-
   /** Whether this agent supports permission overrides (e.g. --allowedTools).
    *  If false, the permissions section is omitted from agent instructions. */
   supportsPermissions: boolean;
@@ -59,10 +52,16 @@ export interface AgentTool {
   /** npm package that provides this agent's CLI, if installable via `npm install -g`.
    *  Used by `palmier init` to offer one-click installation when no agents are detected. */
   npmPackage?: string;
+
+  /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
+   *  and treat it as a continuation of the original run (reuse the same session, etc).
+   *  extraPermissions: pass an array of RequiredPermission for transient permissions granted for this run only,
+   *  or pass `"yolo"` to enable yolo mode (auto-approve all tools, skip permission instructions). */
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine;
 }
 
 export function getPromptCommandLine(agent: AgentTool, prompt: string): CommandLine {
-  return { command: agent.command, args: [...agent.promptCommandLineArgs, prompt] };
+  return { args: [...agent.promptCommandLineArgs, prompt] };
 }
 
 export async function probeAgent(agent: AgentTool): Promise<boolean> {

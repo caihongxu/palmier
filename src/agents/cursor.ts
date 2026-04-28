@@ -21,6 +21,6 @@ export const cursorAgent: AgentTool = {
     if (followupPrompt) {args.push("--continue");}
     args.push("-p", prompt);
 
-    return { command: this.command, args };
+    return { args };
   },
 };

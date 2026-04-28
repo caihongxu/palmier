@@ -25,6 +25,6 @@ export const claudeAgent: AgentTool = {
     }
 
     if (followupPrompt) {args.push("-c");}
-    return { command: this.command, args, stdin: prompt };
+    return { args, stdin: prompt };
   },
 };

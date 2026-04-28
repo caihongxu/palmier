@@ -49,6 +49,6 @@ export const geminiAgent: AgentTool = {
     // Read prompt from stdin to avoid command-line length limits.
     args.push("--prompt", "-");
 
-    return { command: this.command, args, stdin: prompt, ...(files.length > 0 ? { files } : {}) };
+    return { args, stdin: prompt, ...(files.length > 0 ? { files } : {}) };
   },
 };
