@@ -9,6 +9,7 @@ export const openClawAgent: AgentTool = {
   supportsPermissions: false,
   supportsYolo: false,
   suppressStdErr: false,
+  npmPackage: "openclaw",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);

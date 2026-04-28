@@ -9,6 +9,7 @@ export const clineAgent: AgentTool = {
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
+  npmPackage: "cline",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

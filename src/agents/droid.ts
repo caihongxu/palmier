@@ -9,6 +9,7 @@ export const droidAgent: AgentTool = {
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
+  npmPackage: "@factory/cli",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
