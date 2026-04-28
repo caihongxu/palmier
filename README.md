@@ -175,6 +175,7 @@ Revoking the linked device also clears the host's linked-device record; device c
 
 The wizard:
 - Detects installed agent CLIs and caches the result
+- Offers to install missing supported agents from npm (one at a time, arrow-key menu); the chosen agent's version is captured and the agent becomes "Palmier-managed"
 - Asks for the HTTP port
 - Detects the default network interface (used for auto-LAN)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
@@ -186,7 +187,18 @@ The daemon automatically recovers existing tasks by reinstalling their system ti
 
 > **macOS note:** Palmier installs as a user-level LaunchAgent, so it runs without `sudo`. LaunchAgents only run while the user is logged into the GUI session — after a reboot, scheduled tasks stay dormant until you log in at least once. Enable auto-login in System Settings → Users & Groups if you need unattended operation across reboots.
 
-Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI.
+Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI manually outside the wizard.
+
+### Palmier-managed Agents
+
+An agent is considered **Palmier-managed** if it was installed via `palmier init` (or its update is initiated via the PWA). Palmier-managed agents have a known installed version stamped at install/update time; that version is what the PWA uses to drive the agent soft-update dialog and what's recorded into each session's run metadata so a session always shows the agent version it actually ran with — even after the live agent is upgraded.
+
+Agents installed by the user outside the wizard (e.g., `npm install -g <pkg>` directly) are detected and usable but are **not** considered Palmier-managed. The PWA shows them under a separate "Version not managed by Palmier" section and does not offer auto-update for them.
+
+### Updates
+
+- **Palmier itself** — when a newer version of `palmier` is published to npm, the PWA shows a dismissible "Update Available" dialog. Clicking "Update Now" runs `npm update -g palmier` on the host and restarts the daemon. Clicking "Dismiss" suppresses the dialog for that exact version (per host, per device); a future release re-arms it.
+- **Palmier-managed agents** — same flow per agent: when npm publishes a newer version, the PWA shows an "Agent Update Available" dialog. Clicking "Update Now" runs `npm update -g <pkg>` on the host (no daemon restart needed). Dismissals are per host, per agent, per version.
 
 ### Re-detecting the LAN Network
 
