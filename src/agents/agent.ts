@@ -1,21 +1,21 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { ClaudeAgent } from "./claude.js";
-import { GeminiAgent } from "./gemini.js";
-import { CodexAgent } from "./codex.js";
-import { DroidAgent } from "./droid.js";
-import { OpenClawAgent } from "./openclaw.js";
-import { CopilotAgent } from "./copilot.js";
-import { QwenAgent } from "./qwen.js";
-import { KimiAgent } from "./kimi.js";
-import { GooseAgent } from "./goose.js";
-import { OpenCodeAgent } from "./opencode.js";
-import { DeepAgents } from "./deepagents.js";
-import { Aider } from "./aider.js";
-import { Cursor } from "./cursor.js";
-import { Kiro } from "./kiro.js";
-import { Cline } from "./cline.js";
-import { Qoder } from "./qoder.js";
-import { Hermes } from "./hermes.js";
+import { claudeAgent } from "./claude.js";
+import { geminiAgent } from "./gemini.js";
+import { codexAgent } from "./codex.js";
+import { droidAgent } from "./droid.js";
+import { openClawAgent } from "./openclaw.js";
+import { copilotAgent } from "./copilot.js";
+import { qwenAgent } from "./qwen.js";
+import { kimiAgent } from "./kimi.js";
+import { gooseAgent } from "./goose.js";
+import { openCodeAgent } from "./opencode.js";
+import { deepAgentsAgent } from "./deepagents.js";
+import { aiderAgent } from "./aider.js";
+import { cursorAgent } from "./cursor.js";
+import { kiroAgent } from "./kiro.js";
+import { clineAgent } from "./cline.js";
+import { qoderAgent } from "./qoder.js";
+import { hermesAgent } from "./hermes.js";
 
 export interface CommandLine {
   command: string;
@@ -58,23 +58,23 @@ export interface AgentTool {
 }
 
 const agentRegistry: Record<string, AgentTool> = {
-  claude: new ClaudeAgent(),
-  gemini: new GeminiAgent(),
-  codex: new CodexAgent(),
-  openclaw: new OpenClawAgent(),
-  copilot: new CopilotAgent(),
-  qwen: new QwenAgent(),
-  kimi: new KimiAgent(),
-  droid: new DroidAgent(),
-  goose: new GooseAgent(),
-  opencode: new OpenCodeAgent(),
-  deepagents: new DeepAgents(),
-  aider: new Aider(),
-  cursor: new Cursor(),
-  kiro: new Kiro(),
-  cline: new Cline(),
-  qoder: new Qoder(),
-  hermes: new Hermes(),
+  claude: claudeAgent,
+  gemini: geminiAgent,
+  codex: codexAgent,
+  openclaw: openClawAgent,
+  copilot: copilotAgent,
+  qwen: qwenAgent,
+  kimi: kimiAgent,
+  droid: droidAgent,
+  goose: gooseAgent,
+  opencode: openCodeAgent,
+  deepagents: deepAgentsAgent,
+  aider: aiderAgent,
+  cursor: cursorAgent,
+  kiro: kiroAgent,
+  cline: clineAgent,
+  qoder: qoderAgent,
+  hermes: hermesAgent,
 };
 
 const agentLabels: Record<string, string> = {

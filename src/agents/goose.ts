@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class GooseAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const gooseAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "goose", args: ["run", "--text", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -21,7 +22,7 @@ export class GooseAgent implements AgentTool {
     args.push("--text", prompt);
 
     return { command: "goose", args, ...(yolo ? { env: { GOOSE_MODE: "auto" } } : {}) };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -30,5 +31,5 @@ export class GooseAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

@@ -4,14 +4,15 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class ClaudeAgent implements AgentTool {
-  supportsPermissions = true;
-  supportsYolo = true;
-  suppressStdErr = false;
-  npmPackage = "@anthropic-ai/claude-code";
+export const claudeAgent: AgentTool = {
+  supportsPermissions: true,
+  supportsYolo: true,
+  suppressStdErr: false,
+  npmPackage: "@anthropic-ai/claude-code",
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "claude", args: ["-p", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -28,7 +29,7 @@ export class ClaudeAgent implements AgentTool {
 
     if (followupPrompt) {args.push("-c");}
     return { command: "claude", args, stdin: prompt };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -37,5 +38,5 @@ export class ClaudeAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

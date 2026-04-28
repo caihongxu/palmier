@@ -4,14 +4,15 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class CopilotAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = true;
-  npmPackage = "@github/copilot";
+export const copilotAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: true,
+  npmPackage: "@github/copilot",
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "copilot", args: ["-p", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -26,7 +27,7 @@ export class CopilotAgent implements AgentTool {
     }
     if (followupPrompt) { args.push("--continue"); }
     return { command: "copilot", args};
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -35,5 +36,5 @@ export class CopilotAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

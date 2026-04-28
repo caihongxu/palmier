@@ -23,11 +23,11 @@ fs.writeFileSync(path.join(tmpHome, ".config", "palmier", "host.json"), JSON.str
 
 // Import via agent.ts first so the full agent registry loads before gemini.ts
 // is touched directly. shared-prompt.ts re-imports agent.ts, so a direct
-// import of any single agent module would otherwise trip a class-TDZ error.
+// import of any single agent module would otherwise trip a TDZ error.
 // Dynamic imports keep these AFTER the env setup above (static ESM imports are
 // hoisted to module-eval, before any top-level statements).
 await import("../src/agents/agent.js");
-const { GeminiAgent, renderPolicyToml } = await import("../src/agents/gemini.js");
+const { geminiAgent, renderPolicyToml } = await import("../src/agents/gemini.js");
 
 function makeTask(perms: Array<{ name: string; description: string }> = []): ParsedTask {
   return {
@@ -56,8 +56,8 @@ describe("renderPolicyToml", () => {
   });
 });
 
-describe("GeminiAgent.getTaskRunCommandLine", () => {
-  const agent = new GeminiAgent();
+describe("geminiAgent.getTaskRunCommandLine", () => {
+  const agent = geminiAgent;
 
   it("yolo mode: no policy file, no --admin-policy, no --allowed-tools", () => {
     const cl = agent.getTaskRunCommandLine(makeTask(), undefined, "yolo");

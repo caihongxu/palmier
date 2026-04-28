@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class DroidAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const droidAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "droid", args: ["exec", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -23,7 +24,7 @@ export class DroidAgent implements AgentTool {
     args.push(prompt);
 
     return { command: "droid", args};
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -32,5 +33,5 @@ export class DroidAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

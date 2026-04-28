@@ -4,14 +4,15 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class CodexAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = true;
-  npmPackage = "@openai/codex";
+export const codexAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: true,
+  npmPackage: "@openai/codex",
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "codex", args: ["exec", "--skip-git-repo-check", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -22,7 +23,7 @@ export class CodexAgent implements AgentTool {
     args.push("-");
 
     return { command: "codex", args, stdin: prompt, env: { RUST_LOG: "warn" } };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -31,5 +32,5 @@ export class CodexAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

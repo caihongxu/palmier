@@ -21,14 +21,15 @@ export function renderPolicyToml(allowedTools: string[]): string {
   ].join("\n");
 }
 
-export class GeminiAgent implements AgentTool {
-  supportsPermissions = true;
-  supportsYolo = true;
-  suppressStdErr = false;
-  npmPackage = "@google/gemini-cli";
+export const geminiAgent: AgentTool = {
+  supportsPermissions: true,
+  supportsYolo: true,
+  suppressStdErr: false,
+  npmPackage: "@google/gemini-cli",
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "gemini", args: ["--prompt", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -52,7 +53,7 @@ export class GeminiAgent implements AgentTool {
     args.push("--prompt", "-");
 
     return { command: "gemini", args, stdin: prompt, ...(files.length > 0 ? { files } : {}) };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -61,5 +62,5 @@ export class GeminiAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

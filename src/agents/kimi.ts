@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class KimiAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const kimiAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "kimi", args: ["-p", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -23,7 +24,7 @@ export class KimiAgent implements AgentTool {
     if (followupPrompt) { args.push("--continue"); }
     args.push("-p", prompt);
     return { command: "kimi", args };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -32,5 +33,5 @@ export class KimiAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

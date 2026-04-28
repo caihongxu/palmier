@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class Aider implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const aiderAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "aider", args: ["--message", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -23,7 +24,7 @@ export class Aider implements AgentTool {
     args.push("--message", prompt);
 
     return { command: "aider", args};
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -32,5 +33,5 @@ export class Aider implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

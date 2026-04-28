@@ -3,13 +3,14 @@ import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
-export class OpenClawAgent implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = false;
-  suppressStdErr = false;
+export const openClawAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: false,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "openclaw", args: ["agent", "--local", "--agent", "main", "--message", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
@@ -17,7 +18,7 @@ export class OpenClawAgent implements AgentTool {
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];
 
     return { command: "openclaw", args };
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -26,5 +27,5 @@ export class OpenClawAgent implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class Cursor implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const cursorAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "cursor", args: ["-p", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -24,7 +25,7 @@ export class Cursor implements AgentTool {
     args.push("-p", prompt);
 
     return { command: "cursor", args};
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -33,5 +34,5 @@ export class Cursor implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};

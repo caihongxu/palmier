@@ -4,13 +4,14 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 import { SHELL } from "../platform/index.js";
 
-export class Kiro implements AgentTool {
-  supportsPermissions = false;
-  supportsYolo = true;
-  suppressStdErr = false;
+export const kiroAgent: AgentTool = {
+  supportsPermissions: false,
+  supportsYolo: true,
+  suppressStdErr: false,
+
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "kiro-cli", args: ["--no-interactive", prompt] };
-  }
+  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -24,7 +25,7 @@ export class Kiro implements AgentTool {
     args.push("--no-interactive", prompt);
 
     return { command: "kiro-cli", args};
-  }
+  },
 
   async init(): Promise<boolean> {
     try {
@@ -33,5 +34,5 @@ export class Kiro implements AgentTool {
       return false;
     }
     return true;
-  }
-}
+  },
+};
