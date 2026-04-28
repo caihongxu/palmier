@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const hermesAgent: AgentTool = {
   command: "hermes",
   promptCommandLineArgs: ["chat", "-q"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const clineAgent: AgentTool = {
   command: "cline",
   promptCommandLineArgs: ["--yolo", "-p"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

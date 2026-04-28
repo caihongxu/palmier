@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const copilotAgent: AgentTool = {
   command: "copilot",
   promptCommandLineArgs: ["-p"],
-  versionCommandLineArgs: ["-v"],
+  versionCommandLineArg: "-v",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: true,

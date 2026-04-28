@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const openClawAgent: AgentTool = {
   command: "openclaw",
   promptCommandLineArgs: ["agent", "--local", "--agent", "main", "--message"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: false,
   suppressStdErr: false,

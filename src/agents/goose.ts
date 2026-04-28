@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const gooseAgent: AgentTool = {
   command: "goose",
   promptCommandLineArgs: ["run", "--text"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

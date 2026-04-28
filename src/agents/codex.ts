@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const codexAgent: AgentTool = {
   command: "codex",
   promptCommandLineArgs: ["exec", "--skip-git-repo-check"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: true,

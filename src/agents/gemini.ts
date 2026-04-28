@@ -22,7 +22,7 @@ export function renderPolicyToml(allowedTools: string[]): string {
 export const geminiAgent: AgentTool = {
   command: "gemini",
   promptCommandLineArgs: ["--prompt"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: true,
   supportsYolo: true,
   suppressStdErr: false,

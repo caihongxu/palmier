@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const claudeAgent: AgentTool = {
   command: "claude",
   promptCommandLineArgs: ["-p"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: true,
   supportsYolo: true,
   suppressStdErr: false,

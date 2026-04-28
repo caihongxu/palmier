@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const openCodeAgent: AgentTool = {
   command: "opencode",
   promptCommandLineArgs: ["run"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

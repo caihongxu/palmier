@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const qoderAgent: AgentTool = {
   command: "qodercli",
   promptCommandLineArgs: ["-p"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

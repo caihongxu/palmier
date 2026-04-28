@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const deepAgentsAgent: AgentTool = {
   command: "deepagents",
   promptCommandLineArgs: ["--non-interactive"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,

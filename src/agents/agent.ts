@@ -36,8 +36,8 @@ export interface AgentTool {
   /** Static args for a short, non-interactive prompt. The prompt is appended to the end of this list. */
   promptCommandLineArgs: string[];
 
-  /** Args passed to `command` to probe whether the CLI is installed. Usually `["--version"]`. */
-  versionCommandLineArgs: string[];
+  /** Single arg passed to `command` to probe whether the CLI is installed. Usually `"--version"`. */
+  versionCommandLineArg: string;
 
   /** Whether this agent supports permission overrides (e.g. --allowedTools).
    *  If false, the permissions section is omitted from agent instructions. */
@@ -65,7 +65,7 @@ export function getPromptCommandLine(agent: AgentTool, prompt: string): CommandL
 }
 
 export async function probeAgent(agent: AgentTool): Promise<boolean> {
-  const probe = `${agent.command} ${agent.versionCommandLineArgs.join(" ")}`;
+  const probe = `${agent.command} ${agent.versionCommandLineArg}`;
   try {
     execSync(probe, { stdio: "ignore", shell: SHELL });
   } catch {

@@ -5,7 +5,7 @@ import { getAgentInstructions } from "./shared-prompt.js";
 export const aiderAgent: AgentTool = {
   command: "aider",
   promptCommandLineArgs: ["--message"],
-  versionCommandLineArgs: ["--version"],
+  versionCommandLineArg: "--version",
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
