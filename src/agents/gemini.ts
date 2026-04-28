@@ -27,6 +27,7 @@ export const geminiAgent: AgentTool = {
   supportsYolo: true,
   suppressStdErr: false,
   npmPackage: "@google/gemini-cli",
+  freeUsage: "Free Tier",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

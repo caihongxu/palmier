@@ -10,6 +10,7 @@ export const codexAgent: AgentTool = {
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@openai/codex",
+  freeUsage: "Free Tier",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

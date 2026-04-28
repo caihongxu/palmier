@@ -153,7 +153,7 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
       : `\n${red("No agent CLIs detected.")} Palmier can install one for you via npm:`;
 
     const installChoices = missing.map((a) => ({
-      label: a.label,
+      label: a.freeUsage ? `${a.label} ${green(`[${a.freeUsage}]`)}` : a.label,
       hint: `npm install -g ${a.npmPackage}`,
     }));
     const choices = canFinish

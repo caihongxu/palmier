@@ -53,6 +53,10 @@ export interface AgentTool {
    *  Used by `palmier init` to offer one-click installation when no agents are detected. */
   npmPackage?: string;
 
+  /** Optional human-readable note about free-usage availability (e.g. "Free Tier").
+   *  Surfaced next to the agent in the installer. */
+  freeUsage?: string;
+
   /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
    *  and treat it as a continuation of the original run (reuse the same session, etc).
    *  extraPermissions: pass an array of RequiredPermission for transient permissions granted for this run only,
@@ -126,6 +130,7 @@ export interface InstallableAgent {
   label: string;
   npmPackage: string;
   command: string;
+  freeUsage?: string;
 }
 
 export function listInstallableAgents(): InstallableAgent[] {
@@ -137,6 +142,7 @@ export function listInstallableAgents(): InstallableAgent[] {
       label: agentLabels[key] ?? key,
       npmPackage: agent.npmPackage,
       command: agent.command,
+      ...(agent.freeUsage ? { freeUsage: agent.freeUsage } : {}),
     });
   }
   return out;

@@ -10,6 +10,7 @@ export const copilotAgent: AgentTool = {
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@github/copilot",
+  freeUsage: "Free Tier",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";

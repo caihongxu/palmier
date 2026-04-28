@@ -10,6 +10,7 @@ export const claudeAgent: AgentTool = {
   supportsYolo: true,
   suppressStdErr: false,
   npmPackage: "@anthropic-ai/claude-code",
+  freeUsage: "Free with Claude Pro",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
