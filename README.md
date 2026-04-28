@@ -67,7 +67,7 @@ Palmier runs as a background daemon (systemd on Linux, launchd on macOS, Task Sc
 
 ### MCP Server
 
-Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:7256/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also available as REST endpoints for curl-based agents.
+Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:7256/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also readily available if running agent tasks directly from Palmier app, without installing the MCP server.
 
 **MCP server URL:** `http://localhost:7256/mcp`
 
