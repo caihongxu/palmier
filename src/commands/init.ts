@@ -1,10 +1,12 @@
 import * as readline from "readline";
+import { spawnSync } from "child_process";
 import { loadConfig, saveConfig } from "../config.js";
-import { detectAgents } from "../agents/agent.js";
+import { detectAgents, listInstallableAgents, type DetectedAgent, type InstallableAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
 import { listTasks } from "../task.js";
+import { selectFromList } from "../prompts.js";
 import type { HostConfig } from "../types.js";
 
 type AskFn = (q: string) => Promise<string>;
@@ -16,26 +18,31 @@ const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 
 export async function initCommand(): Promise<void> {
+  console.log(`\n${bold("=== Palmier Host Setup ===")}\n`);
+  console.log(`By continuing, you agree to the ${cyan("Terms of Service")} (https://www.palmier.me/terms)`);
+  console.log(`and ${cyan("Privacy Policy")} (https://www.palmier.me/privacy).\n`);
+
+  console.log("Detecting installed agents...");
+  let agents = await detectAgents();
+  if (agents.length > 0) {
+    console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}`);
+  }
+
+  agents = await offerAgentInstall(agents);
+
+  if (agents.length === 0) {
+    console.log(`\n${red("No agent CLIs detected.")} Palmier requires at least one supported agent CLI.\n`);
+    console.log(`See supported agents: https://www.palmier.me/agents\n`);
+    console.log(`Install at least one agent CLI, then run ${cyan("palmier init")} again.`);
+    process.exit(1);
+  }
+
+  console.log(`\n  Agents: ${green(agents.map((a) => a.label).join(", "))}\n`);
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask: AskFn = (q) => new Promise<string>((resolve) => rl.question(q, resolve));
 
   try {
-    console.log(`\n${bold("=== Palmier Host Setup ===")}\n`);
-    console.log(`By continuing, you agree to the ${cyan("Terms of Service")} (https://www.palmier.me/terms)`);
-    console.log(`and ${cyan("Privacy Policy")} (https://www.palmier.me/privacy).\n`);
-
-    console.log("Detecting installed agents...");
-    const agents = await detectAgents();
-
-    if (agents.length === 0) {
-      console.log(`\n${red("No agent CLIs detected.")} Palmier requires at least one supported agent CLI.\n`);
-      console.log(`See supported agents: https://www.palmier.me/agents\n`);
-      console.log(`Install at least one agent CLI, then run ${cyan("palmier init")} again.`);
-      rl.close();
-      process.exit(1);
-    }
-
-    console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}\n`);
 
     let httpPort = 7256;
     const portAnswer = await ask(`HTTP port (default ${httpPort}): `);
@@ -131,6 +138,71 @@ export async function initCommand(): Promise<void> {
   }
 }
 
+
+async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<DetectedAgent[]> {
+  let agents = currentAgents;
+
+  while (true) {
+    const detectedKeys = new Set(agents.map((a) => a.key));
+    const missing = listInstallableAgents().filter((a) => !detectedKeys.has(a.key));
+    if (missing.length === 0) return agents;
+
+    const canFinish = agents.length > 0;
+    const message = canFinish
+      ? `\n${bold("Install another agent?")} The following supported agents are not yet installed:`
+      : `\n${red("No agent CLIs detected.")} Palmier can install one for you via npm:`;
+
+    const installChoices = missing.map((a) => ({
+      label: a.label,
+      hint: `npm install -g ${a.npmPackage}`,
+    }));
+    const choices = canFinish
+      ? [{ label: "Done — continue setup", hint: "skip installation" }, ...installChoices]
+      : installChoices;
+
+    const idx = await selectFromList(message, choices);
+    if (idx === null) return agents;
+    if (canFinish && idx === 0) return agents;
+
+    const choice = missing[canFinish ? idx - 1 : idx];
+    if (!installAgentPackage(choice)) return agents;
+
+    console.log(`\nRedetecting agents...`);
+    agents = await detectAgents();
+    const installedAgent = agents.find((a) => a.key === choice.key);
+    if (!installedAgent) {
+      console.log(`${red(`${choice.label} still not detected after install.`)} It may not be on PATH yet — open a new terminal and run ${cyan("palmier init")} again.`);
+      return agents;
+    }
+
+    console.log(green(`  ${choice.label} installed.`));
+    console.log(`\n${bold("Next: authenticate the CLI.")}`);
+    console.log(`  Run ${cyan(choice.command)} in another terminal and follow the sign-in prompts.`);
+    console.log(`  Palmier will use the CLI on your behalf once it's signed in.`);
+  }
+}
+
+function installAgentPackage(agent: InstallableAgent): boolean {
+  console.log(`\nInstalling ${cyan(agent.npmPackage)}...\n`);
+  const cmd = `npm install -g ${agent.npmPackage}`;
+  const result = spawnSync(cmd, { shell: true, stdio: "inherit" });
+  if (result.error) {
+    console.log(`\n${red(`Failed to run npm: ${result.error.message}`)}`);
+    console.log(`Make sure ${cyan("npm")} is on your PATH, then retry.`);
+    return false;
+  }
+  if (result.status !== 0) {
+    const exitInfo = result.signal ? `signal ${result.signal}` : `exit ${result.status}`;
+    console.log(`\n${red(`${cmd} failed (${exitInfo}).`)}`);
+    if (process.platform === "win32") {
+      console.log(`If this is a permissions error, try opening a terminal as Administrator and re-running ${cyan("palmier init")}.`);
+    } else {
+      console.log(`If this is a permissions error, try running with ${cyan("sudo")} or fix your global npm prefix.`);
+    }
+    return false;
+  }
+  return true;
+}
 
 async function registerHost(
   serverUrl: string,

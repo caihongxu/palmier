@@ -8,6 +8,7 @@ export class ClaudeAgent implements AgentTool {
   supportsPermissions = true;
   supportsYolo = true;
   suppressStdErr = false;
+  npmPackage = "@anthropic-ai/claude-code";
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "claude", args: ["-p", prompt] };
   }

@@ -48,6 +48,10 @@ export interface AgentTool {
   /** When true, the run loop will not listen to or persist the agent's stderr output. */
   suppressStdErr: boolean;
 
+  /** npm package that provides this agent's CLI, if installable via `npm install -g`.
+   *  Used by `palmier init` to offer one-click installation when no agents are detected. */
+  npmPackage?: string;
+
   /** Detect whether the agent CLI is available and perform any agent-specific
    *  initialization. Returns true if the agent was detected and initialized successfully. */
   init(): Promise<boolean>;
@@ -98,6 +102,27 @@ export interface DetectedAgent {
   label: string;
   supportsPermissions: boolean;
   supportsYolo: boolean;
+}
+
+export interface InstallableAgent {
+  key: string;
+  label: string;
+  npmPackage: string;
+  command: string;
+}
+
+export function listInstallableAgents(): InstallableAgent[] {
+  const out: InstallableAgent[] = [];
+  for (const [key, agent] of Object.entries(agentRegistry)) {
+    if (!agent.npmPackage) continue;
+    out.push({
+      key,
+      label: agentLabels[key] ?? key,
+      npmPackage: agent.npmPackage,
+      command: agent.getPromptCommandLine("").command,
+    });
+  }
+  return out;
 }
 
 export async function detectAgents(): Promise<DetectedAgent[]> {

@@ -8,6 +8,7 @@ export class QwenAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
   suppressStdErr = false;
+  npmPackage = "@qwen-code/qwen-code";
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "qwen", args: ["-p", prompt] };
   }

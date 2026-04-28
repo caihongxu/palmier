@@ -25,6 +25,7 @@ export class GeminiAgent implements AgentTool {
   supportsPermissions = true;
   supportsYolo = true;
   suppressStdErr = false;
+  npmPackage = "@google/gemini-cli";
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "gemini", args: ["--prompt", prompt] };
   }

@@ -8,6 +8,7 @@ export class OpenCodeAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
   suppressStdErr = false;
+  npmPackage = "opencode-ai";
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "opencode", args: ["run", prompt] };
   }

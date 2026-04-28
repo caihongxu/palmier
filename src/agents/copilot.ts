@@ -8,6 +8,7 @@ export class CopilotAgent implements AgentTool {
   supportsPermissions = false;
   supportsYolo = true;
   suppressStdErr = true;
+  npmPackage = "@github/copilot";
   getPromptCommandLine(prompt: string): CommandLine {
     return { command: "copilot", args: ["-p", prompt] };
   }
