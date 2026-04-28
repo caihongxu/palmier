@@ -156,7 +156,7 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
 
     const installChoices = missing.map((a) => ({
       label: a.freeUsage ? `${a.label} ${green(`[${a.freeUsage}]`)}` : a.label,
-      hint: `npm install -g ${a.npmPackage}`,
+      hint: `${a.npmPackage}`,
     }));
     const choices = canFinish
       ? [{ label: "No — continue to the next step ", hint: "skip installation" }, ...installChoices]
