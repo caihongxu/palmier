@@ -230,7 +230,8 @@ export async function runCommand(taskId: string): Promise<void> {
   const taskName = task.frontmatter.name;
 
   const existingRunId = findLatestPendingRunId(taskDir);
-  const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now(), task.frontmatter.agent);
+  const agentVersion = config.agents?.find((a) => a.key === task.frontmatter.agent)?.version;
+  const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now(), task.frontmatter.agent, agentVersion);
   if (!existingRunId) {
     appendHistory(config.projectRoot, { task_id: taskId, run_id: runId });
   }

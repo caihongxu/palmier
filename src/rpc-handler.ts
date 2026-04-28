@@ -55,6 +55,7 @@ export function parseResultFrontmatter(raw: string): Record<string, unknown> {
     messages,
     task_name: meta.task_name,
     agent: meta.agent,
+    agent_version: meta.agent_version,
     running_state: runningState,
     start_time: startedMsg?.time || undefined,
     end_time: terminalMsg?.time || undefined,
@@ -347,7 +348,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         writeTaskFile(taskDir, task);
         // One-off run: do NOT append to tasks.jsonl.
 
-        const runId = createRunDir(taskDir, name, Date.now(), params.agent);
+        const oneoffAgentVersion = config.agents?.find((a) => a.key === params.agent)?.version;
+        const runId = createRunDir(taskDir, name, Date.now(), params.agent, oneoffAgentVersion);
         appendHistory(config.projectRoot, { task_id: id, run_id: runId });
 
         const platform = getPlatform();
@@ -377,7 +379,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
 
           const runTask = parseTaskFile(runTaskDir);
-          taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent);
+          const taskRunAgentVersion = config.agents?.find((a) => a.key === runTask.frontmatter.agent)?.version;
+          taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent, taskRunAgentVersion);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await platform.startTask(params.id);
