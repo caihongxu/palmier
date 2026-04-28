@@ -170,12 +170,13 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
     if (!installAgentPackage(choice)) return agents;
 
     console.log(`\nRedetecting agents...`);
-    agents = await detectAgents();
+    agents = await detectAgents(agents);
     const installedAgent = agents.find((a) => a.key === choice.key);
     if (!installedAgent) {
       console.log(`${red(`${choice.label} still not detected after install.`)} It may not be on PATH yet — open a new terminal and run ${cyan("palmier init")} again.`);
       return agents;
     }
+    installedAgent.palmierManaged = true;
 
     console.log(green(`  ${choice.label} installed.`));
     console.log(`\n${bold("Next: authenticate the CLI.")}`);

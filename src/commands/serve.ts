@@ -109,7 +109,7 @@ export async function serveCommand(): Promise<void> {
 
   console.log("Starting...");
 
-  const agents = await detectAgents();
+  const agents = await detectAgents(config.agents);
   config.agents = agents;
   saveConfig(config);
   console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);

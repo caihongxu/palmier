@@ -8,11 +8,12 @@ import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
-import { getAgent, getPromptCommandLine } from "./agents/agent.js";
+import { getAgent, getPromptCommandLine, getNpmInstalledVersion } from "./agents/agent.js";
 import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
-import { currentVersion, performUpdate } from "./update-checker.js";
+import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
+import { saveConfig } from "./config.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
 import { buildLanUrl } from "./network.js";
@@ -690,6 +691,23 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const error = await performUpdate();
         if (error) return { error };
         return { ok: true };
+      }
+
+      case "host.updateAgent": {
+        const params = request.params as { key: string };
+        if (!params.key) return { error: "key is required" };
+        const entry = (config.agents ?? []).find((a) => a.key === params.key);
+        if (!entry) return { error: `Unknown agent: ${params.key}` };
+        if (!entry.npmPackage) return { error: `Agent ${params.key} has no npm package` };
+        if (!entry.palmierManaged) return { error: `Agent ${params.key} is not managed by Palmier` };
+
+        const error = await performAgentUpdate(entry.npmPackage);
+        if (error) return { error };
+
+        const newVersion = getNpmInstalledVersion(entry.npmPackage);
+        if (newVersion) entry.version = newVersion;
+        saveConfig(config);
+        return { ok: true, version: newVersion ?? entry.version };
       }
 
       case "device.link": {

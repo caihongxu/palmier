@@ -78,6 +78,28 @@ export async function probeAgent(agent: AgentTool): Promise<boolean> {
   return true;
 }
 
+/** Look up the installed version of an npm-managed agent via `npm ls -g --json`.
+ *  Returns the version string, or null if the package isn't reported as installed
+ *  globally. Does not gate on exit code — `npm ls` exits non-zero on extraneous
+ *  deps in the global tree but still prints valid JSON to stdout. */
+export function getNpmInstalledVersion(npmPackage: string): string | null {
+  const cmd = `npm ls -g ${npmPackage} --depth=0 --json`;
+  let stdout: string;
+  try {
+    stdout = execSync(cmd, { stdio: ["ignore", "pipe", "ignore"], shell: SHELL, encoding: "utf-8" });
+  } catch (err) {
+    const e = err as { stdout?: string | Buffer };
+    if (!e.stdout) return null;
+    stdout = e.stdout.toString();
+  }
+  try {
+    const parsed = JSON.parse(stdout) as { dependencies?: Record<string, { version?: string }> };
+    return parsed.dependencies?.[npmPackage]?.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const agentRegistry: Record<string, AgentTool> = {
   claude: claudeAgent,
   gemini: geminiAgent,
@@ -123,6 +145,12 @@ export interface DetectedAgent {
   label: string;
   supportsPermissions?: boolean;
   supportsYolo?: boolean;
+  /** npm package name, present iff the agent is installable via npm. */
+  npmPackage?: string;
+  /** Currently-installed version (resolved via `npm ls -g`) for npm-installed agents. */
+  version?: string;
+  /** True when this agent was installed by Palmier (the init wizard). Persists across detections. */
+  palmierManaged?: boolean;
 }
 
 export interface InstallableAgent {
@@ -148,12 +176,24 @@ export function listInstallableAgents(): InstallableAgent[] {
   return out;
 }
 
-export async function detectAgents(): Promise<DetectedAgent[]> {
+export async function detectAgents(previous?: DetectedAgent[]): Promise<DetectedAgent[]> {
+  const previousByKey = new Map((previous ?? []).map((a) => [a.key, a]));
   const detected: DetectedAgent[] = [];
   for (const [key, agent] of Object.entries(agentRegistry)) {
     const label = agentLabels[key] ?? key;
     const ok = await probeAgent(agent);
-    if (ok) detected.push({ key, label, supportsPermissions: agent.supportsPermissions, supportsYolo: agent.supportsYolo });
+    if (!ok) continue;
+    const version = agent.npmPackage ? getNpmInstalledVersion(agent.npmPackage) ?? undefined : undefined;
+    const prevManaged = previousByKey.get(key)?.palmierManaged;
+    detected.push({
+      key,
+      label,
+      supportsPermissions: agent.supportsPermissions,
+      supportsYolo: agent.supportsYolo,
+      ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),
+      ...(version ? { version } : {}),
+      ...(prevManaged ? { palmierManaged: true } : {}),
+    });
   }
   return detected;
 }

@@ -38,3 +38,23 @@ export async function performUpdate(): Promise<string | null> {
     return `Update failed. Please run manually:\nnpm update -g palmier`;
   }
 }
+
+/** Update an npm-installed agent CLI. Returns an error message on failure. */
+export async function performAgentUpdate(npmPackage: string): Promise<string | null> {
+  try {
+    const { output, exitCode } = await spawnCommand("npm", ["update", "-g", npmPackage], {
+      cwd: process.cwd(),
+      timeout: 180_000,
+      resolveOnFailure: true,
+    });
+    if (exitCode !== 0) {
+      console.error(`[update-agent] npm update failed (exit ${exitCode}):`, output);
+      return `Update failed. Please run manually:\nnpm update -g ${npmPackage}`;
+    }
+    return null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[update-agent] Update failed:", msg);
+    return `Update failed. Please run manually:\nnpm update -g ${npmPackage}`;
+  }
+}
