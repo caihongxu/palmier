@@ -1,17 +1,14 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export const kimiAgent: AgentTool = {
+  command: "kimi",
+  promptCommandLineArgs: ["-p"],
+  versionCommandLineArgs: ["--version"],
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "kimi", args: ["-p", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -23,15 +20,6 @@ export const kimiAgent: AgentTool = {
     }
     if (followupPrompt) { args.push("--continue"); }
     args.push("-p", prompt);
-    return { command: "kimi", args };
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("kimi --version", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args };
   },
 };

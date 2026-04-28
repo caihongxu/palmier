@@ -1,17 +1,14 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export const aiderAgent: AgentTool = {
+  command: "aider",
+  promptCommandLineArgs: ["--message"],
+  versionCommandLineArgs: ["--version"],
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "aider", args: ["--message", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -23,15 +20,6 @@ export const aiderAgent: AgentTool = {
     }
     args.push("--message", prompt);
 
-    return { command: "aider", args};
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("aider --version", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args };
   },
 };

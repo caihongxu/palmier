@@ -8,7 +8,7 @@ import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
-import { getAgent } from "./agents/agent.js";
+import { getAgent, getPromptCommandLine } from "./agents/agent.js";
 import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
@@ -107,7 +107,7 @@ async function generateName(
 ): Promise<string> {
   const prompt = `Generate a concise 3-6 word name for this task. Reply with ONLY the name, nothing else.\n\nTask: ${userPrompt}`;
   const agent = getAgent(agentName);
-  const { command, args, stdin, env: agentEnv } = agent.getPromptCommandLine(prompt);
+  const { command, args, stdin, env: agentEnv } = getPromptCommandLine(agent, prompt);
 
   try {
     const { output } = await spawnCommand(command, args, {

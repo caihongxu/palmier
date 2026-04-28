@@ -1,18 +1,15 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export const copilotAgent: AgentTool = {
+  command: "copilot",
+  promptCommandLineArgs: ["-p"],
+  versionCommandLineArgs: ["-v"],
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@github/copilot",
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "copilot", args: ["-p", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -26,15 +23,6 @@ export const copilotAgent: AgentTool = {
       args.push(`--allow-tool=${["web_fetch", ...allPerms.map((p) => p.name)].join(",")}`);
     }
     if (followupPrompt) { args.push("--continue"); }
-    return { command: "copilot", args};
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("copilot -v", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args };
   },
 };

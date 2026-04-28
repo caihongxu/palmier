@@ -1,17 +1,14 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export const kiroAgent: AgentTool = {
+  command: "kiro-cli",
+  promptCommandLineArgs: ["--no-interactive"],
+  versionCommandLineArgs: ["--version"],
   supportsPermissions: false,
   supportsYolo: true,
   suppressStdErr: false,
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "kiro-cli", args: ["--no-interactive", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -24,15 +21,6 @@ export const kiroAgent: AgentTool = {
     if (followupPrompt) {args.push("--resume");}
     args.push("--no-interactive", prompt);
 
-    return { command: "kiro-cli", args};
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("kiro-cli --version", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args };
   },
 };

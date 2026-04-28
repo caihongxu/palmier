@@ -1,4 +1,6 @@
+import { execSync } from "child_process";
 import type { ParsedTask, RequiredPermission } from "../types.js";
+import { SHELL } from "../platform/index.js";
 import { claudeAgent } from "./claude.js";
 import { geminiAgent } from "./gemini.js";
 import { codexAgent } from "./codex.js";
@@ -29,8 +31,14 @@ export interface CommandLine {
 }
 
 export interface AgentTool {
-  /** Return the command and args for a short, non-interactive prompt (e.g. generating a task name). */
-  getPromptCommandLine(prompt: string): CommandLine;
+  /** The agent's CLI binary name (e.g. "claude", "kiro-cli"). */
+  command: string;
+
+  /** Static args for a short, non-interactive prompt. The prompt is appended to the end of this list. */
+  promptCommandLineArgs: string[];
+
+  /** Args passed to `command` to probe whether the CLI is installed. Usually `["--version"]`. */
+  versionCommandLineArgs: string[];
 
   /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
    *  and treat it as a continuation of the original run (reuse the same session, etc).
@@ -51,10 +59,20 @@ export interface AgentTool {
   /** npm package that provides this agent's CLI, if installable via `npm install -g`.
    *  Used by `palmier init` to offer one-click installation when no agents are detected. */
   npmPackage?: string;
+}
 
-  /** Detect whether the agent CLI is available and perform any agent-specific
-   *  initialization. Returns true if the agent was detected and initialized successfully. */
-  init(): Promise<boolean>;
+export function getPromptCommandLine(agent: AgentTool, prompt: string): CommandLine {
+  return { command: agent.command, args: [...agent.promptCommandLineArgs, prompt] };
+}
+
+export async function probeAgent(agent: AgentTool): Promise<boolean> {
+  const probe = `${agent.command} ${agent.versionCommandLineArgs.join(" ")}`;
+  try {
+    execSync(probe, { stdio: "ignore", shell: SHELL });
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 const agentRegistry: Record<string, AgentTool> = {
@@ -119,7 +137,7 @@ export function listInstallableAgents(): InstallableAgent[] {
       key,
       label: agentLabels[key] ?? key,
       npmPackage: agent.npmPackage,
-      command: agent.getPromptCommandLine("").command,
+      command: agent.command,
     });
   }
   return out;
@@ -129,7 +147,7 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
   const detected: DetectedAgent[] = [];
   for (const [key, agent] of Object.entries(agentRegistry)) {
     const label = agentLabels[key] ?? key;
-    const ok = await agent.init();
+    const ok = await probeAgent(agent);
     if (ok) detected.push({ key, label, supportsPermissions: agent.supportsPermissions, supportsYolo: agent.supportsYolo });
   }
   return detected;

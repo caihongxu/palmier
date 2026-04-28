@@ -1,8 +1,6 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export function renderPolicyToml(allowedTools: string[]): string {
   const list = allowedTools.map((t) => JSON.stringify(t)).join(", ");
@@ -22,14 +20,13 @@ export function renderPolicyToml(allowedTools: string[]): string {
 }
 
 export const geminiAgent: AgentTool = {
+  command: "gemini",
+  promptCommandLineArgs: ["--prompt"],
+  versionCommandLineArgs: ["--version"],
   supportsPermissions: true,
   supportsYolo: true,
   suppressStdErr: false,
   npmPackage: "@google/gemini-cli",
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "gemini", args: ["--prompt", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -52,15 +49,6 @@ export const geminiAgent: AgentTool = {
     // Read prompt from stdin to avoid command-line length limits.
     args.push("--prompt", "-");
 
-    return { command: "gemini", args, stdin: prompt, ...(files.length > 0 ? { files } : {}) };
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("gemini --version", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args, stdin: prompt, ...(files.length > 0 ? { files } : {}) };
   },
 };

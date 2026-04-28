@@ -1,18 +1,15 @@
 import type { ParsedTask, RequiredPermission } from "../types.js";
-import { execSync } from "child_process";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
-import { SHELL } from "../platform/index.js";
 
 export const claudeAgent: AgentTool = {
+  command: "claude",
+  promptCommandLineArgs: ["-p"],
+  versionCommandLineArgs: ["--version"],
   supportsPermissions: true,
   supportsYolo: true,
   suppressStdErr: false,
   npmPackage: "@anthropic-ai/claude-code",
-
-  getPromptCommandLine(prompt: string): CommandLine {
-    return { command: "claude", args: ["-p", prompt] };
-  },
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
@@ -28,15 +25,6 @@ export const claudeAgent: AgentTool = {
     }
 
     if (followupPrompt) {args.push("-c");}
-    return { command: "claude", args, stdin: prompt };
-  },
-
-  async init(): Promise<boolean> {
-    try {
-      execSync("claude --version", { stdio: "ignore", shell: SHELL });
-    } catch {
-      return false;
-    }
-    return true;
+    return { command: this.command, args, stdin: prompt };
   },
 };
