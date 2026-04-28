@@ -144,12 +144,14 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
 
   while (true) {
     const detectedKeys = new Set(agents.map((a) => a.key));
-    const missing = listInstallableAgents().filter((a) => !detectedKeys.has(a.key));
+    const missing = listInstallableAgents()
+      .filter((a) => !detectedKeys.has(a.key))
+      .sort((a, b) => a.label.localeCompare(b.label));
     if (missing.length === 0) return agents;
 
     const canFinish = agents.length > 0;
     const message = canFinish
-      ? `\n${bold("Install another agent?")} The following supported agents are not yet installed:`
+      ? `\n${bold("Install additional agents?")} The following supported agents can be installed:`
       : `\n${red("No agent CLIs detected.")} Palmier can install one for you via npm:`;
 
     const installChoices = missing.map((a) => ({
@@ -157,7 +159,7 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
       hint: `npm install -g ${a.npmPackage}`,
     }));
     const choices = canFinish
-      ? [{ label: "Done — continue setup", hint: "skip installation" }, ...installChoices]
+      ? [{ label: "No — continue setup", hint: "skip installation" }, ...installChoices]
       : installChoices;
 
     const idx = await selectFromList(message, choices);
