@@ -23,7 +23,6 @@ export const geminiAgent: AgentTool = {
   command: "gemini",
   promptArgs: ["--prompt"],
   probeArg: "--version",
-  authArgs: ["--prompt", "Ping"],  
   supportsPermissions: true,
   supportsYolo: true,
   npmPackage: "@google/gemini-cli",
