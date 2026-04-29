@@ -202,7 +202,14 @@ async function offerAgentInstall(
       console.log(`  Run ${cyan(choice.command)} in another terminal and follow the sign-in prompts.`);
       console.log(`  Palmier will use the CLI on your behalf once it's signed in.`);
     }
+    await waitForEnter("Press Enter once authentication is complete...");
   }
+}
+
+async function waitForEnter(message: string): Promise<void> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  await new Promise<string>((resolve) => rl.question(`\n${dim(message)} `, resolve));
+  rl.close();
 }
 
 function logDetectedAgents(agents: DetectedAgent[]): void {
