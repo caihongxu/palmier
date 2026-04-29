@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import { spawnSync } from "child_process";
 import { loadConfig, saveConfig } from "../config.js";
-import { detectAgents, getNpmInstalledVersion, listInstallableAgents, type DetectedAgent, type InstallableAgent } from "../agents/agent.js";
+import { detectAgents, getAgent, getNpmInstalledVersion, listInstallableAgents, type DetectedAgent, type InstallableAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
@@ -23,12 +23,17 @@ export async function initCommand(): Promise<void> {
   console.log(`and ${cyan("Privacy Policy")} (https://www.palmier.me/privacy).\n`);
 
   console.log("Detecting installed agents...");
-  let agents = await detectAgents();
-  if (agents.length > 0) {
-    console.log(`  Found: ${green(agents.map((a) => a.label).join(", "))}`);
-  }
+  let previousConfig: HostConfig | null = null;
+  try { previousConfig = loadConfig(); } catch { /* first init */ }
+  let agents = await detectAgents(previousConfig?.agents);
+  logDetectedAgents(agents);
 
-  agents = await offerAgentInstall(agents);
+  await offerAgentInstall(agents, () => {
+    if (previousConfig) {
+      previousConfig.agents = agents;
+      saveConfig(previousConfig);
+    }
+  });
 
   if (agents.length === 0) {
     console.log(`\n${red("No agent CLIs detected.")} Palmier requires at least one supported agent CLI.\n`);
@@ -36,8 +41,6 @@ export async function initCommand(): Promise<void> {
     console.log(`Install at least one agent CLI, then run ${cyan("palmier init")} again.`);
     process.exit(1);
   }
-
-  console.log(`\n  Agents: ${green(agents.map((a) => a.label).join(", "))}\n`);
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask: AskFn = (q) => new Promise<string>((resolve) => rl.question(q, resolve));
@@ -68,7 +71,7 @@ export async function initCommand(): Promise<void> {
     }
     console.log(`  ${dim("Remote (web):")}   ${cyan("https://app.palmier.me")}`);
     console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
-    console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.label).join(", ")}\n`);
+    console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.version ? `${a.label} v${a.version}` : a.label).join(", ")}\n`);
 
     const existingTasks = listTasks(process.cwd());
     if (existingTasks.length > 0) {
@@ -86,8 +89,7 @@ export async function initCommand(): Promise<void> {
       return;
     }
 
-    let existingHostId: string | undefined;
-    try { existingHostId = loadConfig().hostId; } catch { /* first init */ }
+    const existingHostId = previousConfig?.hostId;
 
     const serverUrl = "https://app.palmier.me";
     let registerResponse: { hostId: string; natsUrl: string; natsWsUrl: string; natsJwt: string; natsNkeySeed: string };
@@ -124,7 +126,13 @@ export async function initCommand(): Promise<void> {
     saveConfig(config);
     console.log(`Config saved to ${dim("~/.config/palmier/host.json")}`);
 
-    getPlatform().installDaemon(config);
+    const platform = getPlatform();
+    platform.installDaemon(config);
+    if (previousConfig) {
+      // Re-init: a daemon is already running with stale in-memory config.
+      // Restart so it picks up the new agents/versions for host.info.
+      await platform.restartDaemon();
+    }
 
     // Task recovery runs in the daemon (palmier serve) because that process
     // is elevated and can create S4U scheduled tasks.
@@ -139,18 +147,19 @@ export async function initCommand(): Promise<void> {
 }
 
 
-async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<DetectedAgent[]> {
-  let agents = currentAgents;
-
+async function offerAgentInstall(
+  agents: DetectedAgent[],
+  onAgentInstalled?: () => void,
+): Promise<void> {
   while (true) {
     const detectedKeys = new Set(agents.map((a) => a.key));
     const missing = listInstallableAgents()
       .filter((a) => !detectedKeys.has(a.key))
       .sort((a, b) => a.label.localeCompare(b.label));
-    if (missing.length === 0) return agents;
+    if (missing.length === 0) return;
 
-    const canFinish = agents.length > 0;
-    const message = canFinish
+    const hasAgents = agents.length > 0;
+    const message = hasAgents
       ? `\n${bold("Install additional agents?")} The following supported agents can be installed:`
       : `\n${red("No agent CLIs detected.")} Palmier can install one for you via npm:`;
 
@@ -158,32 +167,67 @@ async function offerAgentInstall(currentAgents: DetectedAgent[]): Promise<Detect
       label: a.freeUsage ? `${a.label} ${green(`[${a.freeUsage}]`)}` : a.label,
       hint: `${a.npmPackage}`,
     }));
-    const choices = canFinish
+    const choices = hasAgents
       ? [{ label: "No — continue to the next step ", hint: "skip installation" }, ...installChoices]
       : installChoices;
 
     const idx = await selectFromList(message, choices);
-    if (idx === null) return agents;
-    if (canFinish && idx === 0) return agents;
+    if (idx === null) return;
+    if (hasAgents && idx === 0) return;
 
-    const choice = missing[canFinish ? idx - 1 : idx];
-    if (!installAgentPackage(choice)) return agents;
-
-    console.log(`\nRedetecting agents...`);
-    agents = await detectAgents(agents);
-    const installedAgent = agents.find((a) => a.key === choice.key);
-    if (!installedAgent) {
-      console.log(`${red(`${choice.label} still not detected after install.`)} It may not be on PATH yet — open a new terminal and run ${cyan("palmier init")} again.`);
-      return agents;
-    }
-    const version = getNpmInstalledVersion(choice.npmPackage);
-    if (version) installedAgent.version = version;
+    const choice = missing[hasAgents ? idx - 1 : idx];
+    if (!installAgentPackage(choice)) return;
 
     console.log(green(`  ${choice.label} installed.`));
-    console.log(`\n${bold("Next: authenticate the CLI.")}`);
-    console.log(`  Run ${cyan(choice.command)} in another terminal and follow the sign-in prompts.`);
-    console.log(`  Palmier will use the CLI on your behalf once it's signed in.`);
+
+    // Stamp the agent record with version *before* auth so that an interrupted
+    // wizard (Ctrl+C during sign-in, etc.) still leaves the agent recorded as
+    // Palmier-managed in the persisted config on next run.
+    const tool = getAgent(choice.key);
+    const version = getNpmInstalledVersion(choice.npmPackage) ?? undefined;
+    agents.push({
+      key: choice.key,
+      label: choice.label,
+      ...(tool.supportsPermissions ? { supportsPermissions: true } : {}),
+      ...(tool.supportsYolo ? { supportsYolo: true } : {}),
+      npmPackage: choice.npmPackage,
+      ...(version ? { version } : {}),
+    });
+    onAgentInstalled?.();
+
+    if (tool.authCommandLineArgs && tool.authCommandLineArgs.length > 0) {
+      runAgentAuthFlow(choice.label, tool.command, tool.authCommandLineArgs);
+    } else {
+      console.log(`\n${bold("Next: authenticate the CLI.")}`);
+      console.log(`  Run ${cyan(choice.command)} in another terminal and follow the sign-in prompts.`);
+      console.log(`  Palmier will use the CLI on your behalf once it's signed in.`);
+    }
   }
+}
+
+function logDetectedAgents(agents: DetectedAgent[]): void {
+  if (agents.length === 0) return;
+  console.log(`  Found: ${green(agents.map((a) => a.version ? `${a.label} v${a.version}` : a.label).join(", "))}`);
+}
+
+function runAgentAuthFlow(label: string, command: string, args: string[]): void {
+  const cmd = `${command} ${args.join(" ")}`;
+  console.log(`\n${bold(`Authenticating ${label}...`)} ${dim(`(${cmd})`)}\n`);
+  const result = spawnSync(cmd, { shell: true, stdio: "inherit" });
+  console.log("");
+
+  if (result.error) {
+    console.log(red(`Auth failed: could not run ${cmd} — ${result.error.message}`));
+    console.log(`Re-run ${cyan(cmd)} manually after init finishes.\n`);
+    return;
+  }
+  if (result.status !== 0) {
+    const exitInfo = result.signal ? `signal ${result.signal}` : `exit ${result.status}`;
+    console.log(red(`Auth failed (${exitInfo}).`));
+    console.log(`Re-run ${cyan(cmd)} manually after init finishes.\n`);
+    return;
+  }
+  console.log(green(`Successfully authenticated ${label}.\n`));
 }
 
 function installAgentPackage(agent: InstallableAgent): boolean {

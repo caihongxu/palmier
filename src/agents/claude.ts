@@ -6,6 +6,7 @@ export const claudeAgent: AgentTool = {
   command: "claude",
   promptCommandLineArgs: ["-p"],
   versionCommandLineArg: "--version",
+  authCommandLineArgs: ["auth", "login"],
   supportsPermissions: true,
   supportsYolo: true,
   npmPackage: "@anthropic-ai/claude-code",

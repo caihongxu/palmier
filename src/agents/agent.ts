@@ -39,6 +39,12 @@ export interface AgentTool {
   /** Single arg passed to `command` to probe whether the CLI is installed. Usually `"--version"`. */
   versionCommandLineArg: string;
 
+  /** Optional args to launch the agent's auth flow after a successful install. When set,
+   *  `palmier init` runs `<command> <args...>` interactively (stdio: "inherit") so the user
+   *  can sign in before configuration continues. Leave undefined for agents that auth on
+   *  first run with no separate command. */
+  authCommandLineArgs?: string[];
+
   /** Whether this agent supports permission overrides (e.g. --allowedTools).
    *  When falsy, the permissions section is omitted from agent instructions. */
   supportsPermissions?: boolean;
@@ -171,21 +177,34 @@ export function listInstallableAgents(): InstallableAgent[] {
   return out;
 }
 
-export async function detectAgents(previous?: DetectedAgent[]): Promise<DetectedAgent[]> {
+/** Detect agents present on PATH and resolve their version when they are
+ *  Palmier-managed. An agent is treated as managed if either:
+ *  - it had a `version` in the `previous` list (preserved across daemon restarts), or
+ *  - its key is in `newlyInstalled` (e.g. just installed by the wizard this session).
+ *
+ *  Every managed agent has its version probed live via `npm ls -g`, so manual
+ *  upgrades outside Palmier are picked up on the next detection. */
+export async function detectAgents(
+  previous?: DetectedAgent[],
+  newlyInstalled?: Set<string>,
+): Promise<DetectedAgent[]> {
   const previousByKey = new Map((previous ?? []).map((a) => [a.key, a]));
   const detected: DetectedAgent[] = [];
   for (const [key, agent] of Object.entries(agentRegistry)) {
     const label = agentLabels[key] ?? key;
     const ok = await probeAgent(agent);
     if (!ok) continue;
-    const prevVersion = previousByKey.get(key)?.version;
+    const wasManaged = !!previousByKey.get(key)?.version || (newlyInstalled?.has(key) ?? false);
+    const version = wasManaged && agent.npmPackage
+      ? getNpmInstalledVersion(agent.npmPackage) ?? undefined
+      : undefined;
     detected.push({
       key,
       label,
       supportsPermissions: agent.supportsPermissions,
       supportsYolo: agent.supportsYolo,
       ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),
-      ...(prevVersion ? { version: prevVersion } : {}),
+      ...(version ? { version } : {}),
     });
   }
   return detected;
