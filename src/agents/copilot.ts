@@ -4,9 +4,9 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const copilotAgent: AgentTool = {
   command: "copilot",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "-v",
-  authCommandLineArgs: ["login"],
+  promptArgs: ["-p"],
+  probeArg: "-v",
+  authArgs: ["login"],
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@github/copilot",

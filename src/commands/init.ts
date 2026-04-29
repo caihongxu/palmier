@@ -195,8 +195,8 @@ async function offerAgentInstall(
     });
     onAgentInstalled?.();
 
-    if (tool.authCommandLineArgs && tool.authCommandLineArgs.length > 0) {
-      runAgentAuthFlow(choice.label, tool.command, tool.authCommandLineArgs);
+    if (tool.authArgs && tool.authArgs.length > 0) {
+      runAgentAuthFlow(choice.label, tool.command, tool.authArgs);
     } else {
       console.log(`\n${bold("Next: authenticate the CLI.")}`);
       console.log(`  Run ${cyan(choice.command)} in another terminal and follow the sign-in prompts.`);

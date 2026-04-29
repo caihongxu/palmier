@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const cursorAgent: AgentTool = {
   command: "cursor",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["-p"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

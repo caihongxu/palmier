@@ -4,9 +4,9 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const qwenAgent: AgentTool = {
   command: "qwen",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "--version",
-  authCommandLineArgs: ["auth", "qwen-oauth"],
+  promptArgs: ["-p"],
+  probeArg: "--version",
+  authArgs: ["auth", "qwen-oauth"],
   supportsYolo: true,
   npmPackage: "@qwen-code/qwen-code",
 

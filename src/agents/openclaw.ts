@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const openClawAgent: AgentTool = {
   command: "openclaw",
-  promptCommandLineArgs: ["agent", "--local", "--agent", "main", "--message"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["agent", "--local", "--agent", "main", "--message"],
+  probeArg: "--version",
   npmPackage: "openclaw",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const kiroAgent: AgentTool = {
   command: "kiro-cli",
-  promptCommandLineArgs: ["--no-interactive"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["--no-interactive"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

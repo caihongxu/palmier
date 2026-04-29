@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const kimiAgent: AgentTool = {
   command: "kimi",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["-p"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const openCodeAgent: AgentTool = {
   command: "opencode",
-  promptCommandLineArgs: ["run"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["run"],
+  probeArg: "--version",
   supportsYolo: true,
   npmPackage: "opencode-ai",
 

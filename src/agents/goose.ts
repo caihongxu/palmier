@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const gooseAgent: AgentTool = {
   command: "goose",
-  promptCommandLineArgs: ["run", "--text"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["run", "--text"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

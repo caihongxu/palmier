@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const aiderAgent: AgentTool = {
   command: "aider",
-  promptCommandLineArgs: ["--message"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["--message"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

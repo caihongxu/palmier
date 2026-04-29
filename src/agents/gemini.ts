@@ -21,8 +21,8 @@ export function renderPolicyToml(allowedTools: string[]): string {
 
 export const geminiAgent: AgentTool = {
   command: "gemini",
-  promptCommandLineArgs: ["--prompt"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["--prompt"],
+  probeArg: "--version",
   supportsPermissions: true,
   supportsYolo: true,
   npmPackage: "@google/gemini-cli",

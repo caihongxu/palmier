@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const qoderAgent: AgentTool = {
   command: "qodercli",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["-p"],
+  probeArg: "--version",
   supportsYolo: true,
   npmPackage: "@qoder-ai/qodercli",
 

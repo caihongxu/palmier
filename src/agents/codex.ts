@@ -4,9 +4,9 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const codexAgent: AgentTool = {
   command: "codex",
-  promptCommandLineArgs: ["exec", "--skip-git-repo-check"],
-  versionCommandLineArg: "--version",
-  authCommandLineArgs: ["login"],
+  promptArgs: ["exec", "--skip-git-repo-check"],
+  probeArg: "--version",
+  authArgs: ["login"],
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@openai/codex",

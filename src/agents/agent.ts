@@ -34,16 +34,16 @@ export interface AgentTool {
   command: string;
 
   /** Static args for a short, non-interactive prompt. The prompt is appended to the end of this list. */
-  promptCommandLineArgs: string[];
+  promptArgs: string[];
 
   /** Single arg passed to `command` to probe whether the CLI is installed. Usually `"--version"`. */
-  versionCommandLineArg: string;
+  probeArg: string;
 
   /** Optional args to launch the agent's auth flow after a successful install. When set,
    *  `palmier init` runs `<command> <args...>` interactively (stdio: "inherit") so the user
    *  can sign in before configuration continues. Leave undefined for agents that auth on
    *  first run with no separate command. */
-  authCommandLineArgs?: string[];
+  authArgs?: string[];
 
   /** Whether this agent supports permission overrides (e.g. --allowedTools).
    *  When falsy, the permissions section is omitted from agent instructions. */
@@ -69,11 +69,11 @@ export interface AgentTool {
 }
 
 export function getPromptCommandLine(agent: AgentTool, prompt: string): CommandLine {
-  return { args: [...agent.promptCommandLineArgs, prompt] };
+  return { args: [...agent.promptArgs, prompt] };
 }
 
 export async function probeAgent(agent: AgentTool): Promise<boolean> {
-  const probe = `${agent.command} ${agent.versionCommandLineArg}`;
+  const probe = `${agent.command} ${agent.probeArg}`;
   try {
     execSync(probe, { stdio: "ignore", shell: SHELL });
   } catch {

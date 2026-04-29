@@ -4,9 +4,9 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const claudeAgent: AgentTool = {
   command: "claude",
-  promptCommandLineArgs: ["-p"],
-  versionCommandLineArg: "--version",
-  authCommandLineArgs: ["auth", "login"],
+  promptArgs: ["-p"],
+  probeArg: "--version",
+  authArgs: ["auth", "login"],
   supportsPermissions: true,
   supportsYolo: true,
   npmPackage: "@anthropic-ai/claude-code",

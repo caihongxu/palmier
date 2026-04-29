@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const deepAgentsAgent: AgentTool = {
   command: "deepagents",
-  promptCommandLineArgs: ["--non-interactive"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["--non-interactive"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const hermesAgent: AgentTool = {
   command: "hermes",
-  promptCommandLineArgs: ["chat", "-q"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["chat", "-q"],
+  probeArg: "--version",
   supportsYolo: true,
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {

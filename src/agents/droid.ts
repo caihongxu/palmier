@@ -4,8 +4,8 @@ import { getAgentInstructions } from "./shared-prompt.js";
 
 export const droidAgent: AgentTool = {
   command: "droid",
-  promptCommandLineArgs: ["exec"],
-  versionCommandLineArg: "--version",
+  promptArgs: ["exec"],
+  probeArg: "--version",
   supportsYolo: true,
   npmPackage: "@factory/cli",
 
