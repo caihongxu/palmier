@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const qoderAgent: AgentTool = {
+  label: "Qoder CLI",
   command: "qodercli",
   promptArgs: ["-p"],
   probeArg: "--version",

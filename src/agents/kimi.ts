@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const kimiAgent: AgentTool = {
+  label: "Kimi Code",
   command: "kimi",
   promptArgs: ["-p"],
   probeArg: "--version",

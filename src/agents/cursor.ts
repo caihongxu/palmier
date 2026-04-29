@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const cursorAgent: AgentTool = {
+  label: "Cursor CLI",
   command: "cursor",
   promptArgs: ["-p"],
   probeArg: "--version",

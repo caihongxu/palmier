@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const qwenAgent: AgentTool = {
+  label: "Qwen Code",
   command: "qwen",
   promptArgs: ["-p"],
   probeArg: "--version",

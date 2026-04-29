@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const openCodeAgent: AgentTool = {
+  label: "OpenCode",
   command: "opencode",
   promptArgs: ["run"],
   probeArg: "--version",

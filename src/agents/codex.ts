@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const codexAgent: AgentTool = {
+  label: "Codex CLI",
   command: "codex",
   promptArgs: ["exec", "--skip-git-repo-check"],
   probeArg: "--version",

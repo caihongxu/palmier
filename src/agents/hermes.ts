@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const hermesAgent: AgentTool = {
+  label: "Hermes Agent",
   command: "hermes",
   promptArgs: ["chat", "-q"],
   probeArg: "--version",

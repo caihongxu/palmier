@@ -30,6 +30,9 @@ export interface CommandLine {
 }
 
 export interface AgentTool {
+  /** Human-readable name shown in the PWA and CLI (e.g. "Claude Code"). */
+  label: string;
+
   /** The agent's CLI binary name (e.g. "claude", "kiro-cli"). */
   command: string;
 
@@ -124,26 +127,6 @@ const agentRegistry: Record<string, AgentTool> = {
   hermes: hermesAgent,
 };
 
-const agentLabels: Record<string, string> = {
-  claude: "Claude Code",
-  gemini: "Gemini CLI",
-  codex: "Codex CLI",
-  droid: "Droid CLI",
-  openclaw: "OpenClaw",
-  copilot: "Copilot CLI",
-  qwen: "Qwen Code",
-  kimi: "Kimi Code",
-  goose: "Goose CLI",
-  opencode: "OpenCode",
-  deepagents: "Deep Agents CLI",
-  aider: "Aider",
-  cursor: "Cursor CLI",
-  kiro: "Kiro CLI",
-  cline: "Cline CLI",
-  qoder: "Qoder CLI",
-  hermes: "Hermes Agent",
-};
-
 export interface DetectedAgent {
   key: string;
   label: string;
@@ -168,7 +151,7 @@ export function listInstallableAgents(): InstallableAgent[] {
     if (!agent.npmPackage) continue;
     out.push({
       key,
-      label: agentLabels[key] ?? key,
+      label: agent.label,
       npmPackage: agent.npmPackage,
       command: agent.command,
       ...(agent.freeUsage ? { freeUsage: agent.freeUsage } : {}),
@@ -191,7 +174,6 @@ export async function detectAgents(
   const previousByKey = new Map((previous ?? []).map((a) => [a.key, a]));
   const detected: DetectedAgent[] = [];
   for (const [key, agent] of Object.entries(agentRegistry)) {
-    const label = agentLabels[key] ?? key;
     const ok = await probeAgent(agent);
     if (!ok) continue;
     const wasManaged = !!previousByKey.get(key)?.version || (newlyInstalled?.has(key) ?? false);
@@ -200,7 +182,7 @@ export async function detectAgents(
       : undefined;
     detected.push({
       key,
-      label,
+      label: agent.label,
       supportsPermissions: agent.supportsPermissions,
       supportsYolo: agent.supportsYolo,
       ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),

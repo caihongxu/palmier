@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const aiderAgent: AgentTool = {
+  label: "Aider",
   command: "aider",
   promptArgs: ["--message"],
   probeArg: "--version",

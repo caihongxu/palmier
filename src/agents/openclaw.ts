@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const openClawAgent: AgentTool = {
+  label: "OpenClaw",
   command: "openclaw",
   promptArgs: ["agent", "--local", "--agent", "main", "--message"],
   probeArg: "--version",

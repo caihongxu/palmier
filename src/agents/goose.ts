@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const gooseAgent: AgentTool = {
+  label: "Goose CLI",
   command: "goose",
   promptArgs: ["run", "--text"],
   probeArg: "--version",

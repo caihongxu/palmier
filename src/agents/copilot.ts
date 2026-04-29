@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const copilotAgent: AgentTool = {
+  label: "Copilot CLI",
   command: "copilot",
   promptArgs: ["-p"],
   probeArg: "-v",

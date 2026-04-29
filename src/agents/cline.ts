@@ -3,6 +3,7 @@ import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
 export const clineAgent: AgentTool = {
+  label: "Cline CLI",
   command: "cline",
   promptArgs: ["--yolo", "-p"],
   probeArg: "--version",
