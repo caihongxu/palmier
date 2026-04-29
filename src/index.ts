@@ -13,6 +13,7 @@ import { serveCommand } from "./commands/serve.js";
 import { pairCommand } from "./commands/pair.js";
 import { restartCommand } from "./commands/restart.js";
 import { clientsListCommand, clientsRevokeCommand, clientsRevokeAllCommand } from "./commands/clients.js";
+import { agentsCommand } from "./commands/agents.js";
 import { uninstallCommand } from "./commands/uninstall.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -92,6 +93,13 @@ clientsCmd
   .description("Revoke all clients")
   .action(async () => {
     await clientsRevokeAllCommand();
+  });
+
+program
+  .command("agents")
+  .description("List, install, and uninstall agent CLIs")
+  .action(async () => {
+    await agentsCommand();
   });
 
 program

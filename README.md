@@ -191,9 +191,11 @@ Agents are re-detected on every daemon start; managed-agent versions are re-prob
 
 ### Palmier-managed Agents
 
-An agent is considered **Palmier-managed** if it was installed via `palmier init` (or its update is initiated via the PWA). Palmier-managed agents have a known installed version stamped at install/update time; that version is what the PWA uses to drive the agent soft-update dialog and what's recorded into each session's run metadata so a session always shows the agent version it actually ran with — even after the live agent is upgraded.
+An agent is considered **Palmier-managed** if it was installed via `palmier init`, `palmier agents`, or its update is initiated via the PWA. Palmier-managed agents have a known installed version stamped at install/update time; that version is what the PWA uses to drive the agent soft-update dialog and what's recorded into each session's run metadata so a session always shows the agent version it actually ran with — even after the live agent is upgraded.
 
 Agents installed by the user outside the wizard (e.g., `npm install -g <pkg>` directly) are detected and usable but are **not** considered Palmier-managed. The PWA shows them under a separate "Version not managed by Palmier" section and does not offer auto-update for them.
+
+Run `palmier agents` to manage agent CLIs after setup: it lists installed agents and offers an interactive picker to install or uninstall one. `palmier init` only prompts for an agent install when none are detected; once any agent is installed, init just lists them and continues with host registration.
 
 ### Updates
 
@@ -209,6 +211,7 @@ The default network interface is detected once during `palmier init` and saved t
 | Command | Description |
 |---|---|
 | `palmier init` | Interactive setup wizard |
+| `palmier agents` | List, install, and uninstall agent CLIs |
 | `palmier pair` | Generate a pairing code to pair a new device |
 | `palmier clients list` | List active client tokens |
 | `palmier clients revoke <token>` | Revoke a specific client token |
