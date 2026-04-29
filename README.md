@@ -174,20 +174,20 @@ Revoking the linked device also clears the host's linked-device record; device c
 ### The `init` Command
 
 The wizard:
-- Detects installed agent CLIs and caches the result
-- Offers to install missing supported agents from npm (one at a time, arrow-key menu); the chosen agent's version is captured and the agent becomes "Palmier-managed"
+- Detects installed agent CLIs and caches the result; agents previously installed by Palmier have their installed version re-probed so the recorded version stays in sync with manual upgrades
+- Offers to install missing supported agents from npm (one at a time, arrow-key menu). After each install the agent's version is stamped (becoming "Palmier-managed"), the wizard kicks off authentication, and waits for you to press Enter before offering the next install. On re-init, the agents list is saved after every install so an interrupted wizard is resumable.
 - Asks for the HTTP port
 - Detects the default network interface (used for auto-LAN)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
-- Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows)
+- Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows). On re-init, also restarts the daemon so the running process picks up the new agents/versions for `host.info`.
 - Auto-enters pair mode to connect your first device
 
 The daemon automatically recovers existing tasks by reinstalling their system timers on startup.
 
 > **macOS note:** Palmier installs as a user-level LaunchAgent, so it runs without `sudo`. LaunchAgents only run while the user is logged into the GUI session — after a reboot, scheduled tasks stay dormant until you log in at least once. Enable auto-login in System Settings → Users & Groups if you need unattended operation across reboots.
 
-Agents are re-detected on every daemon start. Run `palmier restart` after installing or removing a CLI manually outside the wizard.
+Agents are re-detected on every daemon start; managed-agent versions are re-probed live so upgrades performed outside the wizard show up automatically.
 
 ### Palmier-managed Agents
 
