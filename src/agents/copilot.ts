@@ -6,6 +6,7 @@ export const copilotAgent: AgentTool = {
   command: "copilot",
   promptCommandLineArgs: ["-p"],
   versionCommandLineArg: "-v",
+  authCommandLineArgs: ["login"],
   supportsYolo: true,
   suppressStdErr: true,
   npmPackage: "@github/copilot",
