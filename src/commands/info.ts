@@ -15,7 +15,7 @@ export async function infoCommand(): Promise<void> {
   console.log(`LAN URL:      ${lanUrl ?? "(default route interface unavailable — pair a device or check network)"}`);
 
   if (config.agents && config.agents.length > 0) {
-    console.log(`Agents:       ${config.agents.map((a) => a.label).join(", ")}`);
+    console.log(`Agents:       ${config.agents.map((a) => a.version ? `${a.label} (v${a.version})` : `${a.label} (unmanaged)`).join(", ")}`);
   } else {
     console.log(`Agents:       (none detected — run \`palmier agents\`)`);
   }
