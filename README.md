@@ -6,27 +6,25 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **Web App:** [app.palmier.me](https://app.palmier.me) | **Android App:** [caihongxu/palmier-android](https://github.com/caihongxu/palmier-android)
 
-You already have AI agents running on your machine. Palmier is an agent-agnostic bridge between those agents and your phone.
+**Free AI agents, right from your phone.**
 
-From your phone, you can start sessions, schedule tasks, approve requests, and review results. From your machine, your agents can use phone-side capabilities like notifications, location, SMS, contacts, and calendar — so they can react to the real world, not just the terminal.
+Palmier runs AI agents on your computer using the AI subscriptions you already have, then lets you start or schedule tasks, check progress, and respond to requests from your phone. It also gives your agents access to phone-side capabilities — calendar, contacts, notifications, location, SMS, alarms — so they can react to the real world, not just the terminal.
 
-It runs on your machine as a background daemon and pairs with a mobile-friendly PWA.
+Palmier is free, open source, and requires no account or API key. It runs as a background daemon on your machine and pairs with a mobile-friendly PWA or the Android app (iOS coming soon).
 
-## What Palmier is
+## What Palmier does
 
-Palmier is an **agent-agnostic phone bridge and mobile control layer** for the agents you already use.
+* **Your phone becomes an agent remote** — start, schedule, monitor, and respond to agent tasks without being at your computer. On the same network, the Android app connects over LAN automatically for lower latency.
+* **Agent access to your phone data** — give agents access to your phone's location, calendar, contacts, notifications, and SMS. They can also send email on your behalf, send you push notifications, and ask for your input when needed. (Phone capabilities require the Android app.)
+* **Free with your existing AI subscriptions** — Palmier invokes the agent CLIs you already have installed, so Claude Pro, Gemini, ChatGPT Plus, and [more](https://www.palmier.me/agents) just work. No extra account, no extra API key.
+* **Task scheduling** — run tasks on a schedule, on demand, or in response to events (e.g. when a push notification arrives), using native OS schedulers (systemd, launchd, Task Scheduler).
+* **You stay in control** — agents can only access phone capabilities you enable; approve requests from your phone, or enable yolo mode to auto-approve.
+* **Your agents, your machine** — agents run on your hardware, not ours. Your data stays on your machine. No account required.
 
 It is not:
 
 * an agent runtime itself
-* a replacement for Claude Code / Codex CLI / Gemini CLI / OpenClaw / Hermes
 * a system for driving your phone UI like a human tapping through apps
-
-Instead, Palmier focuses on:
-
-* letting agents access phone-side capabilities and context in the background
-* letting you talk to, manage, and schedule your agents from your phone
-* making phone integrations work out of the box without requiring users to wire up separate calendar/email/contact stacks
 
 ## Quick Start
 
@@ -53,7 +51,7 @@ Instead, Palmier focuses on:
    ```
    This detects your agents, configures access, installs the background daemon, and starts pairing.
 4. Open `http://localhost:7256` to access the app locally — no pairing needed.
-5. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me).
+5. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me) or the [Android app](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk).
 
 ### Prerequisites
 
@@ -132,9 +130,11 @@ Three ways to reach your host, ordered by setup effort:
 
 | Mode | Where | Pairing | Notes |
 |------|-------|---------|-------|
-| **Local** | `http://localhost:7256` in a browser on the host machine | Not required | Loopback only. No internet needed. |
-| **Remote (web)** | [https://app.palmier.me](https://app.palmier.me) in any browser | Required | Always goes through the cloud relay. |
-| **Remote (app)** | [Android APK](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk) | Required | Push notifications, device capabilities, and **auto-LAN**. |
+| **Local (browser)** | `http://localhost:7256` in a browser on the host machine | Not required | Loopback only. No internet or Palmier server connection needed. |
+| **PWA** | [https://app.palmier.me](https://app.palmier.me) in any browser | Required | Installable to your home screen; supports web push notifications. Always goes through the cloud relay. |
+| **Android app** | [Android APK](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk) | Required | Unlocks phone capabilities (GPS, email, calendar, contacts, SMS, alarms), push notifications, and **auto-LAN**. |
+
+iOS app coming soon.
 
 **Auto-LAN (native app only).** When the Android app is on the same network as the host, it transparently routes RPC over direct LAN HTTP (`http://<host-ip>:7256/rpc/...`) instead of through the relay — lower latency, no protocol change. Browser PWAs can't do this (Private Network Access / mixed-content restrictions) and stay on the relay.
 
