@@ -10,8 +10,8 @@ Palmier installs, manages, and runs AI agent CLIs (Claude Code, Gemini CLI, Code
 
 The control surface is bidirectional:
 
-* **Phone → host:** start ad-hoc sessions, register schedule- or event-triggered tasks, inspect session output, and respond to agent input/confirmation requests.
-* **Host → phone:** agents can call MCP tools to read device state (location, calendar, contacts, notifications, SMS, battery) and trigger actions (push notifications, full-screen alarms, SMS, email, contact/calendar writes, ringer mode).
+* **Phone → agents:** start ad-hoc sessions, register schedule- or event-triggered tasks, inspect session output, and respond to agent input/confirmation requests.
+* **Agents → phone:** agents can call MCP tools to read device state (location, calendar, contacts, notifications, SMS, battery) and trigger actions (push notifications, full-screen alarms, SMS, email, contact/calendar writes, ringer mode).
 
 Capability access is opt-in per device: each MCP tool is gated behind an Android permission and a per-host toggle. An optional yolo mode auto-approves agent input/confirmation requests.
 
