@@ -280,8 +280,20 @@ export async function runCommand(taskId: string): Promise<void> {
     };
 
     if (task.frontmatter.command) {
-      const result = await runCommandTriggeredMode(ctx);
-      const outcome = resolveOutcome(taskDir, result.outcome);
+      let outcome: TaskRunningState;
+      // Command-triggered tasks auto-restart when the underlying command exits
+      // on its own — only a user abort breaks the loop.
+      while (true) {
+        const result = await runCommandTriggeredMode(ctx);
+        outcome = resolveOutcome(taskDir, result.outcome);
+        if (outcome === "aborted") break;
+        console.log(`Task ${taskId} command exited (${outcome}); auto-restarting.`);
+        await new Promise((r) => setTimeout(r, 1000));
+        if (resolveOutcome(taskDir, "finished") === "aborted") {
+          outcome = "aborted";
+          break;
+        }
+      }
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (command-triggered).`);
