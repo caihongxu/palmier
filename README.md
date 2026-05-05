@@ -22,7 +22,7 @@ It is not:
 
 ## Quick Start
 
-1. Install Palmier:
+1. Install Palmier and run setup:
 
    **Linux / macOS:**
    ```bash
@@ -34,17 +34,13 @@ It is not:
    irm https://palmier.me/install.ps1 | iex
    ```
 
-   The one-liner installs Node.js 24+ if needed (via [fnm](https://github.com/Schniz/fnm) on Linux/macOS, winget on Windows), then `palmier` globally. If you already have Node.js 24+ and npm:
+   The one-liner installs Node.js 24+ if needed (via [fnm](https://github.com/Schniz/fnm) on Linux/macOS, winget on Windows), installs `palmier` globally, and runs the setup wizard. If you already have Node.js 24+ and npm:
    ```bash
-   npm install -g palmier
+   npm install -g palmier && palmier init
    ```
-2. Run the setup wizard from your Palmier root directory (e.g., `~/palmier`):
-   ```bash
-   palmier init
-   ```
-   This detects existing agent CLIs or offers to install supported ones ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents)), configures access, installs the background daemon, and starts pairing.
-3. Open `http://localhost:7256` to access the app locally — no pairing needed.
-4. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me) or the [Android app](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk).
+   The wizard creates `~/palmier` as the task storage directory, detects existing agent CLIs or offers to install supported ones ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents)), configures access, installs the background daemon, and starts pairing.
+2. Open `http://localhost:7256` to access the app locally — no pairing needed.
+3. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me) or the [Android app](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk).
 
 ### Prerequisites
 

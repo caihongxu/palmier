@@ -1,4 +1,7 @@
+import * as fs from "fs";
+import * as path from "path";
 import * as readline from "readline";
+import { homedir } from "os";
 import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { colors, pickAndInstallAgent, printInstalledAgents } from "../agents/wizard.js";
@@ -20,6 +23,9 @@ export async function initCommand(): Promise<void> {
   console.log("Detecting installed agents...");
   let previousConfig: HostConfig | null = null;
   try { previousConfig = loadConfig(); } catch { /* first init */ }
+
+  const projectRoot = previousConfig?.projectRoot ?? path.join(homedir(), "palmier");
+  fs.mkdirSync(projectRoot, { recursive: true });
   let agents = await detectAgents(previousConfig?.agents);
 
   if (agents.length === 0) {
@@ -58,7 +64,7 @@ export async function initCommand(): Promise<void> {
     const lanIp = defaultInterface ? getInterfaceIpv4(defaultInterface) : null;
 
     console.log(`\n${bold("Setup summary:")}\n`);
-    console.log(`  ${dim("Task storage:")}   ${bold(process.cwd())}`);
+    console.log(`  ${dim("Task storage:")}   ${bold(projectRoot)}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
     console.log(`  ${dim("Local:")}          ${cyan(`http://localhost:${httpPort}`)}`);
     console.log(`                  Open in a browser on this machine — no internet required.\n`);
@@ -75,7 +81,7 @@ export async function initCommand(): Promise<void> {
     console.log(`                  Pair a browser on any device. Traffic always goes through the relay.\n`);
     console.log(`  ${dim("Agents:")}         ${agents.map((a) => a.version ? `${a.label} v${a.version}` : a.label).join(", ")}\n`);
 
-    const existingTasks = listTasks(process.cwd());
+    const existingTasks = listTasks(projectRoot);
     if (existingTasks.length > 0) {
       console.log(`  ${dim("Recover tasks:")}  ${existingTasks.length} existing task(s) found:`);
       for (const t of existingTasks) {
@@ -115,7 +121,7 @@ export async function initCommand(): Promise<void> {
 
     const config: HostConfig = {
       hostId: registerResponse.hostId,
-      projectRoot: process.cwd(),
+      projectRoot,
       natsUrl: registerResponse.natsUrl,
       natsWsUrl: registerResponse.natsWsUrl,
       natsJwt: registerResponse.natsJwt,
