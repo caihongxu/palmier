@@ -29,9 +29,9 @@ It is not:
    curl -fsSL https://palmier.me/install.sh | bash
    ```
 
-   **Windows (PowerShell):**
+   **Windows:**
    ```powershell
-   irm https://palmier.me/install.ps1 | iex
+   powershell -c "irm https://palmier.me/install.ps1 | iex"
    ```
 
    The one-liner installs Node.js 24+ if needed (via [fnm](https://github.com/Schniz/fnm) on Linux/macOS, winget on Windows), installs `palmier` globally, and runs the setup wizard. If you already have Node.js 24+ and npm:
