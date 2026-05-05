@@ -22,8 +22,7 @@ It is not:
 
 ## Quick Start
 
-1. Install a supported agent CLI — [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents).
-2. Install Palmier:
+1. Install Palmier:
 
    **Linux / macOS:**
    ```bash
@@ -39,19 +38,18 @@ It is not:
    ```bash
    npm install -g palmier
    ```
-3. Run the setup wizard from your Palmier root directory (e.g., `~/palmier`):
+2. Run the setup wizard from your Palmier root directory (e.g., `~/palmier`):
    ```bash
    palmier init
    ```
-   This detects your agents, configures access, installs the background daemon, and starts pairing.
-4. Open `http://localhost:7256` to access the app locally — no pairing needed.
-5. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me) or the [Android app](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk).
+   This detects existing agent CLIs or offers to install supported ones ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/gh-copilot), [OpenClaw](https://openclaw.ai/), or [others](https://www.palmier.me/agents)), configures access, installs the background daemon, and starts pairing.
+3. Open `http://localhost:7256` to access the app locally — no pairing needed.
+4. To access from other devices, enter the pairing code shown after init into the [PWA](https://app.palmier.me) or the [Android app](https://github.com/caihongxu/palmier-android/releases/latest/download/palmier.apk).
 
 ### Prerequisites
 
 - **Node.js 24+**
 - **Linux with systemd**, **macOS 13+**, or **Windows 10/11**
-- At least one supported agent CLI
 
 ## How It Works
 
