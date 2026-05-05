@@ -214,7 +214,7 @@ function runAgentAuthFlow(label: string, command: string, args: string[]): void 
     console.log(`Re-run ${cyan(cmd)} manually after this.\n`);
     return;
   }
-  console.log(green(`Successfully authenticated ${label}.\n`));
+  console.log(green(`Finished authenticating ${label}.\n`));
 }
 
 async function waitForEnter(message: string): Promise<void> {
