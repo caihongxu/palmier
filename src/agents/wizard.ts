@@ -18,7 +18,7 @@ export const colors = {
   yellow: (s: string) => `\x1b[33m${s}\x1b[0m`,
 };
 
-const { bold, dim, green, cyan, red } = colors;
+const { bold, dim, green, cyan, red, yellow } = colors;
 
 export function printInstalledAgents(agents: DetectedAgent[]): void {
   if (agents.length === 0) {
@@ -124,11 +124,21 @@ export async function pickAndUninstallAgent(
   if (idx === null || idx === 0) return null;
 
   const target = uninstallable[idx - 1];
-  if (!target.npmPackage) return null;
-  if (!uninstallAgentPackage(target.npmPackage)) return null;
-
-  console.log(green(`  ${target.label} uninstalled.`));
+  if (!uninstallAgent(target)) return null;
   return target.key;
+}
+
+/** Uninstall a single agent's npm package. Logs success/failure to stdout.
+ *  Shared between the `palmier agents` interactive picker and the bulk
+ *  managed-agent removal in `palmier uninstall`. */
+export function uninstallAgent(agent: DetectedAgent): boolean {
+  if (!agent.npmPackage) return false;
+  if (!uninstallAgentPackage(agent.npmPackage)) {
+    console.log(red(`  Skipped ${agent.label}; uninstall it manually with npm uninstall -g ${agent.npmPackage}.`));
+    return false;
+  }
+  console.log(green(`  ${agent.label} uninstalled.`));
+  return true;
 }
 
 function installAgentPackage(agent: InstallableAgent): boolean {
@@ -151,6 +161,27 @@ function installAgentPackage(agent: InstallableAgent): boolean {
     return false;
   }
   return true;
+}
+
+export function uninstallManagedAgents(agents: DetectedAgent[]): void {
+  const managed = agents.filter((a) => a.version && a.npmPackage);
+  if (managed.length === 0) {
+    console.log(`\n${dim("No Palmier-managed agent CLIs to uninstall.")}`);
+    return;
+  }
+  console.log(`\n${bold(`Uninstalling ${managed.length} Palmier-managed agent ${managed.length === 1 ? "CLI" : "CLIs"}...`)}`);
+  let succeeded = 0;
+  for (let i = 0; i < managed.length; i++) {
+    const agent = managed[i];
+    console.log(`\n${dim(`[${i + 1}/${managed.length}]`)} ${agent.label}`);
+    if (uninstallAgent(agent)) succeeded++;
+  }
+  const failed = managed.length - succeeded;
+  if (failed === 0) {
+    console.log(`\n${green(`Uninstalled ${succeeded} agent ${succeeded === 1 ? "CLI" : "CLIs"}.`)}`);
+  } else {
+    console.log(`\n${yellow(`Uninstalled ${succeeded} of ${managed.length} agent CLIs (${failed} skipped).`)}`);
+  }
 }
 
 function uninstallAgentPackage(npmPackage: string): boolean {

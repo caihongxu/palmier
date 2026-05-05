@@ -212,7 +212,7 @@ The default network interface is detected once during `palmier init` and saved t
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
-| `palmier uninstall` | Stop daemon and remove all scheduled tasks |
+| `palmier uninstall` | Stop daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs |
 
 ## Uninstalling
 
@@ -220,11 +220,13 @@ To fully remove Palmier from a machine:
 
 1. **Unpair your device** in the PWA (via the host menu).
 
-2. **Stop the daemon and remove all scheduled tasks:**
+2. **Stop the daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs:**
 
    ```bash
    palmier uninstall
    ```
+
+   Agents you installed yourself outside Palmier (no managed version stamp) are left in place.
 
 3. **Uninstall the package:**
 
