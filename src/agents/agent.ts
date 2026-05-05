@@ -145,6 +145,8 @@ export interface InstallableAgent {
   freeUsage?: string;
 }
 
+const TIER_ONE_ORDER = ["claude", "gemini", "codex", "copilot"];
+
 export function listInstallableAgents(): InstallableAgent[] {
   const out: InstallableAgent[] = [];
   for (const [key, agent] of Object.entries(agentRegistry)) {
@@ -157,7 +159,14 @@ export function listInstallableAgents(): InstallableAgent[] {
       ...(agent.freeUsage ? { freeUsage: agent.freeUsage } : {}),
     });
   }
-  return out;
+  return out.sort((a, b) => {
+    const ai = TIER_ONE_ORDER.indexOf(a.key);
+    const bi = TIER_ONE_ORDER.indexOf(b.key);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return 0;
+  });
 }
 
 /** Detect agents present on PATH and resolve their version when they are

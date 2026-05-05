@@ -47,9 +47,7 @@ export async function pickAndInstallAgent(
   options: InstallPickerOptions = {},
 ): Promise<DetectedAgent | null> {
   const detectedKeys = new Set(current.map((a) => a.key));
-  const missing = listInstallableAgents()
-    .filter((a) => !detectedKeys.has(a.key))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  const missing = listInstallableAgents().filter((a) => !detectedKeys.has(a.key));
   if (missing.length === 0) {
     console.log(`\n${dim("All supported agents are already installed.")}`);
     return null;
