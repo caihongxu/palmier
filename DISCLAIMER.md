@@ -12,6 +12,12 @@ Palmier spawns third-party AI agent CLIs (such as Claude Code, Gemini CLI, Codex
 
 AI agents may produce unexpected, incorrect, or harmful outputs. **You are solely responsible for reviewing and approving all actions taken by AI agents on your system.** The authors of Palmier have no control over the behavior of third-party AI agents and accept no liability for their actions.
 
+## Agent CLI Installation
+
+At your direction, `palmier init`, `palmier agents`, and the in-app agent-update flow install and update third-party agent CLI packages on your machine via `npm install -g` and `npm update -g`. These packages are published by their respective authors and are not audited, vetted, or endorsed by Palmier. You are solely responsible for deciding which packages to trust and install. The authors of Palmier accept no liability for the contents or behavior of any third-party package installed through Palmier.
+
+Agent CLIs that Palmier installed (those carrying a Palmier-managed version stamp) can be removed individually via `palmier agents`, or all at once via `palmier uninstall`. Agent CLIs you installed yourself outside of Palmier are left in place.
+
 ## Unattended and Scheduled Execution
 
 Tasks can be configured to run on schedules (cron) or in response to events without active supervision. You should:
