@@ -34,7 +34,7 @@ It is not:
    powershell -c "irm https://palmier.me/install.ps1 | iex"
    ```
 
-   The one-liner installs Node.js 24+ if needed (via [fnm](https://github.com/Schniz/fnm) on Linux/macOS, winget on Windows), installs `palmier` globally, and runs the setup wizard. If you already have Node.js 24+ and npm:
+   The one-liner installs Node.js 24+ if needed (via [nvm](https://github.com/nvm-sh/nvm) on Linux/macOS, winget on Windows), installs `palmier` globally, and runs the setup wizard. If you already have Node.js 24+ and npm:
    ```bash
    npm install -g palmier && palmier init
    ```
