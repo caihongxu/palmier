@@ -6,25 +6,19 @@
 
 **Website:** [palmier.me](https://www.palmier.me) | **Web App:** [app.palmier.me](https://app.palmier.me) | **Android App:** [caihongxu/palmier-android](https://github.com/caihongxu/palmier-android)
 
-**Free AI agents, right from your phone.**
+Palmier installs, manages, and runs AI agent CLIs (Claude Code, Gemini CLI, Codex, etc.) on your machine using your existing AI subscriptions, and exposes them to your phone through a mobile-friendly PWA and an Android app. It runs as a background daemon and is agent-agnostic — adding support for a new CLI is a config change, not a code change.
 
-Palmier runs AI agents on your computer using the AI subscriptions you already have, then lets you start or schedule tasks, check progress, and respond to requests from your phone. It also gives your agents access to phone-side capabilities — calendar, contacts, notifications, location, SMS, alarms — so they can react to the real world, not just the terminal.
+The control surface is bidirectional:
 
-Palmier is free, open source, and requires no account or API key. It runs as a background daemon on your machine and pairs with a mobile-friendly PWA or the Android app (iOS coming soon).
+* **Phone → host:** start ad-hoc sessions, register schedule- or event-triggered tasks, inspect session output, and respond to agent input/confirmation requests.
+* **Host → phone:** agents can call MCP tools to read device state (location, calendar, contacts, notifications, SMS, battery) and trigger actions (push notifications, full-screen alarms, SMS, email, contact/calendar writes, ringer mode).
 
-## What Palmier does
-
-* **Your phone becomes an agent remote** — start, schedule, monitor, and respond to agent tasks without being at your computer. On the same network, the Android app connects over LAN automatically for lower latency.
-* **Agent access to your phone data** — give agents access to your phone's location, calendar, contacts, notifications, and SMS. They can also send email on your behalf, send you push notifications, and ask for your input when needed. (Phone capabilities require the Android app.)
-* **Free with your existing AI subscriptions** — Palmier installs/detects agent CLIs and invokes them, so Claude Pro, Gemini, ChatGPT Plus, and [more](https://www.palmier.me/agents) just work. No extra account, no extra API key.
-* **Task scheduling** — run tasks on a schedule, on demand, or in response to events (e.g. when a push notification arrives), using native OS schedulers (systemd, launchd, Task Scheduler).
-* **You stay in control** — agents can only access phone capabilities you enable; approve requests from your phone, or enable yolo mode to auto-approve.
-* **Your agents, your machine** — agents run on your hardware, not ours. Your data stays on your machine. No account required.
+Capability access is opt-in per device: each MCP tool is gated behind an Android permission and a per-host toggle. An optional yolo mode auto-approves agent input/confirmation requests.
 
 It is not:
 
-* an agent runtime itself
-* a system for driving your phone UI like a human tapping through apps
+* an agent runtime itself — Palmier shells out to the agent CLI and streams its stdio
+* a system for driving phone UI like a human tapping through apps — phone access is via OS-level APIs (FCM data messages, content providers, calendar/contacts APIs), not UI automation
 
 ## Quick Start
 
