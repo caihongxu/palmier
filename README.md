@@ -16,7 +16,7 @@ Palmier is free, open source, and requires no account or API key. It runs as a b
 
 * **Your phone becomes an agent remote** — start, schedule, monitor, and respond to agent tasks without being at your computer. On the same network, the Android app connects over LAN automatically for lower latency.
 * **Agent access to your phone data** — give agents access to your phone's location, calendar, contacts, notifications, and SMS. They can also send email on your behalf, send you push notifications, and ask for your input when needed. (Phone capabilities require the Android app.)
-* **Free with your existing AI subscriptions** — Palmier invokes the agent CLIs you already have installed, so Claude Pro, Gemini, ChatGPT Plus, and [more](https://www.palmier.me/agents) just work. No extra account, no extra API key.
+* **Free with your existing AI subscriptions** — Palmier installs/detects agent CLIs and invokes them, so Claude Pro, Gemini, ChatGPT Plus, and [more](https://www.palmier.me/agents) just work. No extra account, no extra API key.
 * **Task scheduling** — run tasks on a schedule, on demand, or in response to events (e.g. when a push notification arrives), using native OS schedulers (systemd, launchd, Task Scheduler).
 * **You stay in control** — agents can only access phone capabilities you enable; approve requests from your phone, or enable yolo mode to auto-approve.
 * **Your agents, your machine** — agents run on your hardware, not ours. Your data stays on your machine. No account required.
