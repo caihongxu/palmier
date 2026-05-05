@@ -48,7 +48,6 @@ It is not:
 
 ### Prerequisites
 
-- **Node.js 24+**
 - **Linux with systemd**, **macOS 13+**, or **Windows 10/11**
 
 ## How It Works
