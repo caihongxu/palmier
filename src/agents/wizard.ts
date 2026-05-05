@@ -59,14 +59,21 @@ export async function pickAndInstallAgent(
     label: a.freeUsage ? `${a.label} ${green(`[${a.freeUsage}]`)}` : a.label,
     hint: a.npmPackage,
   }));
+  const othersChoice = { label: "Others", hint: "see all supported agents" };
   const choices = options.allowCancel
-    ? [{ label: "Cancel", hint: "go back" }, ...installChoices]
-    : installChoices;
+    ? [{ label: "Cancel", hint: "go back" }, ...installChoices, othersChoice]
+    : [...installChoices, othersChoice];
 
   const message = options.message ?? `\n${bold("Select an agent to install:")}`;
   const idx = await selectFromList(message, choices);
   if (idx === null) return null;
   if (options.allowCancel && idx === 0) return null;
+
+  if (idx === choices.length - 1) {
+    console.log(`\n${bold("More agents:")} ${cyan("https://www.palmier.me/agents")}`);
+    console.log(`Install one with ${cyan("npm install -g <package>")}, then re-run this command.`);
+    return null;
+  }
 
   const choice = missing[options.allowCancel ? idx - 1 : idx];
   if (!installAgentPackage(choice)) return null;
