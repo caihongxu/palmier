@@ -130,6 +130,45 @@ async function generateName(
 const activeFollowups = new Map<string, ChildProcess>();
 
 /**
+ * Kill the follow-up child for the given run and clear its in-memory and
+ * on-disk tracking entries. Returns false when no follow-up is registered
+ * (neither in-memory nor persisted). Callers handle status messages and event
+ * publishing themselves — this helper only owns the kill + cleanup.
+ */
+async function killActiveFollowup(projectRoot: string, taskId: string, runId: string): Promise<boolean> {
+  const key = `${taskId}:${runId}`;
+  const taskDir = getTaskDir(projectRoot, taskId);
+  const runDir = getRunDir(taskDir, runId);
+  const child = activeFollowups.get(key);
+
+  let pidToKill: number | undefined = child?.pid;
+  if (!child) {
+    // Daemon restarted since spawn — the in-memory handle is gone but the
+    // child may still be running. Fall back to the persisted PID.
+    const persisted = readFollowupStatus(runDir);
+    if (!persisted) return false;
+    pidToKill = persisted.pid;
+  }
+
+  if (pidToKill !== undefined) {
+    if (process.platform === "win32") {
+      try {
+        const { execFileSync } = await import("child_process");
+        execFileSync("taskkill", ["/pid", String(pidToKill), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
+      } catch { /* may have already exited */ }
+    } else if (child) {
+      child.kill();
+    } else {
+      try { process.kill(pidToKill, "SIGTERM"); } catch { /* already dead */ }
+    }
+  }
+
+  activeFollowups.delete(key);
+  deleteFollowupStatus(runDir);
+  return true;
+}
+
+/**
  * The run process never started, so write a `started` + `failed` status pair
  * directly to TASKRUN.md (run.ts normally does this) and notify clients.
  */
@@ -419,7 +458,12 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           content: "",
           type: "started",
         });
+        writeTaskStatus(followupTaskDir, { running_state: "started", time_stamp: Date.now() });
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
+        await publishHostEvent(nc, config.hostId, params.id, {
+          event_type: "running-state", running_state: "started",
+          name: followupTask.frontmatter.name, run_id: params.run_id,
+        });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
         const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(
@@ -466,7 +510,12 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             content: "",
             type: outcome,
           });
+          writeTaskStatus(followupTaskDir, { running_state: outcome, time_stamp: Date.now() });
           await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
+          await publishHostEvent(nc, config.hostId, params.id, {
+            event_type: "running-state", running_state: outcome,
+            name: followupTask.frontmatter.name, run_id: params.run_id,
+          });
         });
 
         child.on("error", async (err: Error) => {
@@ -479,60 +528,34 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             content: "",
             type: "failed",
           });
+          writeTaskStatus(followupTaskDir, { running_state: "failed", time_stamp: Date.now() });
           await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
+          await publishHostEvent(nc, config.hostId, params.id, {
+            event_type: "running-state", running_state: "failed",
+            name: followupTask.frontmatter.name, run_id: params.run_id,
+          });
         });
 
-        return { ok: true, task_id: params.id, run_id: params.run_id };
-      }
-
-      case "task.stop_followup": {
-        const params = request.params as { id: string; run_id: string };
-        if (!params.run_id) {
-          return { error: "run_id is required" };
-        }
-        const stopKey = `${params.id}:${params.run_id}`;
-        const stopTaskDir = getTaskDir(config.projectRoot, params.id);
-        const stopRunDir = getRunDir(stopTaskDir, params.run_id);
-        const child = activeFollowups.get(stopKey);
-
-        let pidToKill: number | undefined = child?.pid;
-        if (!child) {
-          // Daemon restarted since spawn — the in-memory handle is gone but
-          // the child may still be running. Fall back to the persisted PID.
-          const persisted = readFollowupStatus(stopRunDir);
-          if (!persisted) return { error: "No active follow-up for this run" };
-          pidToKill = persisted.pid;
-        }
-
-        if (pidToKill !== undefined) {
-          if (process.platform === "win32") {
-            try {
-              const { execFileSync } = await import("child_process");
-              execFileSync("taskkill", ["/pid", String(pidToKill), "/f", "/t"], { windowsHide: true, stdio: "pipe" });
-            } catch { /* may have already exited */ }
-          } else if (child) {
-            child.kill();
-          } else {
-            try { process.kill(pidToKill, "SIGTERM"); } catch { /* already dead */ }
-          }
-        }
-
-        // child.killed stops the close handler from double-writing the status.
-        appendRunMessage(stopTaskDir, params.run_id, {
-          role: "status",
-          time: Date.now(),
-          content: "",
-          type: "stopped",
-        });
-        activeFollowups.delete(stopKey);
-        deleteFollowupStatus(stopRunDir);
-        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
         return { ok: true, task_id: params.id, run_id: params.run_id };
       }
 
       case "task.abort": {
         const params = request.params as { id: string };
         const abortTaskDir = getTaskDir(config.projectRoot, params.id);
+
+        // Any in-flight follow-up children for this task aren't reachable via
+        // getPlatform().stopTask (they're daemon-spawned, not scheduler-spawned),
+        // so kill them up front before they can race with the abort status write
+        // and overwrite task-status with their own close-handler outcome.
+        const followupRunIds: string[] = [];
+        const prefix = `${params.id}:`;
+        for (const key of activeFollowups.keys()) {
+          if (key.startsWith(prefix)) followupRunIds.push(key.slice(prefix.length));
+        }
+        for (const runId of followupRunIds) {
+          await killActiveFollowup(config.projectRoot, params.id, runId);
+        }
+
         // Read PID before overwriting — stopTask needs it to kill the
         // process tree on Windows.
         const abortPrevStatus = readTaskStatus(abortTaskDir);
@@ -558,12 +581,18 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           }
         } catch { /* best-effort */ }
 
-        try {
-          await getPlatform().stopTask(params.id);
-        } catch (err: unknown) {
-          const e = err as { stderr?: string; message?: string };
-          console.error(`task.abort failed for ${params.id}: ${e.stderr || e.message}`);
-          return { error: `Failed to abort task: ${e.stderr || e.message}` };
+        // Only ask the scheduler/launcher to stop the task when an original
+        // run was actually in progress. Without a pid, the live work was
+        // follow-up children only — already killed above — and platform
+        // stopTask would error out on a non-running service unit.
+        if (abortPrevStatus?.pid) {
+          try {
+            await getPlatform().stopTask(params.id);
+          } catch (err: unknown) {
+            const e = err as { stderr?: string; message?: string };
+            console.error(`task.abort failed for ${params.id}: ${e.stderr || e.message}`);
+            return { error: `Failed to abort task: ${e.stderr || e.message}` };
+          }
         }
         try {
           const aborted = parseTaskFile(abortTaskDir);
