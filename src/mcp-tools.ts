@@ -1,8 +1,10 @@
+import * as fs from "fs";
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getLinkedDevice } from "./linked-device.js";
 import { getNotifications, onNotificationsChanged } from "./notification-store.js";
 import { getSmsMessages, onSmsChanged } from "./sms-store.js";
+import { getTaskDir, readHistory, spliceUserMessage } from "./task.js";
 import type { HostConfig } from "./types.js";
 
 export class ToolError extends Error {
@@ -101,8 +103,11 @@ const requestInputTool: ToolDefinition = {
     });
 
     const response = await pendingPromise;
+    const aborted = response.length === 1 && response[0] === "aborted";
 
-    if (response.length === 1 && response[0] === "aborted") {
+    recordUserInputToRun(ctx, questions, response, aborted);
+
+    if (aborted) {
       await ctx.publishEvent("_input", {
         event_type: "input-resolved", host_id: ctx.config.hostId,
         session_id: ctx.sessionId, status: "aborted",
@@ -117,6 +122,44 @@ const requestInputTool: ToolDefinition = {
     return { values: response };
   },
 };
+
+/**
+ * Splice the user's answer into the task run file so the conversation history
+ * shows what the user typed, independent of whether the agent echoes it.
+ * Only writes when sessionId resolves to a task with an active run (i.e. the
+ * agent called via the REST endpoint with taskId); silently skips for pure
+ * MCP-protocol sessions where sessionId is a random UUID.
+ */
+function recordUserInputToRun(
+  ctx: ToolContext,
+  questions: string[],
+  response: string[],
+  aborted: boolean,
+): void {
+  const taskId = ctx.sessionId;
+  if (!taskId) return;
+  const taskDir = getTaskDir(ctx.config.projectRoot, taskId);
+  if (!fs.existsSync(taskDir)) return;
+  const { entries } = readHistory(ctx.config.projectRoot, { task_id: taskId, limit: 1 });
+  const runId = entries[0]?.run_id;
+  if (!runId) return;
+
+  const content = aborted
+    ? "Cancel"
+    : questions.map((q, i) => `**${q}**\n\n${response[i] ?? ""}`).join("\n\n");
+
+  try {
+    spliceUserMessage(taskDir, runId, {
+      role: "user",
+      time: Date.now(),
+      content,
+      type: "input",
+    });
+    void ctx.publishEvent(taskId, { event_type: "result-updated", run_id: runId });
+  } catch {
+    // Run file missing or unwritable — best-effort, do not fail the tool call.
+  }
+}
 
 const requestConfirmationTool: ToolDefinition = {
   name: "request-confirmation",
