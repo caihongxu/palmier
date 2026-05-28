@@ -107,7 +107,7 @@ async function generateName(
   userPrompt: string,
   agentName: string,
 ): Promise<string> {
-  const prompt = `Generate a concise 3-6 word name for this task. Reply with ONLY the name, nothing else.\n\nTask: ${userPrompt}`;
+  const prompt = `Generate a concise 3-6 word name from the task description. Do not execute the task and reply with ONLY the name, nothing else.\n\nTask description: ${userPrompt}`;
   const agent = getAgent(agentName);
   const { args, stdin, env: agentEnv } = getPromptCommandLine(agent, prompt);
   const command = agent.command;
