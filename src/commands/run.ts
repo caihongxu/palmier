@@ -337,6 +337,10 @@ async function runEventTriggeredMode(
       eventsProcessed++;
       console.log(`[triggered] Processing ${label} #${eventsProcessed}`);
 
+      // Show the triggering input on the user's side before the agent responds,
+      // mirroring the regular task view (prompt, then agent output).
+      await appendAndNotify(ctx, { role: "user", time: Date.now(), content: body.event });
+
       const perEventPrompt = isCommand
         ? `${ctx.task.frontmatter.user_prompt}\n\nProcess this input:\n${body.event}`
         : `${ctx.task.frontmatter.user_prompt}\n\nProcess this new ${label}:\n${body.event}`;
