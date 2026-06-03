@@ -291,27 +291,6 @@ export function appendHistory(projectRoot: string, entry: HistoryEntry): void {
   fs.appendFileSync(historyPath, JSON.stringify(entry) + "\n", "utf-8");
 }
 
-/**
- * History entries whose run started at or after `sinceMs`, newest-first. run_id
- * is the run's start time (`String(Date.now())`), so this bounds work to recent
- * runs without scanning task directories. The file is append-ordered (oldest
- * first), so we walk from the end and stop at the first older entry.
- */
-export function readRecentHistory(projectRoot: string, sinceMs: number): HistoryEntry[] {
-  const historyPath = path.join(projectRoot, "history.jsonl");
-  if (!fs.existsSync(historyPath)) return [];
-
-  const lines = fs.readFileSync(historyPath, "utf-8").split("\n").filter(Boolean);
-  const out: HistoryEntry[] = [];
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let entry: HistoryEntry;
-    try { entry = JSON.parse(lines[i]); } catch { continue; }
-    if (Number(entry.run_id) < sinceMs) break;
-    out.push(entry);
-  }
-  return out;
-}
-
 export function deleteHistoryEntry(
   projectRoot: string,
   taskId: string,

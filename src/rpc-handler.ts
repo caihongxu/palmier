@@ -17,7 +17,6 @@ import { saveConfig } from "./config.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
 import { reconcileCommandRunner, stopCommandRunner } from "./command-runners.js";
-import { getBusyAgents, isAgentBusy } from "./agent-busy.js";
 import { buildLanUrl } from "./network.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
@@ -210,9 +209,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
     switch (request.method) {
       case "host.info": {
-        const busyAgents = getBusyAgents(config);
         return {
-          agents: (config.agents ?? []).map((a) => ({ ...a, busy: busyAgents.has(a.key) })),
+          agents: config.agents ?? [],
           version: currentVersion,
           host_platform: process.platform,
           host_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -740,9 +738,6 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (!entry) return { error: `Unknown agent: ${params.key}` };
         if (!entry.version) return { error: `Agent ${params.key} is not managed by Palmier` };
         if (!entry.npmPackage) return { error: `Agent ${params.key} has no npm package` };
-        if (isAgentBusy(config, params.key)) {
-          return { error: `${entry.label} is currently running a task. Try again once it's idle.` };
-        }
 
         const error = await performAgentUpdate(entry.npmPackage);
         if (error) return { error };
