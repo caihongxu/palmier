@@ -16,6 +16,7 @@ import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
 import { enqueueEvent } from "../event-queues.js";
+import { startEnabledCommandRunners } from "../command-runners.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -134,6 +135,10 @@ export async function serveCommand(): Promise<void> {
       console.error(`Warning: failed to install timer for task ${task.frontmatter.id}: ${err}`);
     }
   }
+
+  // Spawn the long-running command process for every enabled command task —
+  // the daemon owns these the same way it owns the device-event subscriptions.
+  startEnabledCommandRunners(config);
 
   setInterval(() => {
     checkStaleTasks(config, nc).catch((err) => {

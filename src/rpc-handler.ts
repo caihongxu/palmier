@@ -16,6 +16,7 @@ import { currentVersion, performUpdate, performAgentUpdate } from "./update-chec
 import { saveConfig } from "./config.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
+import { reconcileCommandRunner, stopCommandRunner } from "./command-runners.js";
 import { buildLanUrl } from "./network.js";
 import type { HostConfig, ParsedTask, RpcMessage, ConversationMessage } from "./types.js";
 
@@ -273,6 +274,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         writeTaskFile(taskDir, task);
         appendTaskList(config.projectRoot, id);
         getPlatform().installTaskTimer(config, task);
+        reconcileCommandRunner(config, task);
 
         return flattenTask(task);
       }
@@ -342,6 +344,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         // installTaskTimer overwrites in-place (schtasks /f, systemd unit rewrite)
         // without killing a running task process.
         getPlatform().installTaskTimer(config, existing);
+        // Start/stop/restart the command process to match the new enabled state.
+        reconcileCommandRunner(config, existing);
 
         return flattenTask(existing);
       }
@@ -350,6 +354,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const params = request.params as { id: string };
 
         getPlatform().removeTaskTimer(params.id);
+        stopCommandRunner(params.id);
         clearTaskQueue(params.id);
         removeFromTaskList(config.projectRoot, params.id);
 
@@ -712,6 +717,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const { total: remainingRuns } = readHistory(config.projectRoot, { task_id: params.task_id, limit: 1 });
         if (remainingRuns === 0 && !isTaskInList(config.projectRoot, params.task_id)) {
           try { getPlatform().removeTaskTimer(params.task_id); } catch { /* best-effort */ }
+          stopCommandRunner(params.task_id);
           clearTaskQueue(params.task_id);
           try { fs.rmSync(deleteTaskDir, { recursive: true, force: true }); } catch { /* best-effort */ }
         }

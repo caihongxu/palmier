@@ -1,8 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as readline from "readline";
-import { StringCodec } from "nats";
-import { spawnCommand, spawnStreamingCommand } from "../spawn-command.js";
+import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter } from "../task.js";
@@ -13,22 +11,6 @@ import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
 import type { NatsConnection } from "nats";
-
-async function sendPushNotification(
-  nc: NatsConnection | undefined,
-  hostId: string,
-  title: string,
-  body: string,
-): Promise<void> {
-  if (!nc) return;
-  try {
-    const sc = StringCodec();
-    const subject = `host.${hostId}.push.send`;
-    await nc.request(subject, sc.encode(JSON.stringify({ hostId, title, body })), { timeout: 15_000 });
-  } catch (err) {
-    console.warn(`[push] failed to send notification:`, err);
-  }
-}
 
 interface InvocationContext {
   agent: AgentTool;
@@ -49,8 +31,8 @@ interface InvocationResult {
 
 /**
  * Invoke the agent CLI in a continuation loop to handle permission requests.
- * `invokeTask` is the ParsedTask whose prompt is passed to the agent (in
- * command-triggered mode this is the per-line augmented task).
+ * `invokeTask` is the ParsedTask whose prompt is passed to the agent (for
+ * triggered tasks this is the per-trigger augmented task).
  */
 async function invokeAgentWithRetries(
   ctx: InvocationContext,
@@ -279,31 +261,18 @@ export async function runCommand(taskId: string): Promise<void> {
       transientPermissions: [],
     };
 
-    if (task.frontmatter.command) {
-      let outcome: TaskRunningState;
-      // Command-triggered tasks auto-restart when the underlying command exits
-      // on its own — only a user abort breaks the loop.
-      while (true) {
-        const result = await runCommandTriggeredMode(ctx);
-        outcome = resolveOutcome(taskDir, result.outcome);
-        if (outcome === "aborted") break;
-        console.log(`Task ${taskId} command exited (${outcome}); auto-restarting.`);
-        await new Promise((r) => setTimeout(r, 1000));
-        if (resolveOutcome(taskDir, "finished") === "aborted") {
-          outcome = "aborted";
-          break;
-        }
-      }
-      appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
-      console.log(`Task ${taskId} completed (command-triggered).`);
-    } else if (task.frontmatter.schedule_type === "on_new_notification"
-               || task.frontmatter.schedule_type === "on_new_sms") {
+    // Command-triggered and on_new_* tasks share the same trigger machinery: the
+    // daemon owns the trigger source (the shell command's stdout / a NATS
+    // subscription) and feeds the shared per-task queue, while this run drains
+    // that queue one invocation at a time.
+    if (task.frontmatter.command
+        || task.frontmatter.schedule_type === "on_new_notification"
+        || task.frontmatter.schedule_type === "on_new_sms") {
       const result = await runEventTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
-      console.log(`Task ${taskId} completed (event-triggered).`);
+      console.log(`Task ${taskId} completed (triggered).`);
     } else {
       await appendAndNotify(ctx, {
         role: "user",
@@ -334,180 +303,24 @@ export async function runCommand(taskId: string): Promise<void> {
   }
 }
 
-const MAX_QUEUE_SIZE = 100;
-const MAX_LOG_ENTRIES = 1000;
-/** Max input line length (chars). Long emails can take up to 200k chars. */
-const MAX_LINE_LENGTH = 200_000;
-
 /**
- * Spawn a long-running shell command and invoke the agent CLI once per stdout
- * line, with the user's prompt augmented by that line. Sequential with a
- * bounded queue.
- */
-async function runCommandTriggeredMode(
-  ctx: InvocationContext,
-): Promise<{ outcome: TaskRunningState; endTime: number }> {
-  const commandStr = ctx.task.frontmatter.command!;
-  console.log(`[command-triggered] Spawning: ${commandStr}`);
-
-  appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
-  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
-
-  const child = spawnStreamingCommand(commandStr, {
-    cwd: getRunDir(ctx.taskDir, ctx.runId),
-    env: { ...ctx.guiEnv, PALMIER_RUN_DIR: getRunDir(ctx.taskDir, ctx.runId), PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7256) },
-  });
-
-  let linesProcessed = 0;
-  let invocationsSucceeded = 0;
-  let invocationsFailed = 0;
-
-  const lineQueue: string[] = [];
-  let processing = false;
-  let commandExited = false;
-  let resolveWhenDone: (() => void) | undefined;
-
-  const logPath = path.join(getRunDir(ctx.taskDir, ctx.runId), "command-output.log");
-  function appendLog(line: string, agentOutput: string, outcome: string) {
-    const entry = `[${new Date().toISOString()}] (${outcome}) input: ${line}\n${agentOutput}\n---\n`;
-    fs.appendFileSync(logPath, entry, "utf-8");
-
-    try {
-      const content = fs.readFileSync(logPath, "utf-8");
-      const entries = content.split("\n---\n").filter(Boolean);
-      if (entries.length > MAX_LOG_ENTRIES) {
-        const trimmed = entries.slice(-MAX_LOG_ENTRIES).join("\n---\n") + "\n---\n";
-        fs.writeFileSync(logPath, trimmed, "utf-8");
-      }
-    } catch { /* ignore trim errors */ }
-  }
-
-  async function processLine(line: string): Promise<void> {
-    linesProcessed++;
-    if (line.length > MAX_LINE_LENGTH) {
-      console.warn(`[command-triggered] Skipping line #${linesProcessed}: ${line.length} chars exceeds limit`);
-      invocationsFailed++;
-      appendLog(line.slice(0, 200) + "...(truncated)", "", "skipped");
-      return;
-    }
-    console.log(`[command-triggered] Processing line #${linesProcessed}: ${line}`);
-
-    const perLinePrompt = `${ctx.task.frontmatter.user_prompt}\n\nProcess this input:\n${line}`;
-    const perLineTask: ParsedTask = {
-      frontmatter: { ...ctx.task.frontmatter, user_prompt: perLinePrompt },
-    };
-
-    const result = await invokeAgentWithRetries(ctx, perLineTask);
-    if (result.outcome === "finished") {
-      invocationsSucceeded++;
-    } else {
-      invocationsFailed++;
-      const taskLabel = ctx.task.frontmatter.name || ctx.task.frontmatter.user_prompt;
-      await sendPushNotification(
-        ctx.nc,
-        ctx.config.hostId,
-        `Task "${taskLabel}" invocation failed`,
-        line.length > 200 ? line.slice(0, 200) + "…" : line,
-      );
-    }
-    appendLog(line, "", result.outcome);
-
-    // Signal "waiting for more input" in the UI.
-    appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
-    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
-  }
-
-  async function drainQueue(): Promise<void> {
-    if (processing) return;
-    processing = true;
-    try {
-      while (lineQueue.length > 0) {
-        const line = lineQueue.shift()!;
-        await processLine(line);
-      }
-    } finally {
-      processing = false;
-      if (commandExited && lineQueue.length === 0 && resolveWhenDone) {
-        resolveWhenDone();
-      }
-    }
-  }
-
-  const rl = readline.createInterface({ input: child.stdout! });
-  rl.on("line", (line: string) => {
-    if (!line.trim()) return;
-    if (lineQueue.length >= MAX_QUEUE_SIZE) {
-      console.warn(`[command-triggered] Queue full, dropping oldest line.`);
-      lineQueue.shift();
-    }
-    lineQueue.push(line);
-    drainQueue().catch((err) => {
-      console.error(`[command-triggered] Error processing line:`, err);
-      invocationsFailed++;
-    });
-  });
-
-  let stderrBuf = "";
-  child.stderr?.on("data", (d: Buffer) => {
-    const chunk = d.toString();
-    stderrBuf += chunk;
-    process.stderr.write(d);
-  });
-
-  const exitCode = await new Promise<number | null>((resolve) => {
-    child.on("close", (code: number | null) => {
-      commandExited = true;
-      rl.close();
-      resolve(code);
-    });
-    child.on("error", (err: Error) => {
-      console.error(`[command-triggered] Command error:`, err);
-      stderrBuf += err.message;
-      commandExited = true;
-      rl.close();
-      resolve(1);
-    });
-  });
-
-  if (lineQueue.length > 0 || processing) {
-    await new Promise<void>((resolve) => {
-      resolveWhenDone = resolve;
-      drainQueue();
-    });
-  }
-
-  const endTime = Date.now();
-
-  if (exitCode !== 0) {
-    const errorDetail = stderrBuf.trim() || `Command exited with code ${exitCode}`;
-    appendRunMessage(ctx.taskDir, ctx.runId, {
-      role: "status",
-      time: endTime,
-      content: errorDetail,
-      type: "error",
-    });
-    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
-    return { outcome: "failed", endTime };
-  }
-
-  return { outcome: "finished", endTime };
-}
-
-/**
- * Drain the daemon-owned per-task event queue via /task-event/pop, invoking
- * the agent once per event. The run process holds no NATS subscription — the
- * daemon owns that and atomically clears the active flag on empty pop so it
- * can fire a fresh run on the next incoming event.
+ * Drain the daemon-owned per-task event queue via /task-event/pop, invoking the
+ * agent once per queued trigger. The run process holds no subscription of its
+ * own — the daemon owns the trigger source (a NATS subscription for on_new_*
+ * tasks, the command's stdout for command tasks) and atomically clears the
+ * active flag on empty pop so it can fire a fresh run on the next trigger.
  */
 async function runEventTriggeredMode(
   ctx: InvocationContext,
 ): Promise<{ outcome: TaskRunningState; endTime: number }> {
-  const scheduleType = ctx.task.frontmatter.schedule_type!;
-  const label = scheduleType === "on_new_notification" ? "notification" : "SMS";
+  const isCommand = !!ctx.task.frontmatter.command;
+  const label = isCommand
+    ? "input"
+    : ctx.task.frontmatter.schedule_type === "on_new_notification" ? "notification" : "SMS";
   const port = ctx.config.httpPort ?? 7256;
   const popUrl = `http://localhost:${port}/task-event/pop?taskId=${encodeURIComponent(ctx.taskId)}`;
 
-  console.log(`[event-triggered] Draining ${label} queue`);
+  console.log(`[triggered] Draining ${label} queue`);
   appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
   await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
@@ -522,9 +335,11 @@ async function runEventTriggeredMode(
       if (body.empty || !body.event) break;
 
       eventsProcessed++;
-      console.log(`[event-triggered] Processing ${label} #${eventsProcessed}`);
+      console.log(`[triggered] Processing ${label} #${eventsProcessed}`);
 
-      const perEventPrompt = `${ctx.task.frontmatter.user_prompt}\n\nProcess this new ${label}:\n${body.event}`;
+      const perEventPrompt = isCommand
+        ? `${ctx.task.frontmatter.user_prompt}\n\nProcess this input:\n${body.event}`
+        : `${ctx.task.frontmatter.user_prompt}\n\nProcess this new ${label}:\n${body.event}`;
       const perEventTask: ParsedTask = {
         frontmatter: { ...ctx.task.frontmatter, user_prompt: perEventPrompt },
       };
