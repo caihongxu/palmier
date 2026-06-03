@@ -4,8 +4,11 @@
  * `palmier run` process drains via /task-event/pop.
  *
  * Invariants:
- *   - popEvent clears activeRuns atomically when the queue empties, so a
- *     fresh startTask cannot race the tearing-down run.
+ *   - popEvent clears activeRuns when the queue empties. This races the run's
+ *     own teardown (the process/unit is still alive briefly after the empty
+ *     pop), so a trigger arriving in that window can set activeRuns yet fail to
+ *     launch a run (a oneshot `systemctl start` no-ops on an active unit). The
+ *     dispatch watchdog in trigger-dispatch.ts reconciles that stranded state.
  *   - enqueueEvent returns shouldStart=true only on the idle→active edge.
  */
 
@@ -32,6 +35,21 @@ export function popEvent(taskId: string): { event: string } | { empty: true } {
   }
   activeRuns.delete(taskId);
   return { empty: true };
+}
+
+export function hasPendingEvents(taskId: string): boolean {
+  const queue = queues.get(taskId);
+  return !!queue && queue.length > 0;
+}
+
+/** Drop a stranded active flag so a fresh run can be launched (watchdog only). */
+export function resetActiveRun(taskId: string): void {
+  activeRuns.delete(taskId);
+}
+
+/** Re-acquire the active flag without enqueuing (watchdog relaunch only). */
+export function markActiveRun(taskId: string): void {
+  activeRuns.add(taskId);
 }
 
 /** Remove any state for a task (called from task.delete). */

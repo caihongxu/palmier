@@ -15,7 +15,7 @@ import { CONFIG_DIR } from "../config.js";
 import { StringCodec, type NatsConnection } from "nats";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
-import { enqueueEvent } from "../event-queues.js";
+import { dispatchTrigger } from "../trigger-dispatch.js";
 import { startEnabledCommandRunners } from "../command-runners.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -172,12 +172,7 @@ export async function serveCommand(): Promise<void> {
           const normalizedSender = sender ? normalizeSender(sender) : "";
           if (!normalizedSender || !task.frontmatter.schedule_values.some((s) => normalizeSender(s) === normalizedSender)) continue;
         }
-        const { shouldStart } = enqueueEvent(task.frontmatter.id, payload);
-        if (shouldStart) {
-          platform.startTask(task.frontmatter.id).catch((err) => {
-            console.error(`[event-trigger] Failed to start ${task.frontmatter.id}:`, err);
-          });
-        }
+        dispatchTrigger(task.frontmatter.id, payload);
       }
     }
 

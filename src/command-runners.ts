@@ -17,7 +17,7 @@ import * as readline from "readline";
 import { execFileSync, type ChildProcess } from "child_process";
 import { spawnStreamingCommand } from "./spawn-command.js";
 import { getTaskDir, listTasks, parseTaskFile } from "./task.js";
-import { enqueueEvent } from "./event-queues.js";
+import { dispatchTrigger } from "./trigger-dispatch.js";
 import { getPlatform } from "./platform/index.js";
 import type { HostConfig, ParsedTask } from "./types.js";
 
@@ -59,12 +59,7 @@ function spawnRunner(config: HostConfig, taskId: string, command: string): void 
   const rl = readline.createInterface({ input: child.stdout! });
   rl.on("line", (line: string) => {
     if (!line.trim()) return;
-    const { shouldStart } = enqueueEvent(taskId, line);
-    if (shouldStart) {
-      platform.startTask(taskId).catch((err) => {
-        console.error(`[command-runner] failed to start run for ${taskId}:`, err);
-      });
-    }
+    dispatchTrigger(taskId, line);
   });
   child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
 
