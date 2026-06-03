@@ -261,7 +261,7 @@ export async function runCommand(taskId: string): Promise<void> {
       transientPermissions: [],
     };
 
-    // Command-triggered and on_new_* tasks share the same trigger machinery: the
+    // Command-output and on_new_* tasks share the same trigger machinery: the
     // daemon owns the trigger source (the shell command's stdout / a NATS
     // subscription) and feeds the shared per-task queue, while this run drains
     // that queue one invocation at a time.

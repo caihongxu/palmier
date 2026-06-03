@@ -1,5 +1,5 @@
 /**
- * Daemon-owned supervisors for command-triggered tasks. A command task's shell
+ * Daemon-owned supervisors for command-output tasks. A command task's shell
  * command is a long-running trigger source — the daemon spawns it while the task
  * is enabled, reads its stdout, and feeds each line into the shared per-task
  * event queue (the same one the NATS notification/SMS subscriptions populate).
