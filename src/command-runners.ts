@@ -59,6 +59,7 @@ function spawnRunner(config: HostConfig, taskId: string, command: string): void 
   const rl = readline.createInterface({ input: child.stdout! });
   rl.on("line", (line: string) => {
     if (!line.trim()) return;
+    console.log(`[command-runner] ${taskId} stdout line (${line.length} chars): ${line.slice(0, 100)}`);
     dispatchTrigger(taskId, line);
   });
   child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));

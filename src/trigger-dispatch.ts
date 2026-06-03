@@ -11,16 +11,17 @@
  * relaunches. High-frequency sources (commands) would otherwise wedge fast.
  */
 
-import { enqueueEvent, hasPendingEvents, resetActiveRun, markActiveRun } from "./event-queues.js";
+import { enqueueEvent, hasPendingEvents, pendingCount, resetActiveRun, markActiveRun } from "./event-queues.js";
 import { getPlatform } from "./platform/index.js";
 
 const WATCHDOG_MS = 3000;
 const watchdogs = new Map<string, ReturnType<typeof setTimeout>>();
 
 function startRun(taskId: string): void {
-  getPlatform().startTask(taskId).catch((err) => {
-    console.error(`[trigger] failed to start run for ${taskId}:`, err);
-  });
+  console.log(`[trigger] ${taskId} requesting run start`);
+  getPlatform().startTask(taskId)
+    .then(() => console.log(`[trigger] ${taskId} run start request returned`))
+    .catch((err) => console.error(`[trigger] failed to start run for ${taskId}:`, err));
 }
 
 function armWatchdog(taskId: string): void {
@@ -49,6 +50,7 @@ function watchdogTick(taskId: string): void {
 /** Enqueue a trigger payload and ensure a run is (or will be) draining it. */
 export function dispatchTrigger(taskId: string, payload: string): void {
   const { shouldStart } = enqueueEvent(taskId, payload);
+  console.log(`[trigger] ${taskId} enqueued (shouldStart=${shouldStart}, pending=${pendingCount(taskId)})`);
   if (shouldStart) startRun(taskId);
   armWatchdog(taskId);
 }
