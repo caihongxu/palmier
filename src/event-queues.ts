@@ -42,10 +42,6 @@ export function hasPendingEvents(taskId: string): boolean {
   return !!queue && queue.length > 0;
 }
 
-export function pendingCount(taskId: string): number {
-  return queues.get(taskId)?.length ?? 0;
-}
-
 /** Drop a stranded active flag so a fresh run can be launched (watchdog only). */
 export function resetActiveRun(taskId: string): void {
   activeRuns.delete(taskId);

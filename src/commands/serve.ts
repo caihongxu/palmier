@@ -17,6 +17,7 @@ import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
 import { dispatchTrigger } from "../trigger-dispatch.js";
 import { startEnabledCommandRunners } from "../command-runners.js";
+import { currentVersion } from "../update-checker.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
@@ -108,7 +109,7 @@ export async function serveCommand(): Promise<void> {
   // PID file lets `palmier restart` find us regardless of how we were started
   fs.writeFileSync(DAEMON_PID_FILE, String(process.pid), "utf-8");
 
-  console.log("Starting...");
+  console.log(`Starting Palmier daemon v${currentVersion}...`);
 
   const agents = await detectAgents(config.agents);
   config.agents = agents;
