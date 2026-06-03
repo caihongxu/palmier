@@ -321,8 +321,6 @@ async function runEventTriggeredMode(
   const popUrl = `http://localhost:${port}/task-event/pop?taskId=${encodeURIComponent(ctx.taskId)}`;
 
   console.log(`[triggered] Draining ${label} queue`);
-  appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
-  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
   let eventsProcessed = 0;
   let lastOutcome: TaskRunningState = "finished";
@@ -350,9 +348,6 @@ async function runEventTriggeredMode(
 
       const result = await invokeAgentWithRetries(ctx, perEventTask);
       lastOutcome = result.outcome;
-
-      appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "monitoring" });
-      await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);

@@ -39,14 +39,9 @@ export function parseResultFrontmatter(raw: string): Record<string, unknown> {
   const terminalStates = ["finished", "failed", "aborted"];
   const terminalMsg = [...statusMessages].reverse().find((m: ConversationMessage) => terminalStates.includes(m.type ?? ""));
 
-  const activeStates = ["started", "monitoring", "confirmation"];
+  const activeStates = ["started", "confirmation"];
   let runningState: string | undefined;
-  if (lastStatus?.type === "monitoring") {
-    // Show "monitoring" only if no assistant/user message followed it.
-    const lastStatusIdx = messages.lastIndexOf(lastStatus);
-    const hasMessageAfter = messages.slice(lastStatusIdx + 1).some((m: ConversationMessage) => m.role === "assistant" || m.role === "user");
-    runningState = hasMessageAfter ? "started" : "monitoring";
-  } else if (activeStates.includes(lastStatus?.type ?? "")) {
+  if (activeStates.includes(lastStatus?.type ?? "")) {
     runningState = terminalMsg ? "followup" : "started";
   } else {
     runningState = lastStatus?.type;
