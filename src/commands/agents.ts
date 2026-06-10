@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from "../config.js";
-import { detectAgents } from "../agents/agent.js";
+import { detectAgents, type DetectedAgent } from "../agents/agent.js";
 import {
   colors,
   pickAndInstallAgent,
@@ -11,6 +11,12 @@ import { getPlatform } from "../platform/index.js";
 import type { HostConfig } from "../types.js";
 
 const { bold, dim, cyan } = colors;
+
+function sameAgents(a: DetectedAgent[], b: DetectedAgent[]): boolean {
+  if (a.length !== b.length) return false;
+  const versionsByKey = new Map(a.map((agent) => [agent.key, agent.version]));
+  return b.every((agent) => versionsByKey.has(agent.key) && versionsByKey.get(agent.key) === agent.version);
+}
 
 export async function agentsCommand(): Promise<void> {
   let config: HostConfig | null = null;
@@ -50,7 +56,11 @@ export async function agentsCommand(): Promise<void> {
     agents = await detectAgents(agents);
   }
 
-  if (!dirty) return;
+  // Re-detection picks up version changes from upgrades done outside the wizard.
+  // The daemon serves versions from its config snapshot, so any difference must
+  // be persisted and the daemon restarted to read it.
+  const changed = config ? !sameAgents(config.agents ?? [], agents) : dirty;
+  if (!changed) return;
 
   if (config) {
     config.agents = agents;
