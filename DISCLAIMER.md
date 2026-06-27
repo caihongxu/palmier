@@ -4,7 +4,7 @@
 
 ## AI Agent Execution
 
-Palmier spawns third-party AI agent CLIs (such as Claude Code, Gemini CLI, Codex CLI, GitHub Copilot, and others) that can:
+Palmier spawns third-party AI agent CLIs (such as Claude Code, Codex CLI, GitHub Copilot, and others) that can:
 
 - **Read, create, modify, and delete files** on your machine
 - **Execute arbitrary shell commands** with your user permissions

@@ -21,20 +21,20 @@ describe("listInstallableAgents", () => {
     assert.equal(typeof first.command, "string");
   });
 
-  it("places tier-one agents (claude, gemini, codex, copilot) ahead of all others, in that order", () => {
+  it("places tier-one agents (claude, codex, copilot) ahead of all others, in that order", () => {
     const keys = listInstallableAgents().map((a) => a.key);
-    const tierOne = ["claude", "gemini", "codex", "copilot"];
+    const tierOne = ["claude", "codex", "copilot"];
     const presentTierOne = tierOne.filter((k) => keys.includes(k));
     assert.deepEqual(
       keys.slice(0, presentTierOne.length),
       presentTierOne,
-      "tier-one agents must appear at the head of the list in claude→gemini→codex→copilot order",
+      "tier-one agents must appear at the head of the list in claude→codex→copilot order",
     );
   });
 
   it("non-tier-one agents follow tier-one and appear in registry order", () => {
     const keys = listInstallableAgents().map((a) => a.key);
-    const tierOne = new Set(["claude", "gemini", "codex", "copilot"]);
+    const tierOne = new Set(["claude", "codex", "copilot"]);
     const tail = keys.filter((k) => !tierOne.has(k));
     // Calling again should produce a stable order — the tail comparator returns 0
     // for non-tier-one keys, so they retain insertion (registry) order.

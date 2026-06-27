@@ -2,7 +2,6 @@ import { execSync } from "child_process";
 import type { ParsedTask, RequiredPermission } from "../types.js";
 import { SHELL } from "../platform/index.js";
 import { claudeAgent } from "./claude.js";
-import { geminiAgent } from "./gemini.js";
 import { codexAgent } from "./codex.js";
 import { droidAgent } from "./droid.js";
 import { openClawAgent } from "./openclaw.js";
@@ -109,7 +108,6 @@ export function getNpmInstalledVersion(npmPackage: string): string | null {
 
 const agentRegistry: Record<string, AgentTool> = {
   claude: claudeAgent,
-  gemini: geminiAgent,
   codex: codexAgent,
   openclaw: openClawAgent,
   copilot: copilotAgent,
@@ -145,7 +143,7 @@ export interface InstallableAgent {
   freeUsage?: string;
 }
 
-const TIER_ONE_ORDER = ["claude", "gemini", "codex", "copilot"];
+const TIER_ONE_ORDER = ["claude", "codex", "copilot"];
 
 export function listInstallableAgents(): InstallableAgent[] {
   const out: InstallableAgent[] = [];
