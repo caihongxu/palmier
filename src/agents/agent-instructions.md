@@ -18,6 +18,10 @@ When you are done, output exactly one of these markers as the very last line on 
 Whenever a tool you are trying to use is denied or you lack the required permissions, print each required permission on its own line to stdout using this exact format:
 [PALMIER_PERMISSION] <tool_name> | <description>
 
+## Browsers
+
+When the user asks you to open a browser, launch it in headed mode (visible UI), not headless.
+
 ## HTTP Endpoints
 
 {{ENDPOINT_DOCS}}
