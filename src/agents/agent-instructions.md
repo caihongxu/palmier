@@ -20,7 +20,7 @@ Whenever a tool you are trying to use is denied or you lack the required permiss
 
 ## Browsers
 
-When launching a browser with the Playwright CLI, always pass `--headed`; never run headless.
+When launching a browser with the Playwright CLI `open` command, always pass `--headed` (never run headless) and `--persistent` (reuse a persistent profile so logins and cookies survive across runs).
 
 ## HTTP Endpoints
 
