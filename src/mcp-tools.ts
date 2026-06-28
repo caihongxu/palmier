@@ -5,6 +5,8 @@ import { getLinkedDevice } from "./linked-device.js";
 import { getNotifications, onNotificationsChanged } from "./notification-store.js";
 import { getSmsMessages, onSmsChanged } from "./sms-store.js";
 import { getTaskDir, readHistory, spliceUserMessage } from "./task.js";
+import { lookupPassword, savePassword, normalizeOrigin } from "./password-store.js";
+import { fillPasswordInBrowser } from "./playwright-fill.js";
 import type { HostConfig } from "./types.js";
 
 export class ToolError extends Error {
@@ -204,6 +206,78 @@ const requestConfirmationTool: ToolDefinition = {
     });
 
     return { confirmed };
+  },
+};
+
+const fillPasswordTool: ToolDefinition = {
+  name: "fill-password",
+  description: [
+    "Fill the user's saved password into a password field in the active playwright-cli browser session.",
+    "Use this instead of typing a password yourself — the password is never revealed to you.",
+    "Provide the page URL, the username/login identifier, and the playwright-cli ref of the password field (and the session name if you opened a named session).",
+    "If a password for this (site, username) is already saved it is filled directly; otherwise the user is prompted to enter it, it is saved, then filled.",
+    'Response: `{"ok": true}` on success, or `{"aborted": true}` if the user declines to provide the password.',
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "URL of the page with the login form" },
+      username: { type: "string", description: "Username / login identifier for this site" },
+      ref: { type: "string", description: 'playwright-cli ref of the password field (e.g. "e5")' },
+      session: { type: "string", description: "playwright-cli session name (omit for the default session)" },
+    },
+    required: ["url", "username", "ref"],
+  },
+  async handler(args, ctx) {
+    const { url, username, ref, session } = args as { url: string; username: string; ref: string; session?: string };
+    if (!url || !username || !ref) throw new ToolError("url, username, and ref are required", 400);
+
+    const origin = normalizeOrigin(url);
+    let password = lookupPassword(origin, username);
+
+    if (password === undefined) {
+      const question = `Password for ${username} on ${origin}`;
+      const description = `Enter the password to sign in as ${username} on ${origin}.`;
+      const pendingPromise = registerPending(ctx.sessionId, "input", [question], {
+        session_id: ctx.sessionId,
+        session_name: ctx.agentName,
+        description,
+        input_questions: [question],
+        secret: true,
+      });
+
+      await ctx.publishEvent("_input", {
+        event_type: "input-request",
+        host_id: ctx.config.hostId,
+        session_id: ctx.sessionId,
+        session_name: ctx.agentName,
+        description,
+        input_questions: [question],
+        secret: true,
+      });
+
+      const response = await pendingPromise;
+      const aborted = response.length === 1 && response[0] === "aborted";
+
+      await ctx.publishEvent("_input", {
+        event_type: "input-resolved", host_id: ctx.config.hostId,
+        session_id: ctx.sessionId, status: aborted ? "aborted" : "provided",
+      });
+
+      // Never record the secret to the task run file (unlike request-input).
+      if (aborted) return { aborted: true };
+
+      password = response[0];
+      savePassword(origin, username, password);
+    }
+
+    try {
+      await fillPasswordInBrowser(ref, password, session);
+    } catch (err) {
+      throw new ToolError(`Failed to fill password: ${err instanceof Error ? err.message : String(err)}`, 502);
+    }
+
+    return { ok: true };
   },
 };
 
@@ -776,7 +850,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {

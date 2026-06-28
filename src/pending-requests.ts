@@ -8,6 +8,8 @@ export interface PendingRequestMeta {
   session_name?: string;
   description?: string;
   input_questions?: string[];
+  /** Render the input field(s) masked (password entry). */
+  secret?: boolean;
 }
 
 export interface PendingRequest {

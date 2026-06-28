@@ -57,6 +57,7 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `notify` | Send a push notification to the user's device |
 | `request-input` | Request input from the user (blocks until response) |
 | `request-confirmation` | Request confirmation from the user (blocks until response) |
+| `fill-password` | Fill a saved password into the active browser session, prompting the user if unknown (the password is never revealed to the agent) |
 | `device-geolocation` | Get GPS location of the user's mobile device |
 | `read-contacts` | Read the contact list from the user's device |
 | `create-contact` | Create a new contact on the user's device |
@@ -153,6 +154,26 @@ palmier clients revoke-all
 
 Revoking the linked device also clears the host's linked-device record; device capabilities stop working until another paired device is linked from its drawer.
 
+### Saved Passwords
+
+Palmier can store website passwords like a browser's password manager so agents can sign in to sites without ever seeing the credentials. When an agent driving a browser (via the `playwright-cli` skill) reaches a login form, it calls the `fill-password` tool with the page URL, the username, and the password field's element ref. Palmier matches the saved password by **origin** and fills it directly into the live browser session. If no password is saved for that `(origin, username)`, Palmier prompts you in the app with a masked password dialog, stores what you enter, and then fills it. The plaintext password is never returned to the agent and is never written to task history.
+
+Passwords are encrypted at rest with AES-256-GCM under a host-local key, both stored in `~/.config/palmier/` (`passwords.enc` and `password-key`). Manage them from the host:
+
+```bash
+# List saved passwords (origin and username only — never the password)
+palmier passwords list
+
+# Delete a specific saved password
+palmier passwords delete https://example.com alice
+
+# Delete every saved password for an origin
+palmier passwords delete https://example.com
+
+# Delete all saved passwords
+palmier passwords clear
+```
+
 ### The `init` Command
 
 The wizard:
@@ -198,6 +219,9 @@ The default network interface is detected once during `palmier init` and saved t
 | `palmier clients list` | List active client tokens |
 | `palmier clients revoke <token>` | Revoke a specific client token |
 | `palmier clients revoke-all` | Revoke all client tokens |
+| `palmier passwords list` | List saved passwords (origin and username only) |
+| `palmier passwords delete <origin> [username]` | Delete a saved password (omit username to delete all for the origin) |
+| `palmier passwords clear` | Delete all saved passwords |
 | `palmier info` | Show host connection info (address, mode) |
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |

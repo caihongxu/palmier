@@ -13,6 +13,7 @@ import { serveCommand } from "./commands/serve.js";
 import { pairCommand } from "./commands/pair.js";
 import { restartCommand } from "./commands/restart.js";
 import { clientsListCommand, clientsRevokeCommand, clientsRevokeAllCommand } from "./commands/clients.js";
+import { passwordsListCommand, passwordsDeleteCommand, passwordsClearCommand } from "./commands/passwords.js";
 import { agentsCommand } from "./commands/agents.js";
 import { uninstallCommand } from "./commands/uninstall.js";
 
@@ -93,6 +94,31 @@ clientsCmd
   .description("Revoke all clients")
   .action(async () => {
     await clientsRevokeAllCommand();
+  });
+
+const passwordsCmd = program
+  .command("passwords")
+  .description("Manage saved passwords");
+
+passwordsCmd
+  .command("list")
+  .description("List saved passwords (origin and username only)")
+  .action(async () => {
+    await passwordsListCommand();
+  });
+
+passwordsCmd
+  .command("delete <origin> [username]")
+  .description("Delete a saved password (omit username to delete all for the origin)")
+  .action(async (origin: string, username?: string) => {
+    await passwordsDeleteCommand(origin, username);
+  });
+
+passwordsCmd
+  .command("clear")
+  .description("Delete all saved passwords")
+  .action(async () => {
+    await passwordsClearCommand();
   });
 
 program
