@@ -19,7 +19,7 @@ export const claudeAgent: AgentTool = {
     const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
 
     if (!yolo) {
-      args.push("--allowedTools", "WebFetch", "Skill(playwright-cli)", "Bash(curl)", "Bash(wget)", "Bash(playwright)", "Bash(playwright-cli)");
+      args.push("--allowedTools", "WebFetch", "Skill(playwright-cli:*)", "Bash(curl:*)", "Bash(wget:*)", "Bash(playwright:*)", "Bash(playwright-cli:*)");
       const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
       for (const p of allPerms) {
         args.push(p.name);
