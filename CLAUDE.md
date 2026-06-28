@@ -19,4 +19,4 @@ Keep comments timeless:
 - Don't narrate the current change ("added for the Y flow", "removed ...").
 - Don't restate type signatures or function names in prose.
 
-When a comment earns its place, keep it short — one or two lines is almost always enough. If a block of code needs a paragraph to explain, consider whether the code itself should be clearer.
+When a comment earns its place, be concise. One line is the target. Write the single non-obvious *why* and nothing more — no setup, no restating what the code does, no explaining the obvious parts around it.
