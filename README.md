@@ -209,9 +209,11 @@ Unlike agents, the Playwright CLI has **no explicit uninstall** — it's not off
 
 ### Updates
 
-- **Palmier itself** — when a newer version of `palmier` is published to npm, the PWA shows a dismissible "Update Available" dialog. Clicking "Update Now" runs `npm update -g palmier` on the host and restarts the daemon. Clicking "Dismiss" suppresses the dialog for that exact version (per host, per device); a future release re-arms it.
-- **Palmier-managed agents** — same flow per agent: when npm publishes a newer version, the PWA shows an "Agent Update Available" dialog. Clicking "Update Now" runs `npm update -g <pkg>` on the host (no daemon restart needed). Dismissals are per host, per agent, per version.
-- **Managed Playwright CLI** — same flow: a "Browser Automation Update Available" dialog runs `npm update -g @playwright/cli`. Dismissals are per host, per version.
+- **Palmier itself** — when a newer version of `palmier` is published to npm, the PWA shows an "Update Available" dialog. Clicking "Update Now" runs `npm update -g palmier` on the host and restarts the daemon. Clicking "Dismiss" only hides it for the current session — reopening or reloading the app shows it again until you update.
+- **Palmier-managed agents** — same flow per agent: when npm publishes a newer version, the PWA shows an "Agent Update Available" dialog. Clicking "Update Now" runs `npm update -g <pkg>` on the host (no daemon restart needed).
+- **Managed Playwright CLI** — same flow: a "Browser Automation Update Available" dialog runs `npm update -g @playwright/cli`.
+
+Dismissals are session-only: they are never persisted, so a reload re-arms every update dialog until the update is applied.
 
 ### Re-detecting the LAN Network
 
