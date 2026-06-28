@@ -203,7 +203,7 @@ Run `palmier agents` to manage agent CLIs after setup: it lists installed agents
 
 ### Browser Automation
 
-Some capabilities (like the [saved-password autofill](#saved-passwords)) drive a real browser through the [`playwright-cli`](https://www.npmjs.com/package/@playwright/cli) skill. `palmier init` offers to install and manage the Playwright CLI (`@playwright/cli`) for this. When you opt in, Palmier manages it **just like an agent CLI** — the version is stamped, re-probed live on each daemon start, and the PWA shows a "Browser Automation Update Available" dialog (same flow as agents) when a newer version is published. Its version is shown in the app's host drawer. The browser binaries Playwright needs are downloaded lazily on first use, not during init.
+Some capabilities (like the [saved-password autofill](#saved-passwords)) drive a real browser through the [`playwright-cli`](https://www.npmjs.com/package/@playwright/cli) skill. `palmier init` offers to install and manage the Playwright CLI (`@playwright/cli`) for this, and on install also runs `playwright-cli install --skills` in your Palmier task directory (`~/palmier`) so agents get the Playwright skills that teach them how to drive the browser. When you opt in, Palmier manages it **just like an agent CLI** — the version is stamped, re-probed live on each daemon start, and the PWA shows a "Browser Automation Update Available" dialog (same flow as agents) when a newer version is published. Its version is shown in the app's host drawer. The browser binaries Playwright needs are downloaded lazily on first use, not during init.
 
 Unlike agents, the Playwright CLI has **no explicit uninstall** — it's not offered in any uninstall picker. It is removed only by a full `palmier uninstall`.
 

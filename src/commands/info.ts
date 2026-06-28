@@ -1,6 +1,7 @@
 import { loadConfig } from "../config.js";
 import { loadClients } from "../client-store.js";
 import { buildLanUrl } from "../network.js";
+import { PLAYWRIGHT_CLI_LABEL } from "../playwright-cli.js";
 
 export async function infoCommand(): Promise<void> {
   const config = loadConfig();
@@ -18,6 +19,10 @@ export async function infoCommand(): Promise<void> {
     console.log(`Agents:       ${config.agents.map((a) => a.version ? `${a.label} (v${a.version})` : `${a.label} (unmanaged)`).join(", ")}`);
   } else {
     console.log(`Agents:       (none detected — run \`palmier agents\`)`);
+  }
+
+  if (config.playwrightCliVersion) {
+    console.log(`Browser:      ${PLAYWRIGHT_CLI_LABEL} (v${config.playwrightCliVersion})`);
   }
 
   console.log(`Clients:      ${clients.length} active`);

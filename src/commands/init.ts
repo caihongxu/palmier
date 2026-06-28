@@ -5,7 +5,7 @@ import { homedir } from "os";
 import { loadConfig, saveConfig } from "../config.js";
 import { detectAgents } from "../agents/agent.js";
 import { colors, pickAndInstallAgent, printInstalledAgents } from "../agents/wizard.js";
-import { installPlaywrightCli, getPlaywrightCliVersion, PLAYWRIGHT_CLI_LABEL } from "../playwright-cli.js";
+import { installPlaywrightCli, installPlaywrightSkills, getPlaywrightCliVersion, PLAYWRIGHT_CLI_LABEL } from "../playwright-cli.js";
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
@@ -57,12 +57,14 @@ export async function initCommand(): Promise<void> {
   try {
 
     // Browser automation is optional. Palmier manages the Playwright CLI like an
-    // agent CLI (install, version-stamp, update) once the user opts in; an
-    // already-managed install is re-probed rather than re-prompted.
-    let playwrightCliVersion = previousConfig?.playwrightCliVersion;
-    if (playwrightCliVersion) {
-      playwrightCliVersion = getPlaywrightCliVersion() ?? playwrightCliVersion;
-    } else {
+    // agent CLI (install, version-stamp, update) once the user opts in. Trust the
+    // actual global install, not just the saved marker: `palmier uninstall`
+    // removes the package but leaves host.json, so a stale playwrightCliVersion
+    // must not suppress the prompt.
+    let playwrightCliVersion = previousConfig?.playwrightCliVersion
+      ? getPlaywrightCliVersion() ?? undefined
+      : undefined;
+    if (!playwrightCliVersion) {
       const answer = (await ask(
         `\nInstall ${PLAYWRIGHT_CLI_LABEL} for browser automation? Lets agents control a browser — e.g. autofill saved passwords. (Y/n): `,
       )).trim().toLowerCase();
@@ -70,6 +72,7 @@ export async function initCommand(): Promise<void> {
         if (installPlaywrightCli()) {
           playwrightCliVersion = getPlaywrightCliVersion() ?? undefined;
           console.log(green(`  ${PLAYWRIGHT_CLI_LABEL} installed.`));
+          installPlaywrightSkills(projectRoot);
         }
       }
     }
