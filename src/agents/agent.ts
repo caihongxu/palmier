@@ -17,6 +17,7 @@ import { kiroAgent } from "./kiro.js";
 import { clineAgent } from "./cline.js";
 import { qoderAgent } from "./qoder.js";
 import { hermesAgent } from "./hermes.js";
+import { grokAgent } from "./grok.js";
 
 export interface CommandLine {
   args: string[];
@@ -123,6 +124,7 @@ const agentRegistry: Record<string, AgentTool> = {
   cline: clineAgent,
   qoder: qoderAgent,
   hermes: hermesAgent,
+  grok: grokAgent,
 };
 
 export interface DetectedAgent {
