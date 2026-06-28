@@ -212,11 +212,11 @@ const requestConfirmationTool: ToolDefinition = {
 const fillPasswordTool: ToolDefinition = {
   name: "fill-password",
   description: [
-    "Fill the user's saved password into a password field in the active playwright-cli browser session.",
-    "Use this instead of typing a password yourself — the password is never revealed to you.",
-    "Provide the page URL, the username/login identifier, and the playwright-cli ref of the password field (and the session name if you opened a named session).",
-    "If a password for this (site, username) is already saved it is filled directly; otherwise the user is prompted to enter it, it is saved, then filled.",
-    'Response: `{"ok": true}` on success, or `{"aborted": true}` if the user declines to provide the password.',
+    "Fill the user's saved password or PIN into a credential field in the active playwright-cli browser session.",
+    "Use this instead of typing a password or PIN yourself — the secret is never revealed to you.",
+    "Provide the page URL, the username/login identifier, and the playwright-cli ref of the field (and the session name if you opened a named session).",
+    "If a secret for this (site, username) is already saved it is filled directly; otherwise the user is prompted to enter it, it is saved, then filled.",
+    'Response: `{"ok": true}` on success, or `{"aborted": true}` if the user declines to provide it.',
   ],
   inputSchema: {
     type: "object",
@@ -236,8 +236,8 @@ const fillPasswordTool: ToolDefinition = {
     let password = lookupPassword(origin, username);
 
     if (password === undefined) {
-      const question = `Password for ${username} on ${origin}`;
-      const description = `Enter the password to sign in as ${username} on ${origin}.`;
+      const question = `Password or PIN for ${username} on ${origin}`;
+      const description = `Enter the password or PIN to sign in as ${username} on ${origin}.`;
       const pendingPromise = registerPending(ctx.sessionId, "input", [question], {
         session_id: ctx.sessionId,
         session_name: ctx.agentName,
