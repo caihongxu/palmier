@@ -20,7 +20,7 @@ Whenever a tool you are trying to use is denied or you lack the required permiss
 
 ## Browsers
 
-When the user asks you to open a browser, launch it in headed mode (visible UI), not headless.
+When launching a browser with the Playwright CLI, always pass `--headed`; never run headless.
 
 ## HTTP Endpoints
 
