@@ -1,6 +1,7 @@
 import { getPlatform } from "../platform/index.js";
 import { loadConfig } from "../config.js";
 import { uninstallManagedAgents } from "../agents/wizard.js";
+import { uninstallPlaywrightCli, PLAYWRIGHT_CLI_LABEL } from "../playwright-cli.js";
 import type { HostConfig } from "../types.js";
 
 export async function uninstallCommand(): Promise<void> {
@@ -13,6 +14,10 @@ export async function uninstallCommand(): Promise<void> {
   try { config = loadConfig(); } catch { /* host not initialized */ }
   if (config?.agents) {
     uninstallManagedAgents(config.agents);
+  }
+  if (config?.playwrightCliVersion) {
+    console.log(`\nUninstalling ${PLAYWRIGHT_CLI_LABEL}...`);
+    uninstallPlaywrightCli();
   }
 
   console.log("\nUninstall finished.");

@@ -179,6 +179,7 @@ palmier passwords clear
 The wizard:
 - Detects installed agent CLIs and caches the result; agents previously installed by Palmier have their installed version re-probed so the recorded version stays in sync with manual upgrades
 - Offers to install missing supported agents from npm (one at a time, arrow-key menu). After each install the agent's version is stamped (becoming "Palmier-managed"), the wizard kicks off authentication, and waits for you to press Enter before offering the next install. On re-init, the agents list is saved after every install so an interrupted wizard is resumable.
+- Offers to install the **Playwright CLI** for browser automation (see [Browser Automation](#browser-automation)). Skipped on re-init if it's already managed.
 - Asks for the HTTP port
 - Detects the default network interface (used for auto-LAN)
 - Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
@@ -200,10 +201,17 @@ Agents installed by the user outside the wizard (e.g., `npm install -g <pkg>` di
 
 Run `palmier agents` to manage agent CLIs after setup: it lists installed agents and offers an interactive picker to install or uninstall one. `palmier init` only prompts for an agent install when none are detected; once any agent is installed, init just lists them and continues with host registration.
 
+### Browser Automation
+
+Some capabilities (like the [saved-password autofill](#saved-passwords)) drive a real browser through the [`playwright-cli`](https://www.npmjs.com/package/@playwright/cli) skill. `palmier init` offers to install and manage the Playwright CLI (`@playwright/cli`) for this. When you opt in, Palmier manages it **just like an agent CLI** — the version is stamped, re-probed live on each daemon start, and the PWA shows a "Browser Automation Update Available" dialog (same flow as agents) when a newer version is published. Its version is shown in the app's host drawer. The browser binaries Playwright needs are downloaded lazily on first use, not during init.
+
+Unlike agents, the Playwright CLI has **no explicit uninstall** — it's not offered in any uninstall picker. It is removed only by a full `palmier uninstall`.
+
 ### Updates
 
 - **Palmier itself** — when a newer version of `palmier` is published to npm, the PWA shows a dismissible "Update Available" dialog. Clicking "Update Now" runs `npm update -g palmier` on the host and restarts the daemon. Clicking "Dismiss" suppresses the dialog for that exact version (per host, per device); a future release re-arms it.
 - **Palmier-managed agents** — same flow per agent: when npm publishes a newer version, the PWA shows an "Agent Update Available" dialog. Clicking "Update Now" runs `npm update -g <pkg>` on the host (no daemon restart needed). Dismissals are per host, per agent, per version.
+- **Managed Playwright CLI** — same flow: a "Browser Automation Update Available" dialog runs `npm update -g @playwright/cli`. Dismissals are per host, per version.
 
 ### Re-detecting the LAN Network
 
@@ -226,7 +234,7 @@ The default network interface is detected once during `palmier init` and saved t
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |
 | `palmier run <task-id>` | Execute a specific task |
-| `palmier uninstall` | Stop daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs |
+| `palmier uninstall` | Stop daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs and the managed Playwright CLI |
 
 ## Uninstalling
 
@@ -234,7 +242,7 @@ To fully remove Palmier from a machine:
 
 1. **Unpair your device** in the PWA (via the host menu).
 
-2. **Stop the daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs:**
+2. **Stop the daemon, remove all scheduled tasks, and uninstall Palmier-managed agent CLIs and the managed Playwright CLI:**
 
    ```bash
    palmier uninstall

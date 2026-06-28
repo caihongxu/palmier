@@ -17,6 +17,10 @@ export interface HostConfig {
     version?: string;
   }>;
 
+  /** Installed version of the Palmier-managed Playwright CLI (`@playwright/cli`).
+   * Present iff Palmier manages it; mirrors the agents' `version` marker. */
+  playwrightCliVersion?: string;
+
   httpPort?: number;
 
   /** OS network interface name of the IPv4 default route, captured on the

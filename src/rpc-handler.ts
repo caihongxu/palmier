@@ -13,6 +13,7 @@ import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
 import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
+import { PLAYWRIGHT_CLI_PACKAGE, PLAYWRIGHT_CLI_LABEL } from "./playwright-cli.js";
 import { saveConfig } from "./config.js";
 import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
 import { clearTaskQueue } from "./event-queues.js";
@@ -212,6 +213,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           linked_client_token: getLinkedDevice()?.clientToken ?? null,
           pending_prompts: listPending(),
           lan_url: buildLanUrl(config.httpPort ?? 7256, config.defaultInterface),
+          playwright_cli: config.playwrightCliVersion
+            ? { label: PLAYWRIGHT_CLI_LABEL, npmPackage: PLAYWRIGHT_CLI_PACKAGE, version: config.playwrightCliVersion }
+            : null,
         };
       }
 
@@ -741,6 +745,18 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (newVersion) entry.version = newVersion;
         saveConfig(config);
         return { ok: true, version: newVersion ?? entry.version };
+      }
+
+      case "host.updatePlaywrightCli": {
+        if (!config.playwrightCliVersion) return { error: "Playwright CLI is not managed by Palmier" };
+
+        const error = await performAgentUpdate(PLAYWRIGHT_CLI_PACKAGE);
+        if (error) return { error };
+
+        const newVersion = getNpmInstalledVersion(PLAYWRIGHT_CLI_PACKAGE);
+        if (newVersion) config.playwrightCliVersion = newVersion;
+        saveConfig(config);
+        return { ok: true, version: newVersion ?? config.playwrightCliVersion };
       }
 
       case "device.link": {

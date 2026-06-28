@@ -131,7 +131,7 @@ export async function pickAndUninstallAgent(
  *  managed-agent removal in `palmier uninstall`. */
 export function uninstallAgent(agent: DetectedAgent): boolean {
   if (!agent.npmPackage) return false;
-  if (!uninstallAgentPackage(agent.npmPackage)) {
+  if (!npmUninstallGlobal(agent.npmPackage)) {
     console.log(red(`  Skipped ${agent.label}; uninstall it manually with npm uninstall -g ${agent.npmPackage}.`));
     return false;
   }
@@ -139,9 +139,11 @@ export function uninstallAgent(agent: DetectedAgent): boolean {
   return true;
 }
 
-function installAgentPackage(agent: InstallableAgent): boolean {
-  console.log(`\nInstalling ${cyan(agent.npmPackage)}...\n`);
-  const cmd = `npm install -g ${agent.npmPackage}`;
+/** `npm install -g <pkg>`. Shared by the agent installer and the Playwright CLI
+ *  tool manager. Logs progress and a permissions hint on failure. */
+export function npmInstallGlobal(npmPackage: string): boolean {
+  console.log(`\nInstalling ${cyan(npmPackage)}...\n`);
+  const cmd = `npm install -g ${npmPackage}`;
   const result = spawnSync(cmd, { shell: true, stdio: "inherit" });
   if (result.error) {
     console.log(`\n${red(`Failed to run npm: ${result.error.message}`)}`);
@@ -159,6 +161,10 @@ function installAgentPackage(agent: InstallableAgent): boolean {
     return false;
   }
   return true;
+}
+
+function installAgentPackage(agent: InstallableAgent): boolean {
+  return npmInstallGlobal(agent.npmPackage);
 }
 
 export function uninstallManagedAgents(agents: DetectedAgent[]): void {
@@ -182,7 +188,9 @@ export function uninstallManagedAgents(agents: DetectedAgent[]): void {
   }
 }
 
-function uninstallAgentPackage(npmPackage: string): boolean {
+/** `npm uninstall -g <pkg>`. Shared by the agent uninstaller and the Playwright
+ *  CLI tool manager (the latter only via `palmier uninstall`, never a picker). */
+export function npmUninstallGlobal(npmPackage: string): boolean {
   console.log(`\nUninstalling ${cyan(npmPackage)}...\n`);
   const cmd = `npm uninstall -g ${npmPackage}`;
   const result = spawnSync(cmd, { shell: true, stdio: "inherit" });

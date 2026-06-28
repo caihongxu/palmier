@@ -9,6 +9,7 @@ import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMe
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
+import { getPlaywrightCliVersion } from "../playwright-cli.js";
 import { saveConfig } from "../config.js";
 import type { HostConfig } from "../types.js";
 import { CONFIG_DIR } from "../config.js";
@@ -113,6 +114,11 @@ export async function serveCommand(): Promise<void> {
 
   const agents = await detectAgents(config.agents);
   config.agents = agents;
+  // Keep the managed Playwright CLI version in sync with manual upgrades, same
+  // as agents. Only touched when Palmier already manages it.
+  if (config.playwrightCliVersion) {
+    config.playwrightCliVersion = getPlaywrightCliVersion() ?? config.playwrightCliVersion;
+  }
   saveConfig(config);
   console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);
 
