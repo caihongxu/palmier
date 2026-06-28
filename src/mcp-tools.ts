@@ -268,7 +268,9 @@ const fillPasswordTool: ToolDefinition = {
       if (aborted) return { aborted: true };
 
       password = response[0];
-      savePassword(origin, username, password);
+      // The PWA appends a "save"/"nosave" flag for password prompts; persist
+      // unless the user opted out via the dialog's checkbox.
+      if (response[1] !== "nosave") savePassword(origin, username, password);
     }
 
     try {
