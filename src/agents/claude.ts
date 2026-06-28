@@ -27,6 +27,15 @@ export const claudeAgent: AgentTool = {
     }
 
     if (followupPrompt) {args.push("-c");}
-    return { args, stdin: prompt };
+    return {
+      args,
+      stdin: prompt,
+      // Don't let the Bash tool kill the curl that blocks on user input — the
+      // user may take arbitrarily long to answer. Max non-overflowing setTimeout.
+      env: {
+        BASH_DEFAULT_TIMEOUT_MS: "2147483647",
+        BASH_MAX_TIMEOUT_MS: "2147483647",
+      },
+    };
   },
 };
