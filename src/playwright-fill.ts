@@ -24,8 +24,10 @@ async function resolvePlaywrightCli(): Promise<PlaywrightCli> {
 
 /**
  * Fill `password` into the `ref` element of the agent's live playwright-cli
- * browser session. playwright-cli keeps a persistent server-side browser keyed
- * by session name, so this lands on the same page the agent is driving.
+ * browser session and submit (Enter) in the same invocation. playwright-cli
+ * keeps a persistent server-side browser keyed by session name, so this lands
+ * on the same page the agent is driving. Filling and submitting in one call
+ * keeps the plaintext secret on the page for as short a window as possible.
  *
  * The password is passed as an argv element (no shell, so no history/injection),
  * which leaves it briefly visible to other processes of the same user;
@@ -39,6 +41,7 @@ export async function fillPasswordInBrowser(ref: string, password: string, sessi
     "fill",
     ref,
     password,
+    "--submit",
   ];
   const { exitCode, output } = await spawnCommand(command, args, { cwd: process.cwd(), resolveOnFailure: true });
   if (exitCode !== 0) {
