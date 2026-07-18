@@ -12,6 +12,7 @@ import { getAgent, getPromptCommandLine, getNpmInstalledVersion } from "./agents
 import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
+import { listPasswords, deletePassword } from "./password-store.js";
 import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
 import { PLAYWRIGHT_CLI_PACKAGE, PLAYWRIGHT_CLI_LABEL } from "./playwright-cli.js";
 import { saveConfig } from "./config.js";
@@ -773,6 +774,16 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         const current = getLinkedDevice();
         if (current?.clientToken === clientToken) clearLinkedDevice();
         return { ok: true };
+      }
+
+      case "passwords.list": {
+        return { passwords: listPasswords() };
+      }
+
+      case "passwords.delete": {
+        const params = request.params as { origin: string; username: string };
+        if (!params?.origin || !params?.username) return { error: "origin and username are required" };
+        return { ok: deletePassword(params.origin, params.username) };
       }
 
       case "clients.revoke_self": {
