@@ -3,6 +3,7 @@
 [![CI](https://github.com/caihongxu/palmier/actions/workflows/ci.yml/badge.svg)](https://github.com/caihongxu/palmier/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/palmier)](https://www.npmjs.com/package/palmier)
 [![license](https://img.shields.io/npm/l/palmier)](https://github.com/caihongxu/palmier/blob/master/LICENSE)
+[![SafeSkill 74/100](https://img.shields.io/badge/SafeSkill-74%2F100_Passes%20with%20Notes-yellow)](https://safeskill.dev/scan/caihongxu-palmier)
 
 **Website:** [palmier.me](https://www.palmier.me) | **Web App:** [app.palmier.me](https://app.palmier.me) | **Android App:** [caihongxu/palmier-android](https://github.com/caihongxu/palmier-android)
 
