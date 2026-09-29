@@ -16,7 +16,8 @@ import { listPasswords, deletePassword } from "./password-store.js";
 import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
 import { PLAYWRIGHT_CLI_PACKAGE, PLAYWRIGHT_CLI_LABEL } from "./playwright-cli.js";
 import { saveConfig } from "./config.js";
-import { parseReportFiles, parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
+import { parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
+import { resolveTaskFile, readTaskFileChunk } from "./task-files.js";
 import { clearTaskQueue } from "./event-queues.js";
 import { reconcileCommandRunner, stopCommandRunner } from "./command-runners.js";
 import { buildLanUrl } from "./network.js";
@@ -501,13 +502,11 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
           const output = Buffer.concat(chunks).toString("utf-8");
           const outcome = code !== 0 ? "failed" : parseTaskOutcome(output);
-          const reportFiles = parseReportFiles(output);
 
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "assistant",
             time: Date.now(),
             content: stripPalmierMarkers(output),
-            attachments: reportFiles.length > 0 ? reportFiles : undefined,
           });
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "status",
@@ -634,36 +633,20 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         }
       }
 
-      case "task.reports": {
-        const params = request.params as { id: string; run_id: string; report_files: string[] };
-        if (!params.run_id || !Array.isArray(params.report_files) || params.report_files.length === 0) {
-          return { error: "run_id and report_files are required" };
+      case "task.file": {
+        const params = request.params as { id: string; run_id: string; path: string; offset?: number };
+        if (!params.id || !params.run_id || !params.path) {
+          return { error: "id, run_id and path are required" };
         }
-        const ALLOWED_EXT = [".md", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-        const IMAGE_EXT = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-        const reports: Array<{ file: string; content?: string; data_url?: string; error?: string }> = [];
-        const runDir = path.join(config.projectRoot, "tasks", params.id, params.run_id);
-        for (const file of params.report_files) {
-          const ext = path.extname(file).toLowerCase();
-          if (!ALLOWED_EXT.includes(ext)) {
-            reports.push({ file, error: `unsupported file type: ${ext}` });
-            continue;
-          }
-          const reportPath = path.isAbsolute(file) ? file : path.join(runDir, file);
-          try {
-            if (IMAGE_EXT.includes(ext)) {
-              const buf = fs.readFileSync(reportPath);
-              const mime = ext === ".svg" ? "image/svg+xml" : `image/${ext.slice(1).replace("jpg", "jpeg")}`;
-              reports.push({ file, data_url: `data:${mime};base64,${buf.toString("base64")}` });
-            } else {
-              const content = fs.readFileSync(reportPath, "utf-8");
-              reports.push({ file, content });
-            }
-          } catch {
-            reports.push({ file, error: "Report file not found" });
-          }
+        if (path.basename(params.id) !== params.id || path.basename(params.run_id) !== params.run_id) {
+          return { error: "Invalid id or run_id" };
         }
-        return { task_id: params.id, reports };
+        try {
+          const filePath = resolveTaskFile(getTaskDir(config.projectRoot, params.id), params.run_id, params.path);
+          return readTaskFileChunk(filePath, params.offset ?? 0);
+        } catch (err) {
+          return { error: (err as Error).message };
+        }
       }
 
       case "task.user_input": {

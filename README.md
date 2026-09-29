@@ -79,6 +79,10 @@ Resources support MCP subscriptions — clients can subscribe via `resources/sub
 
 All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link the host to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
 
+### Files in Agent Output
+
+Agents run with the task's run directory (`~/palmier/tasks/<task-id>/<run-id>/`) as their working directory and are instructed to link any file they produce with a relative markdown link, e.g. `[View report](report.md)` or `![Chart](chart.png)`. The app opens these links over whichever transport is in use (local, relay, or auto-LAN). It fetches the file through the `task.file` RPC in 512 KiB chunks, so large files fit within the relay's message size. Markdown files render in-app, with their own relative links and images resolved from the file's location. Text and images are previewed, and other file types are offered as a browser download. The host only serves files whose real path (after resolving symlinks) is inside that task's directory, up to 25 MB. A run whose output links an existing file triggers a "report ready" push notification.
+
 ### Architecture
 
 ```

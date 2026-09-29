@@ -53,8 +53,11 @@ describe("appendRunMessage + readRunMessages", () => {
     assert.equal(msgs[0].type, "confirmation");
   });
 
-  it("preserves attachments", () => {
-    appendRunMessage(taskDir, runId, { role: "assistant", time: 1005, content: "Done", attachments: ["report.md", "chart.png"] });
+  it("reads attachments from runs recorded by older hosts", () => {
+    fs.appendFileSync(
+      path.join(taskDir, runId, "TASKRUN.md"),
+      '<!-- palmier:message role="assistant" time="1005" attachments="report.md,chart.png" -->\n\nDone\n\n',
+    );
     const msgs = readRunMessages(taskDir, runId);
     assert.deepEqual(msgs[0].attachments, ["report.md", "chart.png"]);
   });
@@ -119,16 +122,6 @@ describe("beginStreamingMessage", () => {
     assert.equal(msgs[0].role, "assistant");
     assert.equal(msgs[0].content, "Hello world");
   });
-
-  it("attaches report files to the last assistant message", () => {
-    const writer = beginStreamingMessage(taskDir, runId, 2000);
-    writer.write("Generated report.");
-    writer.end(["report.md", "chart.png"]);
-
-    const msgs = readRunMessages(taskDir, runId);
-    assert.equal(msgs.length, 1);
-    assert.deepEqual(msgs[0].attachments, ["report.md", "chart.png"]);
-  });
 });
 
 describe("spliceUserMessage", () => {
@@ -172,21 +165,6 @@ describe("spliceUserMessage", () => {
     assert.ok(msgs[0].content.includes("What is your key?"));
     assert.equal(msgs[1].content, "answer1");
     assert.equal(msgs[2].content, "Done.");
-  });
-
-  it("attaches reports to last assistant message after splice", () => {
-    const writer = beginStreamingMessage(taskDir, runId, 2000);
-    writer.write("Part 1");
-
-    spliceUserMessage(taskDir, runId, { role: "user", time: 2001, content: "input", type: "input" });
-
-    writer.write("Part 2");
-    writer.end(["report.md"]);
-
-    const msgs = readRunMessages(taskDir, runId);
-    // Attachments should be on the last assistant message (after splice), not the first
-    assert.equal(msgs[0].attachments, undefined);
-    assert.deepEqual(msgs[2].attachments, ["report.md"]);
   });
 });
 

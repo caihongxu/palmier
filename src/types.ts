@@ -89,6 +89,7 @@ export interface ConversationMessage {
   time: number;
   content: string;
   type?: "input" | "permission" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error";
+  /** Only present on runs recorded by older hosts; never written anymore. */
   attachments?: string[];
   /** For assistant messages, identifies which stream the agent CLI emitted this segment on.
    *  Absent on non-assistant messages and on legacy entries written before the split. */

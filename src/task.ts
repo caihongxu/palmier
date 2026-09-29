@@ -180,7 +180,6 @@ export function appendRunMessage(
   const attrs = [`role="${msg.role}"`, `time="${msg.time}"`];
   if (msg.type) attrs.push(`type="${msg.type}"`);
   if (msg.stream) attrs.push(`stream="${msg.stream}"`);
-  if (msg.attachments?.length) attrs.push(`attachments="${msg.attachments.join(",")}"`);
 
   const delimiter = `<!-- palmier:message ${attrs.join(" ")} -->`;
   const entry = `${delimiter}\n\n${msg.content}\n\n`;
@@ -207,23 +206,8 @@ export class StreamingMessageWriter {
     fs.appendFileSync(this.filePath, chunk, "utf-8");
   }
 
-  /** Finalize the message. If attachments are provided, rewrites the last assistant delimiter to include them. */
-  end(attachments?: string[]): void {
+  end(): void {
     fs.appendFileSync(this.filePath, "\n\n", "utf-8");
-    if (attachments?.length) {
-      const raw = fs.readFileSync(this.filePath, "utf-8");
-      // spliceUserMessage may have created a newer assistant delimiter.
-      const pattern = /<!-- palmier:message role="assistant"[^>]*-->/g;
-      let lastMatch: RegExpExecArray | null = null;
-      let m;
-      while ((m = pattern.exec(raw)) !== null) lastMatch = m;
-      if (lastMatch) {
-        const before = raw.slice(0, lastMatch.index);
-        const after = raw.slice(lastMatch.index + lastMatch[0].length);
-        const updated = before + `${lastMatch[0].slice(0, -4)} attachments="${attachments.join(",")}" -->` + after;
-        fs.writeFileSync(this.filePath, updated, "utf-8");
-      }
-    }
   }
 }
 

@@ -6,7 +6,8 @@ import { connectNats } from "../nats-client.js";
 import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
-import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_REPORT_PREFIX, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
+import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
+import { extractFileLinks, resolveTaskFile } from "../task-files.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
@@ -94,7 +95,7 @@ async function invokeAgentWithRetries(
     if (notifyTimer) clearTimeout(notifyTimer);
 
     const outcome: TaskRunningState = result.exitCode !== 0 ? "failed" : parseTaskOutcome(result.output);
-    const reportFiles = parseReportFiles(result.output);
+    const linkedFiles = listLinkedTaskFiles(ctx.taskDir, ctx.runId, result.output);
     const requiredPermissions = parsePermissions(result.output);
 
     for (const stream of ["stdout", "stderr"] as const) {
@@ -109,19 +110,15 @@ async function invokeAgentWithRetries(
       ensureWriter("stdout").write(`\n\n**Permissions requested:**\n${permLines}\n`);
     }
 
-    if (reportFiles.length > 0) {
-      ensureWriter("stdout").end(reportFiles);
-    } else if (writer) {
-      writer.end();
-    }
+    writer?.end();
     await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
-    if (reportFiles.length > 0) {
+    if (linkedFiles.length > 0) {
       await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, {
         event_type: "report-generated",
         run_id: ctx.runId,
         name: ctx.task.frontmatter.name,
-        report_files: reportFiles,
+        report_files: linkedFiles,
       });
     }
 
@@ -433,21 +430,16 @@ async function requestConfirmation(
   return confirmed;
 }
 
-const ALLOWED_REPORT_EXT = [".md", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-
-export function parseReportFiles(output: string): string[] {
-  const regex = new RegExp(`^\\${TASK_REPORT_PREFIX}\\s+(.+)$`, "gm");
-  const files: string[] = [];
-  let match;
-  while ((match = regex.exec(output)) !== null) {
-    const name = match[1].trim();
-    // Skip placeholder examples echoed from the prompt (e.g. "<filename>").
-    if (!name || name.startsWith("<")) continue;
-    const ext = name.lastIndexOf(".") >= 0 ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
-    if (!ALLOWED_REPORT_EXT.includes(ext)) continue;
-    files.push(name);
-  }
-  return files;
+/** Only links to files that exist count, so example links echoed from the prompt are ignored. */
+export function listLinkedTaskFiles(taskDir: string, runId: string, output: string): string[] {
+  return extractFileLinks(output).filter((file) => {
+    try {
+      resolveTaskFile(taskDir, runId, file);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function parsePermissions(output: string): RequiredPermission[] {

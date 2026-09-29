@@ -89,7 +89,7 @@ describe("getAgentInstructions", () => {
 
   it("preserves other sections when Permissions is stripped", () => {
     const result = buildInstructions("test-task-id", { skipPermissions: true });
-    assert.match(result, /## Reporting Output/);
+    assert.match(result, /## Linking Files/);
     assert.match(result, /## Completion/);
     assert.match(result, /## HTTP Endpoints/);
   });

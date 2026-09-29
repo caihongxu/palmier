@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskOutcome, parseReportFiles, parsePermissions } from "../src/commands/run.js";
+import { parseTaskOutcome, parsePermissions } from "../src/commands/run.js";
 
 describe("parseTaskOutcome", () => {
   it("returns 'finished' for success marker", () => {
@@ -22,26 +22,6 @@ describe("parseTaskOutcome", () => {
   it("only looks at last 500 chars", () => {
     const padding = "x".repeat(600);
     assert.equal(parseTaskOutcome("[PALMIER_TASK_FAILURE]" + padding), "finished");
-  });
-});
-
-describe("parseReportFiles", () => {
-  it("extracts report file names", () => {
-    const output = "doing work\n[PALMIER_REPORT] report.md\nmore work\n[PALMIER_REPORT] summary.md";
-    assert.deepEqual(parseReportFiles(output), ["report.md", "summary.md"]);
-  });
-
-  it("returns empty array when no reports", () => {
-    assert.deepEqual(parseReportFiles("no reports here"), []);
-  });
-
-  it("trims whitespace from file names", () => {
-    assert.deepEqual(parseReportFiles("[PALMIER_REPORT]   report.md  "), ["report.md"]);
-  });
-
-  it("ignores placeholder examples from echoed prompt", () => {
-    const output = "[PALMIER_REPORT] <filename>\n[PALMIER_REPORT] actual-report.md";
-    assert.deepEqual(parseReportFiles(output), ["actual-report.md"]);
   });
 });
 
