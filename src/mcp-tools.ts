@@ -21,6 +21,7 @@ export interface ToolContext {
   publishEvent: (id: string, payload: Record<string, unknown>) => Promise<void>;
   sessionId: string;
   agentName?: string;
+  abortTask: (taskId: string) => Promise<void>;
 }
 
 export interface ToolDefinition {
@@ -114,6 +115,7 @@ const requestInputTool: ToolDefinition = {
         event_type: "input-resolved", host_id: ctx.config.hostId,
         session_id: ctx.sessionId, status: "aborted",
       });
+      await abortSessionTask(ctx);
       return { aborted: true };
     }
 
@@ -147,7 +149,7 @@ function recordUserInputToRun(
   if (!runId) return;
 
   const content = aborted
-    ? "Cancel"
+    ? "Aborted"
     : questions.map((q, i) => `**${q}**\n\n${response[i] ?? ""}`).join("\n\n");
 
   try {
@@ -161,6 +163,13 @@ function recordUserInputToRun(
   } catch {
     // Run file missing or unwritable — best-effort, do not fail the tool call.
   }
+}
+
+/** No-op for pure MCP-protocol sessions, whose sessionId is a random UUID rather than a task. */
+async function abortSessionTask(ctx: ToolContext): Promise<void> {
+  const taskId = ctx.sessionId;
+  if (!taskId || !fs.existsSync(getTaskDir(ctx.config.projectRoot, taskId))) return;
+  await ctx.abortTask(taskId);
 }
 
 const requestConfirmationTool: ToolDefinition = {
@@ -205,6 +214,7 @@ const requestConfirmationTool: ToolDefinition = {
       status: confirmed ? "confirmed" : "aborted",
     });
 
+    if (!confirmed) await abortSessionTask(ctx);
     return { confirmed };
   },
 };
@@ -266,7 +276,10 @@ const fillPasswordTool: ToolDefinition = {
       });
 
       // Never record the secret to the task run file (unlike request-input).
-      if (aborted) return { aborted: true };
+      if (aborted) {
+        await abortSessionTask(ctx);
+        return { aborted: true };
+      }
 
       password = response[0];
       // The PWA appends a "save"/"nosave" flag for password prompts; persist

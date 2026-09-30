@@ -169,7 +169,10 @@ export async function startHttpTransport(
   }
 
   function makeToolContext(sessionId: string): ToolContext {
-    return { config, nc, publishEvent, sessionId, agentName: getAgentName(sessionId) };
+    return {
+      config, nc, publishEvent, sessionId, agentName: getAgentName(sessionId),
+      abortTask: async (taskId) => { await handleRpc({ method: "task.abort", params: { id: taskId }, localhost: true }); },
+    };
   }
 
   const server = http.createServer(async (req, res) => {

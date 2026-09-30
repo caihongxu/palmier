@@ -55,8 +55,8 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | Tool | Description |
 |------|-------------|
 | `notify` | Send a push notification to the user's device |
-| `request-input` | Request input from the user (blocks until response) |
-| `request-confirmation` | Request confirmation from the user (blocks until response) |
+| `request-input` | Request input from the user (blocks until response; aborting the prompt aborts the task) |
+| `request-confirmation` | Request confirmation from the user (blocks until response; aborting aborts the task) |
 | `fill-password` | Fill a saved password or PIN into the active browser session and submit the form, prompting the user if unknown (the secret is never revealed to the agent) |
 | `device-geolocation` | Get GPS location of the user's mobile device |
 | `read-contacts` | Read the contact list from the user's device |
