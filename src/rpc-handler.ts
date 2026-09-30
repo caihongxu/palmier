@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus } from "./task.js";
+import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { spawnCommand } from "./spawn-command.js";
@@ -627,7 +627,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         try {
           const raw = fs.readFileSync(taskrunPath, "utf-8");
           const meta = parseResultFrontmatter(raw);
-          return { task_id: params.id, ...meta };
+          return { task_id: params.id, ...meta, starred: isRunStarred(path.dirname(taskrunPath)) };
         } catch {
           return { task_id: params.id, error: "Run not found" };
         }
@@ -676,7 +676,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             const raw = fs.readFileSync(taskrunPath, "utf-8");
             const meta = parseResultFrontmatter(raw);
             const { messages: _, ...rest } = meta;
-            return { ...entry, ...rest };
+            return { ...entry, ...rest, starred: isRunStarred(path.dirname(taskrunPath)) };
           } catch {
             return { ...entry, error: "Run not found" };
           }
@@ -691,6 +691,9 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           return { error: "task_id and run_id are required" };
         }
         const deleteTaskDir = getTaskDir(config.projectRoot, params.task_id);
+        if (isRunStarred(getRunDir(deleteTaskDir, params.run_id))) {
+          return { error: "Unstar this session before deleting it" };
+        }
 
         const deleted = deleteHistoryEntry(config.projectRoot, params.task_id, params.run_id);
         if (!deleted) {
@@ -706,6 +709,22 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         }
 
         return { ok: true, task_id: params.task_id, run_id: params.run_id };
+      }
+
+      case "taskrun.star": {
+        const params = request.params as { task_id: string; run_id: string; starred: boolean };
+        if (!params.task_id || !params.run_id || typeof params.starred !== "boolean") {
+          return { error: "task_id, run_id and starred are required" };
+        }
+        if (path.basename(params.task_id) !== params.task_id || path.basename(params.run_id) !== params.run_id) {
+          return { error: "Invalid task_id or run_id" };
+        }
+        const starRunDir = getRunDir(getTaskDir(config.projectRoot, params.task_id), params.run_id);
+        if (!fs.existsSync(path.join(starRunDir, "TASKRUN.md"))) {
+          return { error: "Run not found" };
+        }
+        setRunStarred(starRunDir, params.starred);
+        return { ok: true, task_id: params.task_id, run_id: params.run_id, starred: params.starred };
       }
 
       case "host.update": {

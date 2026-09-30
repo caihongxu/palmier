@@ -150,6 +150,19 @@ export function deleteFollowupStatus(runDir: string): void {
   try { fs.unlinkSync(path.join(runDir, "followup.json")); } catch { /* ignore */ }
 }
 
+// A marker file rather than TASKRUN.md frontmatter, which a running agent process appends to concurrently.
+const STARRED_MARKER = ".starred";
+
+export function isRunStarred(runDir: string): boolean {
+  return fs.existsSync(path.join(runDir, STARRED_MARKER));
+}
+
+export function setRunStarred(runDir: string, starred: boolean): void {
+  const markerPath = path.join(runDir, STARRED_MARKER);
+  if (starred) fs.writeFileSync(markerPath, "", "utf-8");
+  else fs.rmSync(markerPath, { force: true });
+}
+
 /** Returns the run ID (timestamp string used as directory name). */
 export function createRunDir(
   taskDir: string,
