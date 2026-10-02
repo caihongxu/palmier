@@ -108,7 +108,9 @@ const requestInputTool: ToolDefinition = {
     const response = await pendingPromise;
     const aborted = response.length === 1 && response[0] === "aborted";
 
-    recordUserInputToRun(ctx, questions, response, aborted);
+    recordUserResponseToRun(ctx, aborted
+      ? "Aborted"
+      : questions.map((q, i) => `**${q}**\n\n${response[i] ?? ""}`).join("\n\n"));
 
     if (aborted) {
       await ctx.publishEvent("_input", {
@@ -134,12 +136,7 @@ const requestInputTool: ToolDefinition = {
  * agent called via the REST endpoint with taskId); silently skips for pure
  * MCP-protocol sessions where sessionId is a random UUID.
  */
-function recordUserInputToRun(
-  ctx: ToolContext,
-  questions: string[],
-  response: string[],
-  aborted: boolean,
-): void {
+function recordUserResponseToRun(ctx: ToolContext, content: string): void {
   const taskId = ctx.sessionId;
   if (!taskId) return;
   const taskDir = getTaskDir(ctx.config.projectRoot, taskId);
@@ -147,10 +144,6 @@ function recordUserInputToRun(
   const { entries } = readHistory(ctx.config.projectRoot, { task_id: taskId, limit: 1 });
   const runId = entries[0]?.run_id;
   if (!runId) return;
-
-  const content = aborted
-    ? "Aborted"
-    : questions.map((q, i) => `**${q}**\n\n${response[i] ?? ""}`).join("\n\n");
 
   try {
     spliceUserMessage(taskDir, runId, {
@@ -216,6 +209,72 @@ const requestConfirmationTool: ToolDefinition = {
 
     if (!confirmed) await abortSessionTask(ctx);
     return { confirmed };
+  },
+};
+
+const requestChoiceTool: ToolDefinition = {
+  name: "request-choice",
+  description: [
+    "Ask the user a question with a fixed set of answers and let them pick one (e.g. Yes/No).",
+    "The request blocks until the user picks an option or aborts the task.",
+    'Response: `{"choice": "<option>"}` with the selected option, or `{"aborted": true}` if the user aborts.',
+    "Use this instead of request-input whenever the possible answers are known in advance.",
+  ],
+  inputSchema: {
+    type: "object",
+    properties: {
+      question: { type: "string", description: "The question to ask" },
+      options: {
+        type: "array",
+        items: { type: "string" },
+        description: 'Unique option labels, in display order (e.g. ["Yes", "No"])',
+        minItems: 2,
+      },
+    },
+    required: ["question", "options"],
+  },
+  async handler(args, ctx) {
+    const { question, options } = args as { question: string; options: string[] };
+    if (!question) throw new ToolError("question is required", 400);
+    if (!Array.isArray(options) || options.length < 2 || options.some((o) => typeof o !== "string" || !o.trim())) {
+      throw new ToolError("options must contain at least 2 non-empty strings", 400);
+    }
+    if (new Set(options).size !== options.length) throw new ToolError("options must be unique", 400);
+
+    const pendingPromise = registerPending(ctx.sessionId, "choice", options, {
+      session_id: ctx.sessionId,
+      session_name: ctx.agentName,
+      description: question,
+    });
+
+    await ctx.publishEvent("_choice", {
+      event_type: "choice-request",
+      host_id: ctx.config.hostId,
+      session_id: ctx.sessionId,
+      session_name: ctx.agentName,
+      description: question,
+      options,
+    });
+
+    // Clients answer with the option index so no label can collide with the "aborted" sentinel.
+    const response = await pendingPromise;
+    const choice = /^\d+$/.test(response[0] ?? "") ? options[Number(response[0])] : undefined;
+    const aborted = choice === undefined;
+
+    recordUserResponseToRun(ctx, aborted ? "Aborted" : `**${question}**\n\n${choice}`);
+
+    await ctx.publishEvent("_choice", {
+      event_type: "choice-resolved",
+      host_id: ctx.config.hostId,
+      session_id: ctx.sessionId,
+      status: aborted ? "aborted" : "chosen",
+    });
+
+    if (aborted) {
+      await abortSessionTask(ctx);
+      return { aborted: true };
+    }
+    return { choice };
   },
 };
 
@@ -866,7 +925,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {

@@ -4,7 +4,7 @@ export interface PendingRequestMeta {
   /** Doubles as task_id for permission-type entries (the key the task uses). */
   session_id?: string;
   /** Human-readable label for whoever opened the prompt — agent name for
-   *  confirm/input, task name for permission. */
+   *  confirm/input/choice, task name for permission. */
   session_name?: string;
   description?: string;
   input_questions?: string[];
@@ -13,9 +13,9 @@ export interface PendingRequestMeta {
 }
 
 export interface PendingRequest {
-  type: "confirmation" | "permission" | "input";
+  type: "confirmation" | "permission" | "input" | "choice";
   resolve: (value: string[]) => void;
-  /** Permission list (for 'permission') or input descriptions (for 'input'). */
+  /** Permission list (for 'permission'), input descriptions (for 'input'), or option labels (for 'choice'). */
   params?: RequiredPermission[] | string[];
   /** Display context for PWAs that connect while this request is already open. */
   meta?: PendingRequestMeta;
@@ -24,7 +24,7 @@ export interface PendingRequest {
 const pending = new Map<string, PendingRequest>();
 
 /**
- * Key is sessionId for confirmation/input, taskId for permission. Only one
+ * Key is sessionId for confirmation/input/choice, taskId for permission. Only one
  * pending request per key at a time. `meta` is surfaced via host.info so a
  * freshly-connected PWA can render the modal without replaying events.
  */
