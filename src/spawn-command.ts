@@ -1,5 +1,41 @@
 import crossSpawn from "cross-spawn";
 import { execFileSync, type ChildProcess } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+
+const NPM_NODE_SHIM_TARGET = /"%_prog%"\s+"%dp0%\\([^"]+)"\s+%\*\s*$/;
+
+/**
+ * cross-spawn runs Windows .cmd shims through cmd.exe, which caps the command
+ * line at 8191 chars and can't carry newlines. For npm-installed CLIs, run the
+ * shim's node script directly so long multi-line prompts survive intact.
+ */
+export function resolveCommand(command: string, args: string[]): { command: string; args: string[] } {
+  if (process.platform !== "win32") return { command, args };
+  const shim = findNpmNodeShim(command);
+  if (shim) return { command: shim.node, args: [shim.script, ...args] };
+  return { command, args: args.map((a) => a.replace(/[\r\n]+/g, " ")) };
+}
+
+function findNpmNodeShim(command: string): { node: string; script: string } | null {
+  if (path.basename(command) !== command || path.extname(command)) return null;
+  const exts = (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
+    for (const ext of exts) {
+      const candidate = path.join(dir, command + ext);
+      if (!fs.existsSync(candidate)) continue;
+      if (ext.toLowerCase() !== ".cmd") return null;
+      const match = fs.readFileSync(candidate, "utf-8").match(NPM_NODE_SHIM_TARGET);
+      if (!match) return null;
+      const localNode = path.join(dir, "node.exe");
+      return {
+        node: fs.existsSync(localNode) ? localNode : process.execPath,
+        script: path.join(dir, match[1]),
+      };
+    }
+  }
+  return null;
+}
 
 /** Kill a child process and its entire tree on Windows; plain kill elsewhere. */
 function treeKill(child: ChildProcess): void {
@@ -73,16 +109,13 @@ export function spawnCommand(
   opts: SpawnCommandOptions,
 ): Promise<SpawnCommandResult> {
   return new Promise<SpawnCommandResult>((resolve, reject) => {
-    // cmd.exe can't handle literal newlines in arguments.
-    const finalArgs = process.platform === "win32"
-      ? args.map((a) => a.replace(/[\r\n]+/g, " "))
-      : args;
+    const resolved = resolveCommand(command, args);
     const truncate = (s: string, max = 100) => s.length > max ? s.slice(0, max) + "..." : s;
-    const displayArgs = finalArgs.map((arg) => truncate(arg));
+    const displayArgs = resolved.args.map((arg) => truncate(arg));
 
-    console.log(`[spawn] ${command} ${displayArgs.join(" ")}`);
+    console.log(`[spawn] ${resolved.command} ${displayArgs.join(" ")}`);
 
-    const child = crossSpawn(command, finalArgs, {
+    const child = crossSpawn(resolved.command, resolved.args, {
       cwd: opts.cwd,
       stdio: [opts.stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
       env: opts.env ? { ...process.env, ...opts.env } : undefined,

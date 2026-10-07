@@ -6,7 +6,7 @@ import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
-import { spawnCommand } from "./spawn-command.js";
+import { resolveCommand, spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
 import { getAgent, getPromptCommandLine, getNpmInstalledVersion } from "./agents/agent.js";
 import { validateClient, revokeClient } from "./client-store.js";
@@ -480,7 +480,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           for (const f of followupFiles) fs.writeFileSync(path.join(followupRunDir, f.path), f.content, "utf-8");
         }
 
-        const child = crossSpawn(cmd, cmdArgs, {
+        const resolved = resolveCommand(cmd, cmdArgs);
+        const child = crossSpawn(resolved.command, resolved.args, {
           cwd: followupRunDir,
           stdio: [stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
           env: { ...process.env, ...followupAgentEnv },
