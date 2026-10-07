@@ -7,7 +7,8 @@ export const kimiAgent: AgentTool = {
   command: "kimi",
   promptArgs: ["-p"],
   probeArg: "--version",
-  supportsYolo: true,
+  supportsYolo: false,
+  npmPackage: "@moonshot-ai/kimi-code",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
