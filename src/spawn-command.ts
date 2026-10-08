@@ -48,6 +48,32 @@ function treeKill(child: ChildProcess): void {
   child.kill();
 }
 
+const STDIO_DRAIN_GRACE_MS = 1000;
+
+/**
+ * Like the "close" event, but doesn't wait for grandchildren: a background process
+ * the child started (e.g. a browser daemon) can inherit its stdio pipes on Windows
+ * and hold them open long after the child itself exits.
+ */
+export function onChildDone(child: ChildProcess, callback: (code: number | null) => void): void {
+  let done = false;
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  const finish = (code: number | null) => {
+    if (done) return;
+    done = true;
+    if (grace) clearTimeout(grace);
+    callback(code);
+  };
+  child.on("exit", (code: number | null) => {
+    grace = setTimeout(() => {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      finish(code);
+    }, STDIO_DRAIN_GRACE_MS);
+  });
+  child.on("close", finish);
+}
+
 export interface SpawnStreamingOptions {
   cwd: string;
   env?: Record<string, string>;
@@ -149,7 +175,7 @@ export function spawnCommand(
       }, opts.timeout);
     }
 
-    child.on("close", (code: number | null) => {
+    onChildDone(child, (code) => {
       if (timer) clearTimeout(timer);
       const output = Buffer.concat(chunks).toString("utf-8");
       if (code === 0 || opts.resolveOnFailure) resolve({ output, exitCode: code });

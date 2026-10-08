@@ -3,7 +3,27 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resolveCommand } from "../src/spawn-command.js";
+import { resolveCommand, spawnCommand } from "../src/spawn-command.js";
+
+describe("spawnCommand", () => {
+  it("resolves when the child exits even if a grandchild still holds its stdio", async () => {
+    const parentScript = [
+      "const { spawn } = require('child_process');",
+      "const grandchild = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'],",
+      "  { detached: true, stdio: ['ignore', 'inherit', 'inherit'] });",
+      "grandchild.unref();",
+      "console.log('pid=' + grandchild.pid);",
+    ].join("\n");
+    const start = Date.now();
+    const { output, exitCode } = await spawnCommand(process.execPath, ["-e", parentScript], { cwd: os.tmpdir() });
+    const elapsed = Date.now() - start;
+    const grandchildPid = Number(output.match(/pid=(\d+)/)?.[1]);
+    try { process.kill(grandchildPid); } catch { /* already gone */ }
+    assert.equal(exitCode, 0);
+    assert.ok(grandchildPid > 0);
+    assert.ok(elapsed < 10000, `took ${elapsed}ms`);
+  });
+});
 
 const NPM_SHIM = [
   "@ECHO off",

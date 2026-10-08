@@ -6,7 +6,7 @@ import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
-import { resolveCommand, spawnCommand } from "./spawn-command.js";
+import { onChildDone, resolveCommand, spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
 import { getAgent, getPromptCommandLine, getNpmInstalledVersion } from "./agents/agent.js";
 import { validateClient, revokeClient } from "./client-store.js";
@@ -495,7 +495,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         child.stdout?.on("data", (d: Buffer) => chunks.push(d));
         child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
 
-        child.on("close", async (code: number | null) => {
+        onChildDone(child, async (code) => {
           activeFollowups.delete(followupKey);
           deleteFollowupStatus(followupRunDir);
           // stop_followup already wrote the stopped status.
