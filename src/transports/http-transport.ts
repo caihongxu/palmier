@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 import { saveConfig } from "../config.js";
 import { detectDefaultInterface } from "../network.js";
-import { agentToolMap, agentResources, ToolError, type ToolContext } from "../mcp-tools.js";
+import { agentToolMap, agentResources, requestConfirmationTool, ToolError, type ToolContext } from "../mcp-tools.js";
 import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
 import { getTaskDir } from "../task.js";
 import { popEvent } from "../event-queues.js";
@@ -222,9 +222,10 @@ export async function startHttpTransport(
       return;
     }
 
-    if (req.method === "POST" && agentToolMap.has(pathname.slice(1))) {
+    const tool = agentToolMap.get(pathname.slice(1))
+      ?? (pathname === `/${requestConfirmationTool.name}` ? requestConfirmationTool : undefined);
+    if (req.method === "POST" && tool) {
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      const tool = agentToolMap.get(pathname.slice(1))!;
       try {
         const taskId = url.searchParams.get("taskId");
         if (!taskId) {

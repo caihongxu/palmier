@@ -165,7 +165,7 @@ async function abortSessionTask(ctx: ToolContext): Promise<void> {
   await ctx.abortTask(taskId);
 }
 
-const requestConfirmationTool: ToolDefinition = {
+export const requestConfirmationTool: ToolDefinition = {
   name: "request-confirmation",
   description: [
     "Request confirmation from the user.",
@@ -215,10 +215,11 @@ const requestConfirmationTool: ToolDefinition = {
 const requestChoiceTool: ToolDefinition = {
   name: "request-choice",
   description: [
-    "Ask the user a question with a fixed set of answers and let them pick one (e.g. Yes/No).",
+    "Ask the user a question with a fixed set of answers and let them pick one.",
     "The request blocks until the user picks an option or aborts the task.",
     'Response: `{"choice": "<option>"}` with the selected option, or `{"aborted": true}` if the user aborts.',
     "Use this instead of request-input whenever the possible answers are known in advance.",
+    "An abort option that ends the task is always shown, so to ask for confirmation before continuing, pass a single option naming the action (e.g. [\"Send email\"]). Add a decline option only if declining should let the task continue differently.",
   ],
   inputSchema: {
     type: "object",
@@ -227,8 +228,8 @@ const requestChoiceTool: ToolDefinition = {
       options: {
         type: "array",
         items: { type: "string" },
-        description: 'Unique option labels, in display order (e.g. ["Yes", "No"])',
-        minItems: 2,
+        description: 'Unique option labels, in display order (e.g. ["Reply now", "Reply later"])',
+        minItems: 1,
       },
     },
     required: ["question", "options"],
@@ -236,8 +237,8 @@ const requestChoiceTool: ToolDefinition = {
   async handler(args, ctx) {
     const { question, options } = args as { question: string; options: string[] };
     if (!question) throw new ToolError("question is required", 400);
-    if (!Array.isArray(options) || options.length < 2 || options.some((o) => typeof o !== "string" || !o.trim())) {
-      throw new ToolError("options must contain at least 2 non-empty strings", 400);
+    if (!Array.isArray(options) || options.length < 1 || options.some((o) => typeof o !== "string" || !o.trim())) {
+      throw new ToolError("options must contain at least 1 non-empty string", 400);
     }
     if (new Set(options).size !== options.length) throw new ToolError("options must be unique", 400);
 
@@ -925,7 +926,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestConfirmationTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {
