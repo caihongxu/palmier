@@ -97,6 +97,8 @@ export interface ConversationMessage {
   /** For assistant messages, identifies which stream the agent CLI emitted this segment on.
    *  Absent on non-assistant messages and on legacy entries written before the split. */
   stream?: "stdout" | "stderr";
+  /** Model the agent self-reported for the invocation that produced this assistant message. */
+  model?: string;
 }
 
 export interface RpcMessage {

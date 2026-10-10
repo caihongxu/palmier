@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
+import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { onChildDone, resolveCommand, spawnCommand } from "./spawn-command.js";
@@ -16,7 +16,7 @@ import { listPasswords, deletePassword } from "./password-store.js";
 import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
 import { PLAYWRIGHT_CLI_PACKAGE, PLAYWRIGHT_CLI_LABEL } from "./playwright-cli.js";
 import { saveConfig } from "./config.js";
-import { parseTaskOutcome, stripPalmierMarkers } from "./commands/run.js";
+import { parseTaskOutcome, parseAgentModel, stripPalmierMarkers } from "./commands/run.js";
 import { resolveTaskFile, readTaskFileChunk } from "./task-files.js";
 import { clearTaskQueue } from "./event-queues.js";
 import { reconcileCommandRunner, stopCommandRunner } from "./command-runners.js";
@@ -80,7 +80,7 @@ function parseConversationMessages(body: string): ConversationMessage[] {
     const attrs = match[1];
     const start = match.index! + match[0].length;
     const end = i + 1 < matches.length ? matches[i + 1].index! : body.length;
-    const content = body.slice(start, end).trim();
+    const { content, model } = extractAgentModelComment(body.slice(start, end).trim());
 
     const role = (parseAttr(attrs, "role") ?? "assistant") as "assistant" | "user";
     const time = Number(parseAttr(attrs, "time") ?? "0");
@@ -90,10 +90,37 @@ function parseConversationMessages(body: string): ConversationMessage[] {
     const attachmentsRaw = parseAttr(attrs, "attachments");
     const attachments = attachmentsRaw ? attachmentsRaw.split(",").map((f) => f.trim()).filter(Boolean) : undefined;
 
-    messages.push({ role, time, content, ...(type ? { type } : {}), ...(stream ? { stream } : {}), ...(attachments ? { attachments } : {}) });
+    messages.push({ role, time, content, ...(type ? { type } : {}), ...(stream ? { stream } : {}), ...(attachments ? { attachments } : {}), ...(model ? { model } : {}) });
   }
 
+  fillAgentModels(messages);
   return messages;
+}
+
+/**
+ * The model is recorded once per agent invocation, but an invocation can span
+ * several assistant blocks (stream switches, spliced user input), so share it
+ * across the blocks between "started" statuses.
+ */
+function fillAgentModels(messages: ConversationMessage[]): void {
+  let segment: ConversationMessage[] = [];
+  const fillSegment = () => {
+    let current = segment.find((m) => m.model)?.model;
+    if (!current) return;
+    for (const m of segment) {
+      if (m.model) current = m.model;
+      else m.model = current;
+    }
+  };
+  for (const m of messages) {
+    if (m.role === "status" && m.type === "started") {
+      fillSegment();
+      segment = [];
+    } else if (m.role === "assistant" && m.type !== "confirmation") {
+      segment.push(m);
+    }
+  }
+  fillSegment();
 }
 
 function parseAttr(attrs: string, name: string): string | undefined {
@@ -513,11 +540,12 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
           const output = Buffer.concat(chunks).toString("utf-8");
           const outcome = code !== 0 ? "failed" : parseTaskOutcome(output);
+          const agentModel = parseAgentModel(output);
 
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "assistant",
             time: Date.now(),
-            content: stripPalmierMarkers(output),
+            content: (agentModel ? formatAgentModelComment(agentModel) : "") + stripPalmierMarkers(output),
           });
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "status",

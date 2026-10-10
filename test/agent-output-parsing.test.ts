@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskOutcome, parsePermissions } from "../src/commands/run.js";
+import { parseTaskOutcome, parsePermissions, parseAgentModel } from "../src/commands/run.js";
 
 describe("parseTaskOutcome", () => {
   it("returns 'finished' for success marker", () => {
@@ -51,4 +51,20 @@ describe("parsePermissions", () => {
   });
 });
 
+describe("parseAgentModel", () => {
+  it("extracts the model from its own line", () => {
+    assert.equal(parseAgentModel("[PALMIER_AGENT_MODEL] claude-opus-5-5\r\nHello"), "claude-opus-5-5");
+  });
 
+  it("ignores the placeholder echoed from the prompt", () => {
+    assert.equal(parseAgentModel("[PALMIER_AGENT_MODEL] <model>\n[PALMIER_AGENT_MODEL] GPT-6"), "GPT-6");
+  });
+
+  it("rejects values that would break the run-file comment", () => {
+    assert.equal(parseAgentModel("[PALMIER_AGENT_MODEL] x --> y"), undefined);
+  });
+
+  it("returns undefined when the marker is absent or not at line start", () => {
+    assert.equal(parseAgentModel("I am [PALMIER_AGENT_MODEL] foo"), undefined);
+  });
+});

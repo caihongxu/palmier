@@ -3,10 +3,10 @@ import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter } from "../task.js";
+import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
-import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
+import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX, AGENT_MODEL_PREFIX } from "../agents/shared-prompt.js";
 import { extractFileLinks, resolveTaskFile } from "../task-files.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
@@ -46,6 +46,8 @@ async function invokeAgentWithRetries(
     const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
     let notifyPending = false;
     let notifyTimer: ReturnType<typeof setTimeout> | undefined;
+    let agentModelSeen = false;
+    let pendingAgentModel: string | undefined;
 
     function throttledNotify() {
       if (notifyPending) return;
@@ -64,14 +66,27 @@ async function invokeAgentWithRetries(
       return writer;
     }
 
+    function flushAgentModel(): void {
+      if (!pendingAgentModel || !writer) return;
+      writer.write(formatAgentModelComment(pendingAgentModel));
+      pendingAgentModel = undefined;
+      throttledNotify();
+    }
+
     function emit(stream: "stdout" | "stderr", chunk: string): void {
       lineBufs[stream] += chunk;
       const lines = lineBufs[stream].split("\n");
       lineBufs[stream] = lines.pop() ?? "";
+      if (stream === "stdout" && !agentModelSeen) {
+        pendingAgentModel = parseAgentModel(lines.join("\n"));
+        agentModelSeen = !!pendingAgentModel;
+      }
       const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
-      if (filtered.length === 0) return;
-      ensureWriter(stream).write(filtered.join("\n") + "\n");
-      throttledNotify();
+      if (filtered.length > 0) {
+        ensureWriter(stream).write(filtered.join("\n") + "\n");
+        throttledNotify();
+      }
+      flushAgentModel();
     }
 
     const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(
@@ -458,6 +473,18 @@ export function parsePermissions(output: string): RequiredPermission[] {
     }
   }
   return perms;
+}
+
+export function parseAgentModel(output: string): string | undefined {
+  const regex = new RegExp(`^\\${AGENT_MODEL_PREFIX}[ \\t]+(.+)$`, "gm");
+  let match;
+  while ((match = regex.exec(output)) !== null) {
+    const model = match[1].trim();
+    // Skip the "<model>" placeholder echoed from the prompt, and values that would break the run-file comment.
+    if (!model || model.startsWith("<") || model.includes("-->") || model.length > 100) continue;
+    return model;
+  }
+  return undefined;
 }
 
 /** Falls back to "finished" if no success/failure marker is found. */

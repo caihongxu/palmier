@@ -215,6 +215,22 @@ export function beginStreamingMessage(
   return new StreamingMessageWriter(filePath);
 }
 
+const AGENT_MODEL_COMMENT_REGEX = /<!-- palmier:agent-model (.+?) -->\n?/g;
+
+/**
+ * The agent may report its model after a message block has already been opened,
+ * and the file is append-only, so the model is recorded inside the block body.
+ */
+export function formatAgentModelComment(model: string): string {
+  return `<!-- palmier:agent-model ${model} -->\n`;
+}
+
+export function extractAgentModelComment(content: string): { content: string; model?: string } {
+  const model = content.match(new RegExp(AGENT_MODEL_COMMENT_REGEX.source))?.[1];
+  if (!model) return { content };
+  return { content: content.replace(AGENT_MODEL_COMMENT_REGEX, "").trim(), model };
+}
+
 export class StreamingMessageWriter {
   constructor(private filePath: string) {}
 

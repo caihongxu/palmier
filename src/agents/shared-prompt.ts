@@ -29,3 +29,4 @@ export function getAgentInstructions(task: ParsedTask): string {
 export const TASK_SUCCESS_MARKER = "[PALMIER_TASK_SUCCESS]";
 export const TASK_FAILURE_MARKER = "[PALMIER_TASK_FAILURE]";
 export const TASK_PERMISSION_PREFIX = "[PALMIER_PERMISSION]";
+export const AGENT_MODEL_PREFIX = "[PALMIER_AGENT_MODEL]";

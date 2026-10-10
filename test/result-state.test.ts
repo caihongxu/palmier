@@ -7,8 +7,10 @@ import {
   createRunDir,
   appendRunMessage,
   beginStreamingMessage,
+  formatAgentModelComment,
 } from "../src/task.js";
 import { parseResultFrontmatter } from "../src/rpc-handler.js";
+import type { ConversationMessage } from "../src/types.js";
 
 let taskDir: string;
 let runId: string;
@@ -60,5 +62,38 @@ describe("parseResultFrontmatter — standard states", () => {
 
     const result = parseResultFrontmatter(readRaw());
     assert.equal(result.running_state, "followup");
+  });
+});
+
+describe("parseResultFrontmatter — agent model", () => {
+  beforeEach(setup);
+
+  it("extracts the model comment and strips it from content", () => {
+    appendRunMessage(taskDir, runId, { role: "status", time: 1000, content: "", type: "started" });
+    const writer = beginStreamingMessage(taskDir, runId, 1001);
+    writer.write("Working...\n");
+    writer.write(formatAgentModelComment("claude-opus-5-5"));
+    writer.write("Done.\n");
+    writer.end();
+
+    const messages = parseResultFrontmatter(readRaw()).messages as ConversationMessage[];
+    assert.equal(messages[1].model, "claude-opus-5-5");
+    assert.equal(messages[1].content, "Working...\nDone.");
+  });
+
+  it("shares the model across blocks of one invocation but not across follow-ups", () => {
+    appendRunMessage(taskDir, runId, { role: "status", time: 1000, content: "", type: "started" });
+    const stderr = beginStreamingMessage(taskDir, runId, 1001, "stderr");
+    stderr.write("log line\n");
+    stderr.end();
+    appendRunMessage(taskDir, runId, { role: "assistant", time: 1002, content: formatAgentModelComment("gpt-6") + "Answer", stream: "stdout" });
+    appendRunMessage(taskDir, runId, { role: "status", time: 1003, content: "", type: "finished" });
+    appendRunMessage(taskDir, runId, { role: "user", time: 1004, content: "Follow up" });
+    appendRunMessage(taskDir, runId, { role: "status", time: 1005, content: "", type: "started" });
+    appendRunMessage(taskDir, runId, { role: "assistant", time: 1006, content: "No marker this time" });
+
+    const messages = parseResultFrontmatter(readRaw()).messages as ConversationMessage[];
+    const assistant = messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(assistant.map((m) => m.model), ["gpt-6", "gpt-6", undefined]);
   });
 });
