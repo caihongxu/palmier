@@ -31,7 +31,10 @@ export interface HostConfig {
 
 export interface TaskFrontmatter {
   id: string;
+  /** Machine-generated from the prompt; regenerated on prompt or agent change. */
   name: string;
+  /** User-set title; takes precedence over `name` and is never auto-changed. */
+  custom_name?: string;
   user_prompt: string;
   agent: string;
   /**

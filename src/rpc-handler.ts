@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
 import { type NatsConnection } from "nats";
-import { listTasks, parseTaskFile, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
+import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { onChildDone, resolveCommand, spawnCommand } from "./spawn-command.js";
@@ -283,6 +283,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
       case "task.update": {
         const params = request.params as {
           id: string;
+          custom_name?: string;
           user_prompt?: string;
           agent?: string;
           schedule_type?: "crons" | "specific_times" | "on_new_notification" | "on_new_sms" | null;
@@ -331,6 +332,15 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             existing.frontmatter.command = params.command;
           } else {
             delete existing.frontmatter.command;
+          }
+        }
+
+        if (params.custom_name !== undefined) {
+          const customName = params.custom_name.trim();
+          if (customName) {
+            existing.frontmatter.custom_name = customName;
+          } else {
+            delete existing.frontmatter.custom_name;
           }
         }
 
@@ -425,7 +435,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
           const runTask = parseTaskFile(runTaskDir);
           const taskRunAgentVersion = config.agents?.find((a) => a.key === runTask.frontmatter.agent)?.version;
-          taskRunId = createRunDir(runTaskDir, runTask.frontmatter.name, Date.now(), runTask.frontmatter.agent, taskRunAgentVersion);
+          taskRunId = createRunDir(runTaskDir, taskDisplayName(runTask.frontmatter), Date.now(), runTask.frontmatter.agent, taskRunAgentVersion);
           appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await platform.startTask(params.id);
@@ -468,7 +478,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
         await publishHostEvent(nc, config.hostId, params.id, {
           event_type: "running-state", running_state: "started",
-          name: followupTask.frontmatter.name, run_id: params.run_id,
+          name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
         });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
@@ -519,7 +529,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
           await publishHostEvent(nc, config.hostId, params.id, {
             event_type: "running-state", running_state: outcome,
-            name: followupTask.frontmatter.name, run_id: params.run_id,
+            name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
           });
         });
 
@@ -537,7 +547,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
           await publishHostEvent(nc, config.hostId, params.id, {
             event_type: "running-state", running_state: "failed",
-            name: followupTask.frontmatter.name, run_id: params.run_id,
+            name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
           });
         });
 

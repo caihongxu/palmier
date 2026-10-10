@@ -3,7 +3,7 @@ import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
-import { parseTaskFile, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter } from "../task.js";
+import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX } from "../agents/shared-prompt.js";
@@ -117,7 +117,7 @@ async function invokeAgentWithRetries(
       await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, {
         event_type: "report-generated",
         run_id: ctx.runId,
-        name: ctx.task.frontmatter.name,
+        name: taskDisplayName(ctx.task.frontmatter),
         report_files: linkedFiles,
       });
     }
@@ -206,7 +206,7 @@ export async function runCommand(taskId: string): Promise<void> {
   console.log(`Running task: ${taskId}`);
 
   let nc: NatsConnection | undefined;
-  const taskName = task.frontmatter.name;
+  const taskName = taskDisplayName(task.frontmatter);
 
   const existingRunId = findLatestPendingRunId(taskDir);
   const agentVersion = config.agents?.find((a) => a.key === task.frontmatter.agent)?.version;
@@ -390,7 +390,7 @@ async function requestPermission(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       taskId: task.frontmatter.id,
-      taskName: task.frontmatter.name,
+      taskName: taskDisplayName(task.frontmatter),
       permissions: requiredPermissions,
     }),
   });
@@ -416,7 +416,7 @@ async function requestConfirmation(
   const res = await fetch(`http://localhost:${port}/request-confirmation?taskId=${encodeURIComponent(task.frontmatter.id)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description: `Run task "${task.frontmatter.name || task.frontmatter.id}"?` }),
+    body: JSON.stringify({ description: `Run task "${taskDisplayName(task.frontmatter) || task.frontmatter.id}"?` }),
   });
   const body = await res.json() as { confirmed?: boolean; error?: string };
   if (typeof body.confirmed !== "boolean") {

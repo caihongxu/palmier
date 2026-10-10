@@ -5,7 +5,7 @@ import { connectNats } from "../nats-client.js";
 import { createRpcHandler } from "../rpc-handler.js";
 import { startNatsTransport } from "../transports/nats-transport.js";
 import { startHttpTransport } from "../transports/http-transport.js";
-import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, appendRunMessage, listTasks, readFollowupStatus, deleteFollowupStatus } from "../task.js";
+import { getTaskDir, readTaskStatus, writeTaskStatus, parseTaskFile, taskDisplayName, appendRunMessage, listTasks, readFollowupStatus, deleteFollowupStatus } from "../task.js";
 import { publishHostEvent } from "../events.js";
 import { getPlatform } from "../platform/index.js";
 import { detectAgents } from "../agents/agent.js";
@@ -70,7 +70,7 @@ async function checkStaleTasks(
       await publishHostEvent(nc, config.hostId, taskId, {
         event_type: "running-state",
         running_state: "failed",
-        name: task.frontmatter.name || taskId,
+        name: taskDisplayName(task.frontmatter) || taskId,
       });
     }
 

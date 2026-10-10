@@ -9,7 +9,7 @@ import { installPlaywrightCli, installPlaywrightSkills, getPlaywrightCliVersion,
 import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
-import { listTasks } from "../task.js";
+import { listTasks, taskDisplayName } from "../task.js";
 import type { HostConfig } from "../types.js";
 
 const { bold, dim, green, cyan, red } = colors;
@@ -110,7 +110,7 @@ export async function initCommand(): Promise<void> {
     if (existingTasks.length > 0) {
       console.log(`  ${dim("Recover tasks:")}  ${existingTasks.length} existing task(s) found:`);
       for (const t of existingTasks) {
-        console.log(`                  - ${t.frontmatter.name || t.frontmatter.user_prompt.slice(0, 50)}`);
+        console.log(`                  - ${taskDisplayName(t.frontmatter) || t.frontmatter.user_prompt.slice(0, 50)}`);
       }
       console.log();
     }

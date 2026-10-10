@@ -35,6 +35,10 @@ export function parseTaskContent(content: string): ParsedTask {
   return { frontmatter };
 }
 
+export function taskDisplayName(frontmatter: TaskFrontmatter): string {
+  return frontmatter.custom_name || frontmatter.name;
+}
+
 export function writeTaskFile(taskDir: string, task: ParsedTask): void {
   fs.mkdirSync(taskDir, { recursive: true });
 
