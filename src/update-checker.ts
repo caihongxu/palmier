@@ -12,12 +12,14 @@ const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "
 export const isDevBuild = fs.existsSync(path.join(packageRoot, ".git"));
 export const currentVersion = isDevBuild ? `${pkg.version}-dev` : pkg.version;
 
+const NPM_UPDATE_TIMEOUT_MS = 120_000;
+
 /** Returns an error message if the update fails. */
 export async function performUpdate(): Promise<string | null> {
   try {
     const { output, exitCode } = await spawnCommand("npm", ["update", "-g", "palmier"], {
       cwd: process.cwd(),
-      timeout: 120_000,
+      timeout: NPM_UPDATE_TIMEOUT_MS,
       resolveOnFailure: true,
     });
     if (exitCode !== 0) {
@@ -44,7 +46,7 @@ export async function performAgentUpdate(npmPackage: string): Promise<string | n
   try {
     const { output, exitCode } = await spawnCommand("npm", ["update", "-g", npmPackage], {
       cwd: process.cwd(),
-      timeout: 180_000,
+      timeout: NPM_UPDATE_TIMEOUT_MS,
       resolveOnFailure: true,
     });
     if (exitCode !== 0) {
