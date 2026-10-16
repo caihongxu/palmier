@@ -10,6 +10,7 @@ export const codexAgent: AgentTool = {
   authArgs: ["login"],
   supportsYolo: true,
   suppressStdErr: true,
+  stderrModelPattern: /^model: (.+)$/m,
   npmPackage: "@openai/codex",
   freeUsage: "Free Tier",
 

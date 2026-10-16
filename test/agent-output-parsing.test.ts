@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskOutcome, parsePermissions, parseAgentModel } from "../src/commands/run.js";
+import { parseTaskOutcome, parsePermissions, parseAgentModel, createCliModelCapture } from "../src/commands/run.js";
+import { codexAgent } from "../src/agents/codex.js";
+import { claudeAgent } from "../src/agents/claude.js";
 
 describe("parseTaskOutcome", () => {
   it("returns 'finished' for success marker", () => {
@@ -66,5 +68,23 @@ describe("parseAgentModel", () => {
 
   it("returns undefined when the marker is absent or not at line start", () => {
     assert.equal(parseAgentModel("I am [PALMIER_AGENT_MODEL] foo"), undefined);
+  });
+});
+
+describe("createCliModelCapture", () => {
+  it("reads the model from a banner split across chunks", () => {
+    const capture = createCliModelCapture(codexAgent);
+    assert.equal(capture("OpenAI Codex v0.163.0\r\n--------\r\nmodel: gpt-6-"), undefined);
+    assert.equal(capture("astra\r\nprovider: openai\r\n"), "gpt-6-astra");
+  });
+
+  it("keeps the first match even if later output mentions a model", () => {
+    const capture = createCliModelCapture(codexAgent);
+    capture("model: gpt-6-astra\n");
+    assert.equal(capture("user\nmodel: something-else\n"), "gpt-6-astra");
+  });
+
+  it("returns undefined for agents without a banner pattern", () => {
+    assert.equal(createCliModelCapture(claudeAgent)("model: x\n"), undefined);
   });
 });

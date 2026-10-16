@@ -16,7 +16,7 @@ import { listPasswords, deletePassword } from "./password-store.js";
 import { currentVersion, performUpdate, performAgentUpdate } from "./update-checker.js";
 import { PLAYWRIGHT_CLI_PACKAGE, PLAYWRIGHT_CLI_LABEL } from "./playwright-cli.js";
 import { saveConfig } from "./config.js";
-import { parseTaskOutcome, parseAgentModel, stripPalmierMarkers } from "./commands/run.js";
+import { parseTaskOutcome, parseAgentModel, createCliModelCapture, stripPalmierMarkers } from "./commands/run.js";
 import { resolveTaskFile, readTaskFileChunk } from "./task-files.js";
 import { clearTaskQueue } from "./event-queues.js";
 import { reconcileCommandRunner, stopCommandRunner } from "./command-runners.js";
@@ -529,8 +529,13 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         if (child.pid) writeFollowupStatus(followupRunDir, { pid: child.pid, spawned_at: Date.now() });
 
         const chunks: Buffer[] = [];
+        const captureCliModel = createCliModelCapture(followupAgent);
+        let cliModel: string | undefined;
         child.stdout?.on("data", (d: Buffer) => chunks.push(d));
-        child.stderr?.on("data", (d: Buffer) => process.stderr.write(d));
+        child.stderr?.on("data", (d: Buffer) => {
+          process.stderr.write(d);
+          cliModel = captureCliModel(d.toString("utf-8"));
+        });
 
         onChildDone(child, async (code) => {
           activeFollowups.delete(followupKey);
@@ -540,7 +545,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
 
           const output = Buffer.concat(chunks).toString("utf-8");
           const outcome = code !== 0 ? "failed" : parseTaskOutcome(output);
-          const agentModel = parseAgentModel(output);
+          const agentModel = cliModel ?? parseAgentModel(output);
 
           appendRunMessage(followupTaskDir, params.run_id, {
             role: "assistant",

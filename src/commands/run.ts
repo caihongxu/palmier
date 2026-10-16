@@ -46,8 +46,9 @@ async function invokeAgentWithRetries(
     const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
     let notifyPending = false;
     let notifyTimer: ReturnType<typeof setTimeout> | undefined;
-    let agentModelSeen = false;
-    let pendingAgentModel: string | undefined;
+    let agentModel: string | undefined;
+    let agentModelWritten = false;
+    const captureCliModel = createCliModelCapture(ctx.agent);
 
     function throttledNotify() {
       if (notifyPending) return;
@@ -67,19 +68,25 @@ async function invokeAgentWithRetries(
     }
 
     function flushAgentModel(): void {
-      if (!pendingAgentModel || !writer) return;
-      writer.write(formatAgentModelComment(pendingAgentModel));
-      pendingAgentModel = undefined;
+      if (!agentModel || agentModelWritten || !writer) return;
+      writer.write(formatAgentModelComment(agentModel));
+      agentModelWritten = true;
       throttledNotify();
+    }
+
+    function onStderr(chunk: string): void {
+      if (!ctx.agent.suppressStdErr) emit("stderr", chunk);
+      const cliModel = captureCliModel(chunk);
+      if (cliModel && !agentModelWritten) agentModel = cliModel;
+      flushAgentModel();
     }
 
     function emit(stream: "stdout" | "stderr", chunk: string): void {
       lineBufs[stream] += chunk;
       const lines = lineBufs[stream].split("\n");
       lineBufs[stream] = lines.pop() ?? "";
-      if (stream === "stdout" && !agentModelSeen) {
-        pendingAgentModel = parseAgentModel(lines.join("\n"));
-        agentModelSeen = !!pendingAgentModel;
+      if (stream === "stdout" && !agentModel) {
+        agentModel = parseAgentModel(lines.join("\n"));
       }
       const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
       if (filtered.length > 0) {
@@ -104,7 +111,7 @@ async function invokeAgentWithRetries(
       resolveOnFailure: true,
       stdin,
       onStdout: (chunk) => emit("stdout", chunk),
-      onStderr: ctx.agent.suppressStdErr ? undefined : (chunk) => emit("stderr", chunk),
+      onStderr,
     });
 
     if (notifyTimer) clearTimeout(notifyTimer);
@@ -479,12 +486,32 @@ export function parseAgentModel(output: string): string | undefined {
   const regex = new RegExp(`^\\${AGENT_MODEL_PREFIX}[ \\t]+(.+)$`, "gm");
   let match;
   while ((match = regex.exec(output)) !== null) {
-    const model = match[1].trim();
-    // Skip the "<model>" placeholder echoed from the prompt, and values that would break the run-file comment.
-    if (!model || model.startsWith("<") || model.includes("-->") || model.length > 100) continue;
-    return model;
+    const model = sanitizeAgentModel(match[1]);
+    if (model) return model;
   }
   return undefined;
+}
+
+/** Returns a function that accumulates stderr chunks and yields the model once the CLI banner reveals it. */
+export function createCliModelCapture(agent: AgentTool): (stderrChunk: string) => string | undefined {
+  let head = "";
+  let model: string | undefined;
+  return (chunk) => {
+    // The banner is printed at startup, so stop buffering once well past it.
+    if (model || !agent.stderrModelPattern || head.length > 8192) return model;
+    head += chunk;
+    const completeLines = head.slice(0, head.lastIndexOf("\n") + 1);
+    const raw = completeLines.match(agent.stderrModelPattern)?.[1];
+    model = raw ? sanitizeAgentModel(raw) : undefined;
+    return model;
+  };
+}
+
+function sanitizeAgentModel(raw: string): string | undefined {
+  const model = raw.trim();
+  // Skip the "<model>" placeholder echoed from the prompt, and values that would break the run-file comment.
+  if (!model || model.startsWith("<") || model.includes("-->") || model.length > 100) return undefined;
+  return model;
 }
 
 /** Falls back to "finished" if no success/failure marker is found. */
