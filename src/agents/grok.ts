@@ -10,6 +10,7 @@ export const grokAgent: AgentTool = {
   authArgs: ["login"],
   supportsYolo: true,
   npmPackage: "@xai-official/grok",
+  freeUsage: "Free Tier",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
