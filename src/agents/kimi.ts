@@ -8,6 +8,7 @@ export const kimiAgent: AgentTool = {
   promptArgs: ["-p"],
   probeArg: "--version",
   supportsYolo: false,
+  suppressStdErr: true,
   npmPackage: "@moonshot-ai/kimi-code",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
