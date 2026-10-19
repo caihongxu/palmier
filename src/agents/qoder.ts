@@ -7,8 +7,10 @@ export const qoderAgent: AgentTool = {
   command: "qodercli",
   promptArgs: ["-p"],
   probeArg: "--version",
+  authArgs: ["login"],
   supportsYolo: true,
   npmPackage: "@qoder-ai/qodercli",
+  freeUsage: "Free Tier",
 
   getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
     const yolo = extraPermissions === "yolo";
