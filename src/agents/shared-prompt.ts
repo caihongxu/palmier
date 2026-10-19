@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { loadConfig } from "../config.js";
-import { generateEndpointDocs } from "../mcp-tools.js";
+import { generateEndpointDocs } from "../agent-tools.js";
 import type { ParsedTask } from "../types.js";
 import { getAgent } from "./agent.js";
 

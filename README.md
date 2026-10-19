@@ -45,15 +45,13 @@ Capability access is opt-in per device: each capability is gated behind an Andro
 
 Palmier runs as a background daemon (systemd on Linux, launchd on macOS, Task Scheduler on Windows). It invokes your agent CLIs directly, schedules tasks via native OS timers, and exposes an API that the PWA connects to — either directly over HTTP or remotely through a relay server. Agents can interact with the user's mobile device during execution — requesting input, sending push notifications and full-screen alarms, reading SMS/notifications, managing contacts and calendar, and more.
 
-### MCP Server
+### Agent Capabilities
 
-Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://localhost:7256/mcp` (streamable HTTP transport). MCP-capable agents can register it to get tool and resource definitions automatically. The same tools and resources are also readily available if running agent tasks directly from Palmier app, without installing the MCP server.
+Every task Palmier runs gets these capabilities automatically. Their usage is written into the agent's instructions at launch, so no agent-side setup is needed.
 
-**MCP server URL:** `http://localhost:7256/mcp`
-
-**Available tools:**
-| Tool | Description |
-|------|-------------|
+**Actions:**
+| Capability | Description |
+|------------|-------------|
 | `notify` | Send a push notification to the user's device |
 | `request-input` | Request input from the user (blocks until response; aborting the prompt aborts the task) |
 | `request-choice` | Ask the user a question with a fixed set of options and return the one picked; a single option serves as a confirmation (blocks until response; aborting aborts the task) |
@@ -69,13 +67,11 @@ Palmier exposes an [MCP](https://modelcontextprotocol.io) server at `http://loca
 | `read-battery` | Get battery level and charging status |
 | `set-ringer-mode` | Set ringer mode (normal/vibrate/silent) |
 
-**Available resources:**
-| Resource | URI | Description |
-|----------|-----|-------------|
-| Device Notifications | `notifications://device` | Recent notifications from the user's Android device |
-| Device SMS | `sms-messages://device` | Recent SMS messages from the user's Android device |
-
-Resources support MCP subscriptions — clients can subscribe via `resources/subscribe` and receive real-time `notifications/resources/updated` events via the streamable HTTP transport when the resource changes.
+**Device data:**
+| Capability | Description |
+|------------|-------------|
+| Device Notifications | Recent notifications from the user's Android device |
+| Device SMS | Recent SMS messages from the user's Android device |
 
 All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link the host to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
 
@@ -89,7 +85,7 @@ Agents run with the task's run directory (`~/palmier/tasks/<task-id>/<run-id>/`)
 ┌──────────────┐         HTTP          ┌──────────────────┐
 │              │◄──────────────────────│                  │
 │  Host Daemon │                       │   PWA (Browser)  │
-│  (MCP Server)│◄──────┐               │                  │
+│              │◄──────┐               │                  │
 └──┬────────┬──┘       │               └──────────────────┘
    │        │          │                        │
    ▼        ▼          │  NATS (TLS)            │ NATS (TLS)

@@ -1,10 +1,9 @@
 import type { RequiredPermission } from "./types.js";
 
 export interface PendingRequestMeta {
-  /** Doubles as task_id for permission-type entries (the key the task uses). */
+  /** The task the request belongs to. */
   session_id?: string;
-  /** Human-readable label for whoever opened the prompt — agent name for
-   *  confirm/input/choice, task name for permission. */
+  /** Task name, set for permission requests. */
   session_name?: string;
   description?: string;
   input_questions?: string[];
@@ -24,9 +23,8 @@ export interface PendingRequest {
 const pending = new Map<string, PendingRequest>();
 
 /**
- * Key is sessionId for confirmation/input/choice, taskId for permission. Only one
- * pending request per key at a time. `meta` is surfaced via host.info so a
- * freshly-connected PWA can render the modal without replaying events.
+ * Keyed by taskId. Only one pending request per key at a time. `meta` is surfaced
+ * via host.info so a freshly-connected PWA can render the modal without replaying events.
  */
 export function registerPending(
   key: string,

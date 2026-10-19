@@ -14,6 +14,5 @@ export async function connectNats(config: HostConfig): Promise<NatsConnection> {
     ),
   });
 
-  // Do not log — it would pollute stdout for the MCP server.
   return nc;
 }

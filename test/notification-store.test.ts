@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 // Re-import fresh module state for each test file run
 // Since the store is module-level state, we test the exported functions directly
-import { addNotification, getNotifications, onNotificationsChanged, type DeviceNotification } from "../src/notification-store.js";
+import { addNotification, getNotifications, type DeviceNotification } from "../src/notification-store.js";
 
 function makeNotification(id: string, overrides?: Partial<DeviceNotification>): DeviceNotification {
   return {
@@ -41,17 +41,5 @@ describe("notification-store", () => {
     }
     const result = getNotifications();
     assert.ok(result.length <= 50, `Expected <= 50, got ${result.length}`);
-  });
-
-  it("notifies listeners on add", () => {
-    let called = 0;
-    const unsub = onNotificationsChanged(() => { called++; });
-    addNotification(makeNotification("listener-1"));
-    assert.equal(called, 1);
-    addNotification(makeNotification("listener-2"));
-    assert.equal(called, 2);
-    unsub();
-    addNotification(makeNotification("listener-3"));
-    assert.equal(called, 2); // no longer called after unsubscribe
   });
 });

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { generateEndpointDocs, type ToolDefinition, type ResourceDefinition } from "../src/mcp-tools.js";
+import { generateEndpointDocs, type ToolDefinition, type ResourceDefinition } from "../src/agent-tools.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templatePath = path.join(__dirname, "..", "src", "agents", "agent-instructions.md");
@@ -51,13 +51,11 @@ const mockTools: ToolDefinition[] = [
 /** Mock resources with a known, stable shape for testing */
 const mockResources: ResourceDefinition[] = [
   {
-    uri: "mock://data",
     name: "Mock Data",
     description: [
       "Get mock data from the device.",
       "Response: JSON array of data objects.",
     ],
-    mimeType: "application/json",
     restPath: "/mock-data",
     read: () => [],
   },
@@ -194,7 +192,7 @@ describe("generateEndpointDocs", () => {
 
   it("generates GET endpoints for all provided resources", () => {
     for (const resource of mockResources) {
-      assert.match(docs, new RegExp(`GET http://localhost:7256${resource.restPath}`), `Missing endpoint for ${resource.uri}`);
+      assert.match(docs, new RegExp(`GET http://localhost:7256${resource.restPath}`), `Missing endpoint for ${resource.restPath}`);
     }
   });
 

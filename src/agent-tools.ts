@@ -1,9 +1,8 @@
-import * as fs from "fs";
 import { StringCodec, type NatsConnection } from "nats";
 import { registerPending } from "./pending-requests.js";
 import { getLinkedDevice } from "./linked-device.js";
-import { getNotifications, onNotificationsChanged } from "./notification-store.js";
-import { getSmsMessages, onSmsChanged } from "./sms-store.js";
+import { getNotifications } from "./notification-store.js";
+import { getSmsMessages } from "./sms-store.js";
 import { getTaskDir, readHistory, spliceUserMessage } from "./task.js";
 import { lookupPassword, savePassword, normalizeOrigin } from "./password-store.js";
 import { fillPasswordInBrowser } from "./playwright-fill.js";
@@ -19,9 +18,8 @@ export interface ToolContext {
   config: HostConfig;
   nc: NatsConnection | undefined;
   publishEvent: (id: string, payload: Record<string, unknown>) => Promise<void>;
-  sessionId: string;
-  agentName?: string;
-  abortTask: (taskId: string) => Promise<void>;
+  taskId: string;
+  abortTask: () => Promise<void>;
 }
 
 export interface ToolDefinition {
@@ -52,9 +50,7 @@ const notifyTool: ToolDefinition = {
     if (!ctx.nc) throw new ToolError("NATS not connected — push notifications require server mode", 503);
 
     const sc = StringCodec();
-    const payload: Record<string, string> = { hostId: ctx.config.hostId, title, body };
-    if (ctx.sessionId) payload.session_id = ctx.sessionId;
-    if (ctx.agentName) payload.agent_name = ctx.agentName;
+    const payload = { hostId: ctx.config.hostId, title, body, session_id: ctx.taskId };
     const subject = `host.${ctx.config.hostId}.push.send`;
     const reply = await ctx.nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
     const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };
@@ -89,9 +85,8 @@ const requestInputTool: ToolDefinition = {
     const { description, questions } = args as { description?: string; questions: string[] };
     if (!questions?.length) throw new ToolError("questions is required", 400);
 
-    const pendingPromise = registerPending(ctx.sessionId, "input", questions, {
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+    const pendingPromise = registerPending(ctx.taskId, "input", questions, {
+      session_id: ctx.taskId,
       description,
       input_questions: questions,
     });
@@ -99,8 +94,7 @@ const requestInputTool: ToolDefinition = {
     await ctx.publishEvent("_input", {
       event_type: "input-request",
       host_id: ctx.config.hostId,
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+      session_id: ctx.taskId,
       description,
       input_questions: questions,
     });
@@ -115,32 +109,24 @@ const requestInputTool: ToolDefinition = {
     if (aborted) {
       await ctx.publishEvent("_input", {
         event_type: "input-resolved", host_id: ctx.config.hostId,
-        session_id: ctx.sessionId, status: "aborted",
+        session_id: ctx.taskId, status: "aborted",
       });
-      await abortSessionTask(ctx);
+      await ctx.abortTask();
       return { aborted: true };
     }
 
     await ctx.publishEvent("_input", {
       event_type: "input-resolved", host_id: ctx.config.hostId,
-      session_id: ctx.sessionId, status: "provided",
+      session_id: ctx.taskId, status: "provided",
     });
     return { values: response };
   },
 };
 
-/**
- * Splice the user's answer into the task run file so the conversation history
- * shows what the user typed, independent of whether the agent echoes it.
- * Only writes when sessionId resolves to a task with an active run (i.e. the
- * agent called via the REST endpoint with taskId); silently skips for pure
- * MCP-protocol sessions where sessionId is a random UUID.
- */
+/** Splice the user's answer into the run file so history shows it even if the agent never echoes it. */
 function recordUserResponseToRun(ctx: ToolContext, content: string): void {
-  const taskId = ctx.sessionId;
-  if (!taskId) return;
+  const taskId = ctx.taskId;
   const taskDir = getTaskDir(ctx.config.projectRoot, taskId);
-  if (!fs.existsSync(taskDir)) return;
   const { entries } = readHistory(ctx.config.projectRoot, { task_id: taskId, limit: 1 });
   const runId = entries[0]?.run_id;
   if (!runId) return;
@@ -156,13 +142,6 @@ function recordUserResponseToRun(ctx: ToolContext, content: string): void {
   } catch {
     // Run file missing or unwritable — best-effort, do not fail the tool call.
   }
-}
-
-/** No-op for pure MCP-protocol sessions, whose sessionId is a random UUID rather than a task. */
-async function abortSessionTask(ctx: ToolContext): Promise<void> {
-  const taskId = ctx.sessionId;
-  if (!taskId || !fs.existsSync(getTaskDir(ctx.config.projectRoot, taskId))) return;
-  await ctx.abortTask(taskId);
 }
 
 export const requestConfirmationTool: ToolDefinition = {
@@ -183,17 +162,15 @@ export const requestConfirmationTool: ToolDefinition = {
     const { description } = args as { description: string };
     if (!description) throw new ToolError("description is required", 400);
 
-    const pendingPromise = registerPending(ctx.sessionId, "confirmation", undefined, {
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+    const pendingPromise = registerPending(ctx.taskId, "confirmation", undefined, {
+      session_id: ctx.taskId,
       description,
     });
 
     await ctx.publishEvent("_confirm", {
       event_type: "confirm-request",
       host_id: ctx.config.hostId,
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+      session_id: ctx.taskId,
       description,
     });
 
@@ -203,11 +180,11 @@ export const requestConfirmationTool: ToolDefinition = {
     await ctx.publishEvent("_confirm", {
       event_type: "confirm-resolved",
       host_id: ctx.config.hostId,
-      session_id: ctx.sessionId,
+      session_id: ctx.taskId,
       status: confirmed ? "confirmed" : "aborted",
     });
 
-    if (!confirmed) await abortSessionTask(ctx);
+    if (!confirmed) await ctx.abortTask();
     return { confirmed };
   },
 };
@@ -242,17 +219,15 @@ const requestChoiceTool: ToolDefinition = {
     }
     if (new Set(options).size !== options.length) throw new ToolError("options must be unique", 400);
 
-    const pendingPromise = registerPending(ctx.sessionId, "choice", options, {
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+    const pendingPromise = registerPending(ctx.taskId, "choice", options, {
+      session_id: ctx.taskId,
       description: question,
     });
 
     await ctx.publishEvent("_choice", {
       event_type: "choice-request",
       host_id: ctx.config.hostId,
-      session_id: ctx.sessionId,
-      session_name: ctx.agentName,
+      session_id: ctx.taskId,
       description: question,
       options,
     });
@@ -267,12 +242,12 @@ const requestChoiceTool: ToolDefinition = {
     await ctx.publishEvent("_choice", {
       event_type: "choice-resolved",
       host_id: ctx.config.hostId,
-      session_id: ctx.sessionId,
+      session_id: ctx.taskId,
       status: aborted ? "aborted" : "chosen",
     });
 
     if (aborted) {
-      await abortSessionTask(ctx);
+      await ctx.abortTask();
       return { aborted: true };
     }
     return { choice };
@@ -309,9 +284,8 @@ const fillPasswordTool: ToolDefinition = {
     if (password === undefined) {
       const question = `Password or PIN for ${username} on ${origin}`;
       const description = `Enter the password or PIN to sign in as ${username} on ${origin}.`;
-      const pendingPromise = registerPending(ctx.sessionId, "input", [question], {
-        session_id: ctx.sessionId,
-        session_name: ctx.agentName,
+      const pendingPromise = registerPending(ctx.taskId, "input", [question], {
+        session_id: ctx.taskId,
         description,
         input_questions: [question],
         secret: true,
@@ -320,8 +294,7 @@ const fillPasswordTool: ToolDefinition = {
       await ctx.publishEvent("_input", {
         event_type: "input-request",
         host_id: ctx.config.hostId,
-        session_id: ctx.sessionId,
-        session_name: ctx.agentName,
+        session_id: ctx.taskId,
         description,
         input_questions: [question],
         secret: true,
@@ -332,12 +305,12 @@ const fillPasswordTool: ToolDefinition = {
 
       await ctx.publishEvent("_input", {
         event_type: "input-resolved", host_id: ctx.config.hostId,
-        session_id: ctx.sessionId, status: aborted ? "aborted" : "provided",
+        session_id: ctx.taskId, status: aborted ? "aborted" : "provided",
       });
 
       // Never record the secret to the task run file (unlike request-input).
       if (aborted) {
-        await abortSessionTask(ctx);
+        await ctx.abortTask();
         return { aborted: true };
       }
 
@@ -379,14 +352,14 @@ const deviceGeolocationTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.geolocation`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const locationPromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.geolocation.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.geolocation.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -427,14 +400,14 @@ const readContactsTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken, action: "read" })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, action: "read" })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -484,7 +457,7 @@ const createContactTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+        hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "create", name, phone, email,
       })),
       { timeout: 5_000 },
@@ -493,7 +466,7 @@ const createContactTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.contacts.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -540,7 +513,7 @@ const readCalendarTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+        hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "read",
         ...(startDate ? { startDate: String(startDate) } : {}),
         ...(endDate ? { endDate: String(endDate) } : {}),
@@ -551,7 +524,7 @@ const readCalendarTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -605,7 +578,7 @@ const createCalendarEventTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+        hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "create",
         title, startTime: String(startTime), endTime: String(endTime),
         ...(location ? { location } : {}),
@@ -617,7 +590,7 @@ const createCalendarEventTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.calendar.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -666,7 +639,7 @@ const sendSmsTool: ToolDefinition = {
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.sms`,
       sc.encode(JSON.stringify({
-        hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+        hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "send", to, body,
       })),
       { timeout: 5_000 },
@@ -675,7 +648,7 @@ const sendSmsTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.sms.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.sms.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -723,7 +696,7 @@ const sendAlarmTool: ToolDefinition = {
     const sc = StringCodec();
 
     const payload: Record<string, string> = {
-      hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+      hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
       title,
     };
     if (description) payload.description = description;
@@ -737,7 +710,7 @@ const sendAlarmTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alarm.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.alarm.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -778,14 +751,14 @@ const readBatteryTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.battery`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.battery.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.battery.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -832,14 +805,14 @@ const setRingerModeTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.ringer`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken, mode })),
+      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, mode })),
       { timeout: 5_000 },
     );
     const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.ringer.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.ringer.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -889,7 +862,7 @@ const sendEmailTool: ToolDefinition = {
     const sc = StringCodec();
 
     const payload: Record<string, string> = {
-      hostId: ctx.config.hostId, requestId: ctx.sessionId, fcmToken: device.fcmToken,
+      hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
       to,
     };
     if (subject) payload.subject = subject;
@@ -906,7 +879,7 @@ const sendEmailTool: ToolDefinition = {
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
-      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.email.${ctx.sessionId}`, { max: 1 });
+      const sub = ctx.nc!.subscribe(`host.${ctx.config.hostId}.email.${ctx.taskId}`, { max: 1 });
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new ToolError("Device did not respond within 30 seconds", 504));
@@ -930,49 +903,37 @@ export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, reque
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {
-  /** MCP resource URI (e.g. "notifications://device"). */
-  uri: string;
   /** Display name. */
   name: string;
   /** First line is the summary (used as REST endpoint header). Remaining lines become bullet points in docs. */
   description: string[];
-  mimeType: string;
   /** REST endpoint path (e.g. "/notifications"). Served as GET. */
   restPath: string;
   /** Return the current resource content. */
   read: () => unknown;
-  /** Register a listener for content changes. Returns an unsubscribe function. */
-  subscribe: (listener: () => void) => () => void;
 }
 
 const deviceNotificationsResource: ResourceDefinition = {
-  uri: "notifications://device",
   name: "Device Notifications",
   description: [
     "Get recent notifications from the user's Android device.",
     "Response: JSON array of notification objects with `id`, `packageName`, `appName`, `title`, `text`, `timestamp`.",
   ],
-  mimeType: "application/json",
   restPath: "/notifications",
   read: getNotifications,
-  subscribe: onNotificationsChanged,
 };
 
 const deviceSmsResource: ResourceDefinition = {
-  uri: "sms-messages://device",
   name: "Device SMS",
   description: [
     "Get recent SMS messages from the user's Android device.",
     "Response: JSON array of message objects with `id`, `sender`, `body`, `timestamp`.",
   ],
-  mimeType: "application/json",
   restPath: "/sms-messages",
   read: getSmsMessages,
-  subscribe: onSmsChanged,
 };
 
 export const agentResources: ResourceDefinition[] = [deviceNotificationsResource, deviceSmsResource];
-export const agentResourceMap = new Map<string, ResourceDefinition>(agentResources.map((r) => [r.uri, r]));
 
 export function generateEndpointDocs(
   port: number,

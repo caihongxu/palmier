@@ -8,8 +8,7 @@ import * as fs from "node:fs";
 import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
 import { saveConfig } from "../config.js";
 import { detectDefaultInterface } from "../network.js";
-import { agentToolMap, agentResources, requestConfirmationTool, ToolError, type ToolContext } from "../mcp-tools.js";
-import { handleMcpRequest, getAgentName, getResourceSubscriptions } from "../mcp-handler.js";
+import { agentToolMap, agentResources, requestConfirmationTool, ToolError, type ToolContext } from "../agent-tools.js";
 import { getTaskDir } from "../task.js";
 import { popEvent } from "../event-queues.js";
 
@@ -91,29 +90,9 @@ export async function startHttpTransport(
   onReady?: () => void,
 ): Promise<void> {
   const sseClients = new Set<SseClient>();
-  const mcpStreams = new Map<string, http.ServerResponse>();
   // Always bind 0.0.0.0 so other devices on the LAN can reach /rpc and /health.
   // The web UI, /pair, and /events are individually gated to loopback.
   const bindAddress = "0.0.0.0";
-
-  /** Push notifications/resources/updated to all MCP clients subscribed to the given URI. */
-  function broadcastResourceUpdated(uri: string) {
-    const subs = getResourceSubscriptions();
-    for (const [sessionId, uris] of subs) {
-      if (!uris.has(uri)) continue;
-      const stream = mcpStreams.get(sessionId);
-      if (!stream) continue;
-      stream.write(`data: ${JSON.stringify({
-        jsonrpc: "2.0",
-        method: "notifications/resources/updated",
-        params: { uri },
-      })}\n\n`);
-    }
-  }
-
-  for (const resource of agentResources) {
-    resource.subscribe(() => broadcastResourceUpdated(resource.uri));
-  }
 
   if (pairingCode) {
     const EXPIRY_MS = 24 * 60 * 60 * 1000;
@@ -168,10 +147,10 @@ export async function startHttpTransport(
     broadcastSseEvent({ task_id: taskId, ...payload });
   }
 
-  function makeToolContext(sessionId: string): ToolContext {
+  function makeToolContext(taskId: string): ToolContext {
     return {
-      config, nc, publishEvent, sessionId, agentName: getAgentName(sessionId),
-      abortTask: async (taskId) => { await handleRpc({ method: "task.abort", params: { id: taskId }, localhost: true }); },
+      config, nc, publishEvent, taskId,
+      abortTask: async () => { await handleRpc({ method: "task.abort", params: { id: taskId }, localhost: true }); },
     };
   }
 
@@ -185,40 +164,6 @@ export async function startHttpTransport(
         "Access-Control-Allow-Origin": "*",
       });
       res.end(JSON.stringify({ ok: true, hostId: config.hostId }));
-      return;
-    }
-
-    if (req.method === "POST" && pathname === "/mcp") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      try {
-        const body = await readBody(req);
-        const sessionId = req.headers["mcp-session-id"] as string | undefined;
-        const ctx = makeToolContext(sessionId ?? "");
-        const result = await handleMcpRequest(body, sessionId, ctx);
-        if (result.sessionId) {
-          res.setHeader("Mcp-Session-Id", result.sessionId);
-        }
-        if (result.stream && sessionId) {
-          // Keep the response open as SSE for server-initiated notifications.
-          res.writeHead(200, {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-          });
-          res.write(`data: ${JSON.stringify(result.body)}\n\n`);
-          mcpStreams.set(sessionId, res);
-          const heartbeat = setInterval(() => { res.write(":heartbeat\n\n"); }, 15_000);
-          req.on("close", () => {
-            clearInterval(heartbeat);
-            mcpStreams.delete(sessionId);
-            getResourceSubscriptions().delete(sessionId);
-          });
-        } else {
-          sendJson(res, 200, result.body);
-        }
-      } catch (err) {
-        sendJson(res, 500, { error: String(err) });
-      }
       return;
     }
 
@@ -240,13 +185,13 @@ export async function startHttpTransport(
         const body = await readBody(req);
         const args = body.trim() ? JSON.parse(body) : {};
         const ctx = makeToolContext(taskId);
-        console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${tool.name}`);
+        console.log(`[tool] [${taskId.slice(0, 8)}] ${tool.name}`);
         const result = await tool.handler(args, ctx);
-        console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${tool.name} done:`, JSON.stringify(result).slice(0, 200));
+        console.log(`[tool] [${taskId.slice(0, 8)}] ${tool.name} done:`, JSON.stringify(result).slice(0, 200));
         sendJson(res, 200, result);
       } catch (err: any) {
         const status = err instanceof ToolError ? err.statusCode : 500;
-        console.error(`[mcp] REST ${tool.name} error:`, err.message ?? String(err));
+        console.error(`[tool] ${tool.name} error:`, err.message ?? String(err));
         sendJson(res, status, { error: err.message ?? String(err) });
       }
       return;
@@ -265,9 +210,9 @@ export async function startHttpTransport(
         sendJson(res, 404, { error: `Task not found: ${taskId}` });
         return;
       }
-      console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${matchedResource.name}`);
+      console.log(`[resource] [${taskId.slice(0, 8)}] ${matchedResource.name}`);
       const result = matchedResource.read();
-      console.log(`[mcp] REST [${taskId.slice(0, 8)}] ${matchedResource.name} done: ${JSON.stringify(result).slice(0, 200)}`);
+      console.log(`[resource] [${taskId.slice(0, 8)}] ${matchedResource.name} done: ${JSON.stringify(result).slice(0, 200)}`);
       sendJson(res, 200, result);
       return;
     }
