@@ -114,10 +114,11 @@ export function getNpmInstalledVersion(npmPackage: string): string | null {
 const agentRegistry: Record<string, AgentTool> = {
   claude: claudeAgent,
   codex: codexAgent,
-  openclaw: openClawAgent,
+  grok: grokAgent,
   copilot: copilotAgent,
-  qwen: qwenAgent,
   kimi: kimiAgent,
+  qoder: qoderAgent,
+  qwen: qwenAgent,
   droid: droidAgent,
   goose: gooseAgent,
   opencode: openCodeAgent,
@@ -126,9 +127,8 @@ const agentRegistry: Record<string, AgentTool> = {
   cursor: cursorAgent,
   kiro: kiroAgent,
   cline: clineAgent,
-  qoder: qoderAgent,
+  openclaw: openClawAgent,
   hermes: hermesAgent,
-  grok: grokAgent,
 };
 
 export interface DetectedAgent {
