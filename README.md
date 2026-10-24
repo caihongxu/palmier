@@ -29,7 +29,7 @@ Capability access is opt-in per device: each capability is gated behind an Andro
    powershell -c "irm https://palmier.me/install.ps1 | iex"
    ```
 
-   The one-liner installs Node.js 24+ if needed, installs `palmier` globally, and runs the setup wizard. If you already have Node.js 24+ and npm:
+   The one-liner installs Node.js 24+ if needed, installs `palmier` globally, and runs the setup wizard. On Windows it also sets the PowerShell execution policy to `RemoteSigned` for the current user if scripts are blocked, since npm's `palmier.ps1` shim can't run otherwise. If you already have Node.js 24+ and npm:
    ```bash
    npm install -g palmier && palmier init
    ```
