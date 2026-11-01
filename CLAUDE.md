@@ -8,6 +8,16 @@ Always read `README.md` first before starting any task.
 
 When making architectural changes, update `README.md` to reflect the new state.
 
+## Releasing
+
+To cut a new release of palmier, start from a clean, up-to-date `master` and run (PowerShell):
+
+```powershell
+$v = npm version patch --no-git-tag-version; if ($?) { git commit -m "chore: bump version" package.json package-lock.json }; if ($?) { git push }; if ($?) { gh release create $v --generate-notes }
+```
+
+`npm version` prints the new version with a `v` prefix (e.g. `v1.1.20`), matching existing tags. Each step runs only if the previous one succeeded, so a failed push never publishes a release; publishing the GitHub release triggers the npm publish workflow.
+
 ## Code comments
 
 Default: write no comments. Well-named identifiers already explain WHAT.
