@@ -182,7 +182,7 @@ The wizard:
 - Offers to install the **Playwright CLI** for browser automation (see [Browser Automation](#browser-automation)). Skipped on re-init if it's already managed.
 - Asks for the HTTP port
 - Detects the default network interface (used for auto-LAN)
-- Shows a summary (including any existing scheduled tasks to recover) and asks for confirmation
+- Shows a summary (including the Palmier daemon version and any existing scheduled tasks to recover) and asks for confirmation
 - Registers with the Palmier server, saves configuration to `~/.config/palmier/host.json`
 - Installs a background daemon (systemd user service on Linux, LaunchAgent on macOS, Task Scheduler on Windows). On re-init, also restarts the daemon so the running process picks up the new agents/versions for `host.info`.
 - Auto-enters pair mode to connect your first device

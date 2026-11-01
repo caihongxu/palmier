@@ -10,6 +10,7 @@ import { getPlatform } from "../platform/index.js";
 import { pairCommand } from "./pair.js";
 import { detectDefaultInterface, getInterfaceIpv4 } from "../network.js";
 import { listTasks, taskDisplayName } from "../task.js";
+import { currentVersion } from "../update-checker.js";
 import type { HostConfig } from "../types.js";
 
 const { bold, dim, green, cyan, red } = colors;
@@ -86,6 +87,7 @@ export async function initCommand(): Promise<void> {
     const lanIp = defaultInterface ? getInterfaceIpv4(defaultInterface) : null;
 
     console.log(`\n${bold("Setup summary:")}\n`);
+    console.log(`  ${dim("Daemon:")}         Palmier v${currentVersion}\n`);
     console.log(`  ${dim("Task storage:")}   ${bold(projectRoot)}`);
     console.log(`                  All tasks and execution data will be stored here.\n`);
     console.log(`  ${dim("Local:")}          ${cyan(`http://localhost:${httpPort}`)}`);
