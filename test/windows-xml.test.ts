@@ -86,4 +86,18 @@ describe("buildTaskXml", () => {
     assert.ok(xml.includes("<Command>C:\\Program Files\\nodejs\\node.exe</Command>"));
     assert.ok(xml.includes("<Arguments>C:\\My Folder\\script.js serve</Arguments>"));
   });
+
+  it("keeps the default time limit for task runs", () => {
+    const xml = buildTaskXml('"node" "palmier" run test', []);
+
+    assert.ok(!xml.includes("<ExecutionTimeLimit>"));
+    assert.ok(!xml.includes("<RestartOnFailure>"));
+  });
+
+  it("disables the time limit and restarts on failure for a persistent task", () => {
+    const xml = buildTaskXml('"node" "palmier" serve', [], { persistent: true });
+
+    assert.ok(xml.includes("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"));
+    assert.ok(xml.includes("<RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure>"));
+  });
 });

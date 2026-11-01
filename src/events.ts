@@ -1,21 +1,10 @@
-import { StringCodec, type NatsConnection } from "nats";
 import { loadConfig } from "./config.js";
 
-const sc = StringCodec();
-
+/** Hands the event to the daemon, which forwards it to the relay and local SSE clients. */
 export async function publishHostEvent(
-  nc: NatsConnection | undefined,
-  hostId: string,
   taskId: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const subject = `host-event.${hostId}.${taskId}`;
-
-  if (nc) {
-    nc.publish(subject, sc.encode(JSON.stringify(payload)));
-    console.log(`[nats] ${subject} →`, payload);
-  }
-
   const config = loadConfig();
   const port = config.httpPort ?? 7256;
   try {

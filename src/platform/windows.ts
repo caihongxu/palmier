@@ -52,7 +52,7 @@ export function scheduleValueToXml(scheduleType: "crons" | "specific_times", val
   return `<CalendarTrigger><StartBoundary>${base}</StartBoundary><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>`;
 }
 
-export function buildTaskXml(tr: string, triggers: string[], foreground?: boolean): string {
+export function buildTaskXml(tr: string, triggers: string[], opts: { foreground?: boolean; persistent?: boolean } = {}): string {
   const [command, ...argParts] = tr.match(/"[^"]*"|[^\s]+/g) ?? [];
   const commandStr = command?.replace(/"/g, "") ?? "";
   const argsStr = argParts.map((a) => a.replace(/"/g, "")).join(" ");
@@ -62,7 +62,7 @@ export function buildTaskXml(tr: string, triggers: string[], foreground?: boolea
     `<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">`,
     `  <Principals>`,
     `    <Principal>`,
-    `      <LogonType>${foreground ? "InteractiveToken" : "S4U"}</LogonType>`,
+    `      <LogonType>${opts.foreground ? "InteractiveToken" : "S4U"}</LogonType>`,
     `      <RunLevel>LeastPrivilege</RunLevel>`,
     `    </Principal>`,
     `  </Principals>`,
@@ -71,6 +71,12 @@ export function buildTaskXml(tr: string, triggers: string[], foreground?: boolea
     `    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>`,
     `    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>`,
     `    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>`,
+    // Omitting ExecutionTimeLimit means Task Scheduler's 72h default, which
+    // kills a long-running process; PT0S disables the limit.
+    ...(opts.persistent ? [
+      `    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>`,
+      `    <RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure>`,
+    ] : []),
     `  </Settings>`,
     `  <Triggers>${triggers.join("")}</Triggers>`,
     `  <Actions>`,
@@ -193,7 +199,7 @@ export class WindowsPlatform implements PlatformService {
   private ensureDaemonTask(script: string): void {
     const tn = `\\Palmier\\${DAEMON_TASK_NAME}`;
     const tr = `"${process.execPath}" "${script}" serve`;
-    const xml = buildTaskXml(tr, [`<BootTrigger><Enabled>true</Enabled></BootTrigger>`]);
+    const xml = buildTaskXml(tr, [`<BootTrigger><Enabled>true</Enabled></BootTrigger>`], { persistent: true });
     const xmlPath = path.join(CONFIG_DIR, "daemon-task.xml");
     try {
       const bom = Buffer.from([0xFF, 0xFE]);
@@ -254,7 +260,7 @@ export class WindowsPlatform implements PlatformService {
     // MultipleInstancesPolicy. S4U keeps the console hidden unless
     // foreground_mode is set. Works unelevated because the caller (daemon)
     // runs elevated.
-    const xml = buildTaskXml(tr, triggerElements, task.frontmatter.foreground_mode);
+    const xml = buildTaskXml(tr, triggerElements, { foreground: task.frontmatter.foreground_mode });
     const xmlPath = path.join(CONFIG_DIR, `task-${taskId}.xml`);
     try {
       // schtasks /xml requires UTF-16LE with BOM.

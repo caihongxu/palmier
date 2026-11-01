@@ -30,7 +30,6 @@ const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
  */
 async function checkStaleTasks(
   config: HostConfig,
-  nc: NatsConnection | undefined,
 ): Promise<void> {
   const tasksRoot = path.join(config.projectRoot, "tasks");
   if (!fs.existsSync(tasksRoot)) return;
@@ -67,7 +66,7 @@ async function checkStaleTasks(
         });
       }
 
-      await publishHostEvent(nc, config.hostId, taskId, {
+      await publishHostEvent(taskId, {
         event_type: "running-state",
         running_state: "failed",
         name: taskDisplayName(task.frontmatter) || taskId,
@@ -98,7 +97,7 @@ async function checkStaleTasks(
           content: "",
           type: "failed",
         });
-        await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+        await publishHostEvent(taskId, { event_type: "result-updated", run_id: runId });
       }
     }
   }
@@ -124,41 +123,19 @@ export async function serveCommand(): Promise<void> {
   console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);
 
   let nc: NatsConnection | undefined;
-  try {
-    nc = await connectNats(config);
+  const handleRpc = createRpcHandler(config);
+
+  function attachNats(conn: NatsConnection): void {
+    nc = conn;
     console.log("[nats] Connected");
-  } catch (err) {
-    console.warn(`[nats] Connection failed (server mode unavailable): ${err}`);
-  }
+    (async () => {
+      for await (const s of conn.status()) {
+        if (s.type === "pingTimer") continue;
+        console.log(`[nats] Status: ${s.type}${typeof s.data === "string" ? ` (${s.data})` : ""}`);
+      }
+    })();
 
-  await checkStaleTasks(config, nc);
-
-  // Reinstall scheduler entries for all tasks (recovery after init/reinstall)
-  const platform = getPlatform();
-  const allTasks = listTasks(config.projectRoot);
-  for (const task of allTasks) {
-    try {
-      platform.installTaskTimer(config, task);
-    } catch (err) {
-      console.error(`Warning: failed to install timer for task ${task.frontmatter.id}: ${err}`);
-    }
-  }
-
-  // Spawn the long-running command process for every enabled command task —
-  // the daemon owns these the same way it owns the device-event subscriptions.
-  startEnabledCommandRunners(config);
-
-  setInterval(() => {
-    checkStaleTasks(config, nc).catch((err) => {
-      console.error("[monitor] Error checking stale tasks:", err);
-    });
-  }, POLL_INTERVAL_MS);
-
-  const handleRpc = createRpcHandler(config, nc);
-  const httpPort = config.httpPort ?? 7256;
-
-  if (nc) {
-    startNatsTransport(config, handleRpc, nc);
+    startNatsTransport(config, handleRpc, conn);
 
     const sc = StringCodec();
 
@@ -184,7 +161,7 @@ export async function serveCommand(): Promise<void> {
       }
     }
 
-    const notifSub = nc.subscribe(`host.${config.hostId}.device.notifications`);
+    const notifSub = conn.subscribe(`host.${config.hostId}.device.notifications`);
     (async () => {
       for await (const msg of notifSub) {
         const raw = sc.decode(msg.data);
@@ -199,7 +176,7 @@ export async function serveCommand(): Promise<void> {
       }
     })();
 
-    const smsSub = nc.subscribe(`host.${config.hostId}.device.sms`);
+    const smsSub = conn.subscribe(`host.${config.hostId}.device.sms`);
     (async () => {
       for await (const msg of smsSub) {
         const raw = sc.decode(msg.data);
@@ -215,5 +192,47 @@ export async function serveCommand(): Promise<void> {
     })();
   }
 
-  await startHttpTransport(config, handleRpc, httpPort, nc);
+  // The client's own reconnect only covers a connection that was once up, so a
+  // daemon started while offline (e.g. at logon before Wi-Fi) must keep dialing.
+  async function connectWithRetry(): Promise<void> {
+    for (let delayMs = 5_000; ; delayMs = Math.min(delayMs * 2, 60_000)) {
+      try {
+        attachNats(await connectNats(config));
+        return;
+      } catch (err) {
+        console.warn(`[nats] Connection failed, retrying in ${delayMs / 1000}s: ${err}`);
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  // Don't block startup on the relay: local mode must work offline.
+  connectWithRetry();
+
+  await checkStaleTasks(config);
+
+  // Reinstall scheduler entries for all tasks (recovery after init/reinstall)
+  const platform = getPlatform();
+  const allTasks = listTasks(config.projectRoot);
+  for (const task of allTasks) {
+    try {
+      platform.installTaskTimer(config, task);
+    } catch (err) {
+      console.error(`Warning: failed to install timer for task ${task.frontmatter.id}: ${err}`);
+    }
+  }
+
+  // Spawn the long-running command process for every enabled command task —
+  // the daemon owns these the same way it owns the device-event subscriptions.
+  startEnabledCommandRunners(config);
+
+  setInterval(() => {
+    checkStaleTasks(config).catch((err) => {
+      console.error("[monitor] Error checking stale tasks:", err);
+    });
+  }, POLL_INTERVAL_MS);
+
+  const httpPort = config.httpPort ?? 7256;
+
+  await startHttpTransport(config, handleRpc, httpPort, () => nc);
 }

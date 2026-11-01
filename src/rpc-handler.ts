@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
-import { type NatsConnection } from "nats";
 import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
@@ -204,17 +203,14 @@ async function recordStartFailure(
   taskId: string,
   runId: string,
   detail: string,
-  ctx?: { nc?: NatsConnection; hostId: string },
 ): Promise<void> {
   const now = Date.now();
   appendRunMessage(taskDir, runId, { role: "status", time: now, content: "", type: "started" });
   appendRunMessage(taskDir, runId, { role: "status", time: now, content: detail, type: "failed" });
-  if (ctx?.nc) {
-    await publishHostEvent(ctx.nc, ctx.hostId, taskId, { event_type: "result-updated", run_id: runId });
-  }
+  await publishHostEvent(taskId, { event_type: "result-updated", run_id: runId });
 }
 
-export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
+export function createRpcHandler(config: HostConfig) {
   function flattenTask(task: ParsedTask) {
     const taskDir = getTaskDir(config.projectRoot, task.frontmatter.id);
     const status = readTaskStatus(taskDir);
@@ -441,7 +437,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
         } catch (err: unknown) {
           const e = err as { stderr?: string; message?: string };
           const detail = (e.stderr || e.message || String(err)).trim();
-          await recordStartFailure(taskDir, id, runId, detail, { nc, hostId: config.hostId });
+          await recordStartFailure(taskDir, id, runId, detail);
           return { error: `Failed to start task: ${detail}` };
         }
 
@@ -471,7 +467,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           const e = err as { stderr?: string; message?: string };
           const detail = (e.stderr || e.message || String(err)).trim();
           console.error(`task.run failed for ${params.id}: ${detail}`);
-          if (taskRunId) await recordStartFailure(runTaskDir, params.id, taskRunId, detail, { nc, hostId: config.hostId });
+          if (taskRunId) await recordStartFailure(runTaskDir, params.id, taskRunId, detail);
           return { error: `Failed to start task: ${detail}` };
         }
       }
@@ -502,8 +498,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           type: "started",
         });
         writeTaskStatus(followupTaskDir, { running_state: "started", time_stamp: Date.now() });
-        await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
-        await publishHostEvent(nc, config.hostId, params.id, {
+        await publishHostEvent(params.id, { event_type: "result-updated", run_id: params.run_id });
+        await publishHostEvent(params.id, {
           event_type: "running-state", running_state: "started",
           name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
         });
@@ -559,8 +555,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             type: outcome,
           });
           writeTaskStatus(followupTaskDir, { running_state: outcome, time_stamp: Date.now() });
-          await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
-          await publishHostEvent(nc, config.hostId, params.id, {
+          await publishHostEvent(params.id, { event_type: "result-updated", run_id: params.run_id });
+          await publishHostEvent(params.id, {
             event_type: "running-state", running_state: outcome,
             name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
           });
@@ -577,8 +573,8 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
             type: "failed",
           });
           writeTaskStatus(followupTaskDir, { running_state: "failed", time_stamp: Date.now() });
-          await publishHostEvent(nc, config.hostId, params.id, { event_type: "result-updated", run_id: params.run_id });
-          await publishHostEvent(nc, config.hostId, params.id, {
+          await publishHostEvent(params.id, { event_type: "result-updated", run_id: params.run_id });
+          await publishHostEvent(params.id, {
             event_type: "running-state", running_state: "failed",
             name: taskDisplayName(followupTask.frontmatter), run_id: params.run_id,
           });
@@ -647,7 +643,7 @@ export function createRpcHandler(config: HostConfig, nc?: NatsConnection) {
           if (aborted.frontmatter.one_off) getPlatform().removeTaskTimer(params.id);
         } catch { /* best-effort cleanup */ }
         const abortPayload: Record<string, unknown> = { event_type: "running-state", running_state: "aborted" };
-        await publishHostEvent(nc, config.hostId, params.id, abortPayload);
+        await publishHostEvent(params.id, abortPayload);
         return { ok: true, task_id: params.id };
       }
 

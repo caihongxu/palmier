@@ -12,6 +12,12 @@ export async function connectNats(config: HostConfig): Promise<NatsConnection> {
       config.natsJwt,
       new TextEncoder().encode(config.natsNkeySeed),
     ),
+    // Sleep or a network switch kills the socket silently; the 2-min default
+    // ping leaves the host unreachable for minutes, and the default 10
+    // reconnect attempts close the connection for good after a short outage.
+    maxReconnectAttempts: -1,
+    pingInterval: 20_000,
+    maxPingOut: 2,
   });
 
   return nc;

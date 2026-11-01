@@ -2,7 +2,6 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
-import { connectNats } from "../nats-client.js";
 import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
@@ -11,7 +10,6 @@ import { extractFileLinks, resolveTaskFile } from "../task-files.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
 import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
-import type { NatsConnection } from "nats";
 
 interface InvocationContext {
   agent: AgentTool;
@@ -19,7 +17,6 @@ interface InvocationContext {
   taskDir: string;
   runId: string;
   guiEnv: Record<string, string>;
-  nc: NatsConnection | undefined;
   config: HostConfig;
   taskId: string;
   /** Mutable — accumulates across invocations within a run. */
@@ -55,7 +52,7 @@ async function invokeAgentWithRetries(
       notifyPending = true;
       notifyTimer = setTimeout(() => {
         notifyPending = false;
-        publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+        publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
       }, 500);
     }
 
@@ -133,10 +130,10 @@ async function invokeAgentWithRetries(
     }
 
     writer?.end();
-    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 
     if (linkedFiles.length > 0) {
-      await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, {
+      await publishHostEvent(ctx.taskId, {
         event_type: "report-generated",
         run_id: ctx.runId,
         name: taskDisplayName(ctx.task.frontmatter),
@@ -196,7 +193,7 @@ async function appendAndNotify(
   msg: Parameters<typeof appendRunMessage>[2],
 ): Promise<void> {
   appendRunMessage(ctx.taskDir, ctx.runId, msg);
-  await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+  await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 }
 
 /** The latest run dir with no status messages yet — freshly created by the RPC handler. */
@@ -227,7 +224,6 @@ export async function runCommand(taskId: string): Promise<void> {
   const task = parseTaskFile(taskDir);
   console.log(`Running task: ${taskId}`);
 
-  let nc: NatsConnection | undefined;
   const taskName = taskDisplayName(task.frontmatter);
 
   const existingRunId = findLatestPendingRunId(taskDir);
@@ -238,45 +234,40 @@ export async function runCommand(taskId: string): Promise<void> {
   }
 
   const cleanup = async () => {
-    if (nc && !nc.isClosed()) {
-      await nc.drain();
-    }
     if (task.frontmatter.one_off) {
       try { getPlatform().removeTaskTimer(taskId); } catch { /* best-effort */ }
     }
   };
 
   try {
-    nc = await connectNats(config);
-
-    await publishTaskEvent(nc, config, taskDir, taskId, "started", taskName, runId);
+    await publishTaskEvent(taskDir, taskId, "started", taskName, runId);
     appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "started" });
-    await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+    await publishHostEvent(taskId, { event_type: "result-updated", run_id: runId });
 
     if (task.frontmatter.requires_confirmation) {
       const confirmed = await requestConfirmation(config, task, taskDir);
       const confirmPrompt = `**Task Confirmation**\n\nRun task "${taskName || task.frontmatter.user_prompt}"?`;
       appendRunMessage(taskDir, runId, { role: "assistant", time: Date.now(), content: confirmPrompt, type: "confirmation" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+      await publishHostEvent(taskId, { event_type: "result-updated", run_id: runId });
 
       if (!confirmed) {
         console.log("Task aborted by user.");
         appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: "Aborted", type: "confirmation" });
         appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "aborted" });
-        await publishTaskEvent(nc, config, taskDir, taskId, "aborted", taskName, runId);
+        await publishTaskEvent(taskDir, taskId, "aborted", taskName, runId);
         await cleanup();
         return;
       }
       console.log("Task confirmed by user.");
       appendRunMessage(taskDir, runId, { role: "user", time: Date.now(), content: "Confirmed", type: "confirmation" });
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: "confirmation" });
-      await publishHostEvent(nc, config.hostId, taskId, { event_type: "result-updated", run_id: runId });
+      await publishHostEvent(taskId, { event_type: "result-updated", run_id: runId });
     }
 
     const guiEnv = getPlatform().getGuiEnv();
     const agent = getAgent(task.frontmatter.agent);
     const ctx: InvocationContext = {
-      agent, task, taskDir, runId, guiEnv, nc, config, taskId,
+      agent, task, taskDir, runId, guiEnv, config, taskId,
       transientPermissions: [],
     };
 
@@ -290,7 +281,7 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await runEventTriggeredMode(ctx);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
+      await publishTaskEvent(taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed (triggered).`);
     } else {
       await appendAndNotify(ctx, {
@@ -302,7 +293,7 @@ export async function runCommand(taskId: string): Promise<void> {
       const result = await invokeAgentWithRetries(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
-      await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
+      await publishTaskEvent(taskDir, taskId, outcome, taskName, runId);
       console.log(`Task ${taskId} completed.`);
     }
   } catch (err) {
@@ -315,7 +306,7 @@ export async function runCommand(taskId: string): Promise<void> {
       content: errorMsg,
     });
     appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
-    await publishTaskEvent(nc, config, taskDir, taskId, outcome, taskName, runId);
+    await publishTaskEvent(taskDir, taskId, outcome, taskName, runId);
     process.exitCode = 1;
   } finally {
     await cleanup();
@@ -371,7 +362,7 @@ async function runEventTriggeredMode(
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: errorMsg, type: "error" });
-    await publishHostEvent(ctx.nc, ctx.config.hostId, ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
     return { outcome: "failed", endTime: Date.now() };
   }
 
@@ -379,8 +370,6 @@ async function runEventTriggeredMode(
 }
 
 async function publishTaskEvent(
-  nc: NatsConnection | undefined,
-  config: HostConfig,
   taskDir: string,
   taskId: string,
   eventType: TaskRunningState,
@@ -396,7 +385,7 @@ async function publishTaskEvent(
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: eventType };
   if (taskName) payload.name = taskName;
   if (runId) payload.run_id = runId;
-  await publishHostEvent(nc, config.hostId, taskId, payload);
+  await publishHostEvent(taskId, payload);
 }
 
 

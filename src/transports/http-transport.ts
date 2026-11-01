@@ -85,7 +85,7 @@ export async function startHttpTransport(
   config: HostConfig,
   handleRpc: (req: RpcMessage) => Promise<unknown>,
   port: number,
-  nc: NatsConnection | undefined,
+  getNc: () => NatsConnection | undefined,
   pairingCode?: string,
   onReady?: () => void,
 ): Promise<void> {
@@ -141,15 +141,13 @@ export async function startHttpTransport(
   async function publishEvent(taskId: string, payload: Record<string, unknown>): Promise<void> {
     const sc = StringCodec();
     const subject = `host-event.${config.hostId}.${taskId}`;
-    if (nc) {
-      nc.publish(subject, sc.encode(JSON.stringify(payload)));
-    }
+    getNc()?.publish(subject, sc.encode(JSON.stringify(payload)));
     broadcastSseEvent({ task_id: taskId, ...payload });
   }
 
   function makeToolContext(taskId: string): ToolContext {
     return {
-      config, nc, publishEvent, taskId,
+      config, nc: getNc(), publishEvent, taskId,
       abortTask: async () => { await handleRpc({ method: "task.abort", params: { id: taskId }, localhost: true }); },
     };
   }
@@ -232,8 +230,8 @@ export async function startHttpTransport(
       if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
       try {
         const body = await readBody(req);
-        const event = JSON.parse(body);
-        broadcastSseEvent(event);
+        const { task_id: taskId, ...payload } = JSON.parse(body) as { task_id: string } & Record<string, unknown>;
+        await publishEvent(taskId, payload);
         sendJson(res, 200, { ok: true });
       } catch { sendJson(res, 400, { error: "Invalid JSON" }); }
       return;
