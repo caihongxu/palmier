@@ -41,6 +41,7 @@ async function invokeAgentWithRetries(
     let writer: StreamingMessageWriter | undefined;
     let activeStream: "stdout" | "stderr" | undefined;
     const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
+    let suppressedStderr = "";
     let notifyPending = false;
     let notifyTimer: ReturnType<typeof setTimeout> | undefined;
     let agentModel: string | undefined;
@@ -72,7 +73,8 @@ async function invokeAgentWithRetries(
     }
 
     function onStderr(chunk: string): void {
-      if (!ctx.agent.suppressStdErr) emit("stderr", chunk);
+      if (ctx.agent.suppressStdErr) suppressedStderr += chunk;
+      else emit("stderr", chunk);
       const cliModel = captureCliModel(chunk);
       if (cliModel && !agentModelWritten) agentModel = cliModel;
       flushAgentModel();
@@ -93,6 +95,13 @@ async function invokeAgentWithRetries(
       flushAgentModel();
     }
 
+    function flushTrailingLine(stream: "stdout" | "stderr"): void {
+      const trailing = lineBufs[stream];
+      if (trailing && !trailing.startsWith("[PALMIER")) {
+        ensureWriter(stream).write(trailing);
+      }
+    }
+
     const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(
       invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
     );
@@ -111,24 +120,20 @@ async function invokeAgentWithRetries(
       onStderr,
     });
 
-    if (notifyTimer) clearTimeout(notifyTimer);
-
     const outcome: TaskRunningState = result.exitCode !== 0 ? "failed" : parseTaskOutcome(result.output);
     const linkedFiles = listLinkedTaskFiles(ctx.taskDir, ctx.runId, result.output);
     const requiredPermissions = parsePermissions(result.output);
 
-    for (const stream of ["stdout", "stderr"] as const) {
-      const trailing = lineBufs[stream];
-      if (trailing && !trailing.startsWith("[PALMIER")) {
-        ensureWriter(stream).write(trailing);
-      }
-    }
+    flushTrailingLine("stdout");
+    if (outcome === "failed") emit("stderr", suppressedStderr);
+    flushTrailingLine("stderr");
 
     if (requiredPermissions.length > 0) {
       const permLines = requiredPermissions.map((p) => `- **${p.name}** ${p.description}`).join("\n");
       ensureWriter("stdout").write(`\n\n**Permissions requested:**\n${permLines}\n`);
     }
 
+    if (notifyTimer) clearTimeout(notifyTimer);
     writer?.end();
     await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 

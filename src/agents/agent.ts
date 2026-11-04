@@ -55,7 +55,7 @@ export interface AgentTool {
   /** Whether this agent supports yolo mode (auto-approve all tools). */
   supportsYolo?: boolean;
 
-  /** When true, the run loop will not persist the agent's stderr output. */
+  /** When true, the run loop persists the agent's stderr output only if the invocation fails. */
   suppressStdErr?: boolean;
 
   /** Matches the model name (capture group 1) in the banner the CLI prints on stderr.
