@@ -1,4 +1,4 @@
-import { StringCodec, type NatsConnection } from "nats";
+import { type NatsConnection } from "@nats-io/transport-node";
 import { registerPending } from "./pending-requests.js";
 import { getLinkedDevice } from "./linked-device.js";
 import { getNotifications } from "./notification-store.js";
@@ -49,11 +49,10 @@ const notifyTool: ToolDefinition = {
     if (!title || !body) throw new ToolError("title and body are required", 400);
     if (!ctx.nc) throw new ToolError("NATS not connected — push notifications require server mode", 503);
 
-    const sc = StringCodec();
     const payload = { hostId: ctx.config.hostId, title, body, session_id: ctx.taskId };
     const subject = `host.${ctx.config.hostId}.push.send`;
-    const reply = await ctx.nc.request(subject, sc.encode(JSON.stringify(payload)), { timeout: 15_000 });
-    const result = JSON.parse(sc.decode(reply.data)) as { ok?: boolean; error?: string };
+    const reply = await ctx.nc.request(subject, JSON.stringify(payload), { timeout: 15_000 });
+    const result = JSON.parse(reply.string()) as { ok?: boolean; error?: string };
 
     if (result.ok) return { ok: true };
     throw new ToolError(result.error ?? "Push notification failed", 502);
@@ -348,14 +347,13 @@ const deviceGeolocationTool: ToolDefinition = {
     const device = getLinkedDevice();
     if (!device) throw new ToolError("No linked device configured", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.geolocation`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken })),
+      JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const locationPromise = new Promise<string>((resolve, reject) => {
@@ -368,7 +366,7 @@ const deviceGeolocationTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -396,14 +394,13 @@ const readContactsTool: ToolDefinition = {
     const device = getLinkedDevice();
     if (!device) throw new ToolError("No linked device configured", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, action: "read" })),
+      JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, action: "read" }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -416,7 +413,7 @@ const readContactsTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -452,17 +449,16 @@ const createContactTool: ToolDefinition = {
     const { name, phone, email } = args as { name: string; phone?: string; email?: string };
     if (!name) throw new ToolError("name is required", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.contacts`,
-      sc.encode(JSON.stringify({
+      JSON.stringify({
         hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "create", name, phone, email,
-      })),
+      }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -475,7 +471,7 @@ const createContactTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -508,19 +504,18 @@ const readCalendarTool: ToolDefinition = {
     if (!device) throw new ToolError("No linked device configured", 400);
 
     const { startDate, endDate } = args as { startDate?: number; endDate?: number };
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
-      sc.encode(JSON.stringify({
+      JSON.stringify({
         hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "read",
         ...(startDate ? { startDate: String(startDate) } : {}),
         ...(endDate ? { endDate: String(endDate) } : {}),
-      })),
+      }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -533,7 +528,7 @@ const readCalendarTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -573,20 +568,19 @@ const createCalendarEventTool: ToolDefinition = {
     };
     if (!title || !startTime || !endTime) throw new ToolError("title, startTime, and endTime are required", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.calendar`,
-      sc.encode(JSON.stringify({
+      JSON.stringify({
         hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "create",
         title, startTime: String(startTime), endTime: String(endTime),
         ...(location ? { location } : {}),
         ...(description ? { description } : {}),
-      })),
+      }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -599,7 +593,7 @@ const createCalendarEventTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -634,17 +628,16 @@ const sendSmsTool: ToolDefinition = {
     const { to, body } = args as { to: string; body: string };
     if (!to || !body) throw new ToolError("to and body are required", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.sms`,
-      sc.encode(JSON.stringify({
+      JSON.stringify({
         hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
         action: "send", to, body,
-      })),
+      }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -657,7 +650,7 @@ const sendSmsTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -693,7 +686,6 @@ const sendAlarmTool: ToolDefinition = {
     const { title, description } = args as { title: string; description?: string };
     if (!title) throw new ToolError("title is required", 400);
 
-    const sc = StringCodec();
 
     const payload: Record<string, string> = {
       hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
@@ -703,10 +695,10 @@ const sendAlarmTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.alarm`,
-      sc.encode(JSON.stringify(payload)),
+      JSON.stringify(payload),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -719,7 +711,7 @@ const sendAlarmTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -747,14 +739,13 @@ const readBatteryTool: ToolDefinition = {
     const device = getLinkedDevice();
     if (!device) throw new ToolError("No linked device configured", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.battery`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken })),
+      JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -767,7 +758,7 @@ const readBatteryTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -801,14 +792,13 @@ const setRingerModeTool: ToolDefinition = {
     const { mode } = args as { mode: string };
     if (!["normal", "vibrate", "silent"].includes(mode)) throw new ToolError("mode must be 'normal', 'vibrate', or 'silent'", 400);
 
-    const sc = StringCodec();
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.ringer`,
-      sc.encode(JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, mode })),
+      JSON.stringify({ hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken, mode }),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -821,7 +811,7 @@ const setRingerModeTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });
@@ -859,7 +849,6 @@ const sendEmailTool: ToolDefinition = {
     const { to, subject, body, cc, bcc } = args as { to: string; subject?: string; body?: string; cc?: string; bcc?: string };
     if (!to) throw new ToolError("to is required", 400);
 
-    const sc = StringCodec();
 
     const payload: Record<string, string> = {
       hostId: ctx.config.hostId, requestId: ctx.taskId, fcmToken: device.fcmToken,
@@ -872,10 +861,10 @@ const sendEmailTool: ToolDefinition = {
 
     const ackReply = await ctx.nc.request(
       `host.${ctx.config.hostId}.fcm.email`,
-      sc.encode(JSON.stringify(payload)),
+      JSON.stringify(payload),
       { timeout: 5_000 },
     );
-    const ack = JSON.parse(sc.decode(ackReply.data)) as { ok?: boolean; error?: string };
+    const ack = JSON.parse(ackReply.string()) as { ok?: boolean; error?: string };
     if (ack.error) throw new ToolError(ack.error, 502);
 
     const responsePromise = new Promise<string>((resolve, reject) => {
@@ -888,7 +877,7 @@ const sendEmailTool: ToolDefinition = {
       (async () => {
         for await (const msg of sub) {
           clearTimeout(timer);
-          resolve(sc.decode(msg.data));
+          resolve(msg.string());
         }
       })();
     });

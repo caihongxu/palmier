@@ -1,7 +1,7 @@
 import * as http from "node:http";
 import * as os from "os";
 import * as path from "node:path";
-import { StringCodec, type NatsConnection } from "nats";
+import { type NatsConnection } from "@nats-io/transport-node";
 import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
@@ -139,9 +139,8 @@ export async function startHttpTransport(
   }
 
   async function publishEvent(taskId: string, payload: Record<string, unknown>): Promise<void> {
-    const sc = StringCodec();
     const subject = `host-event.${config.hostId}.${taskId}`;
-    getNc()?.publish(subject, sc.encode(JSON.stringify(payload)));
+    getNc()?.publish(subject, JSON.stringify(payload));
     broadcastSseEvent({ task_id: taskId, ...payload });
   }
 

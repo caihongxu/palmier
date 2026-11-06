@@ -1,4 +1,4 @@
-import { StringCodec, type NatsConnection, type Msg, type Subscription } from "nats";
+import { type NatsConnection, type Msg, type Subscription } from "@nats-io/transport-node";
 import type { HostConfig, RpcMessage } from "../types.js";
 
 export async function startNatsTransport(
@@ -6,7 +6,6 @@ export async function startNatsTransport(
   handleRpc: (req: RpcMessage) => Promise<unknown>,
   nc: NatsConnection,
 ): Promise<void> {
-  const sc = StringCodec();
 
   const subject = `host.${config.hostId}.rpc.>`;
   console.log(`[nats] Subscribing to: ${subject}`);
@@ -30,14 +29,14 @@ export async function startNatsTransport(
 
     let params: Record<string, unknown> = {};
     if (msg.data && msg.data.length > 0) {
-      const raw = sc.decode(msg.data).trim();
+      const raw = msg.string().trim();
       if (raw.length > 0) {
         try {
           params = JSON.parse(raw);
         } catch {
           console.error(`[nats] Failed to parse RPC params for ${method}`);
           if (msg.reply) {
-            msg.respond(sc.encode(JSON.stringify({ error: "Invalid JSON" })));
+            msg.respond(JSON.stringify({ error: "Invalid JSON" }));
           }
           return;
         }
@@ -60,7 +59,7 @@ export async function startNatsTransport(
 
     console.log(`[nats] RPC done: ${method}`, JSON.stringify(response).slice(0, 200));
     if (msg.reply) {
-      msg.respond(sc.encode(JSON.stringify(response)));
+      msg.respond(JSON.stringify(response));
     }
   }
 

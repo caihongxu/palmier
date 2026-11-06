@@ -36,10 +36,10 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@nats-io/transport-node": "^3.4.0",
     "commander": "^13.1.0",
     "cross-spawn": "^7.0.6",
     "dotenv": "^16.4.7",
-    "nats": "^2.29.1",
     "yaml": "^2.7.0"
   },
   "devDependencies": {

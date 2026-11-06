@@ -1,4 +1,4 @@
-import { connect, jwtAuthenticator, type NatsConnection } from "nats";
+import { connect, jwtAuthenticator, type NatsConnection } from "@nats-io/transport-node";
 import type { HostConfig } from "./types.js";
 
 export async function connectNats(config: HostConfig): Promise<NatsConnection> {

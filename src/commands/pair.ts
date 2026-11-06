@@ -1,6 +1,5 @@
 import * as http from "node:http";
 import * as os from "node:os";
-import { StringCodec } from "nats";
 import { loadConfig } from "../config.js";
 import { connectNats } from "../nats-client.js";
 import { addClient } from "../client-store.js";
@@ -82,7 +81,6 @@ export async function pairCommand(): Promise<void> {
   console.log("Code expires in 1 minute.");
 
   const nc = await connectNats(config);
-  const sc = StringCodec();
   const subject = `pair.${code}`;
   const sub = nc.subscribe(subject, { max: 1 });
 
@@ -97,14 +95,14 @@ export async function pairCommand(): Promise<void> {
       let label: string | undefined;
       try {
         if (msg.data && msg.data.length > 0) {
-          const body = JSON.parse(sc.decode(msg.data)) as { label?: string };
+          const body = JSON.parse(msg.string()) as { label?: string };
           label = body.label;
         }
       } catch { /* empty body is fine */ }
 
       const response = buildPairResponse(config, label);
       if (msg.reply) {
-        msg.respond(sc.encode(JSON.stringify(response)));
+        msg.respond(JSON.stringify(response));
       }
       onPaired();
     }

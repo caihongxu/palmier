@@ -13,7 +13,7 @@ import { getPlaywrightCliVersion } from "../playwright-cli.js";
 import { saveConfig } from "../config.js";
 import type { HostConfig } from "../types.js";
 import { CONFIG_DIR } from "../config.js";
-import { StringCodec, type NatsConnection } from "nats";
+import { type NatsConnection } from "@nats-io/transport-node";
 import { addNotification } from "../notification-store.js";
 import { addSmsMessage } from "../sms-store.js";
 import { dispatchTrigger } from "../trigger-dispatch.js";
@@ -130,14 +130,14 @@ export async function serveCommand(): Promise<void> {
     console.log("[nats] Connected");
     (async () => {
       for await (const s of conn.status()) {
-        if (s.type === "pingTimer") continue;
-        console.log(`[nats] Status: ${s.type}${typeof s.data === "string" ? ` (${s.data})` : ""}`);
+        if (s.type === "ping") continue;
+        const detail = "server" in s ? s.server : "error" in s ? s.error.message : undefined;
+        console.log(`[nats] Status: ${s.type}${detail ? ` (${detail})` : ""}`);
       }
     })();
 
     startNatsTransport(config, handleRpc, conn);
 
-    const sc = StringCodec();
 
     // Match phone numbers regardless of formatting; letters preserved for shortcodes.
     function normalizeSender(raw: string): string {
@@ -164,7 +164,7 @@ export async function serveCommand(): Promise<void> {
     const notifSub = conn.subscribe(`host.${config.hostId}.device.notifications`);
     (async () => {
       for await (const msg of notifSub) {
-        const raw = sc.decode(msg.data);
+        const raw = msg.string();
         let parsed: unknown;
         try {
           parsed = JSON.parse(raw);
@@ -179,7 +179,7 @@ export async function serveCommand(): Promise<void> {
     const smsSub = conn.subscribe(`host.${config.hostId}.device.sms`);
     (async () => {
       for await (const msg of smsSub) {
-        const raw = sc.decode(msg.data);
+        const raw = msg.string();
         let parsed: unknown;
         try {
           parsed = JSON.parse(raw);
