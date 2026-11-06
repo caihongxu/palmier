@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
-import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, appendRunMessage, readRunMessages, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
+import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, claimPendingRun, appendRunMessage, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
 import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX, AGENT_MODEL_PREFIX } from "../agents/shared-prompt.js";
@@ -201,18 +201,6 @@ async function appendAndNotify(
   await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
 }
 
-/** The latest run dir with no status messages yet — freshly created by the RPC handler. */
-function findLatestPendingRunId(taskDir: string): string | null {
-  const dirs = fs.readdirSync(taskDir)
-    .filter((f) => /^\d+$/.test(f) && fs.existsSync(path.join(taskDir, f, "TASKRUN.md")))
-    .sort();
-  if (dirs.length === 0) return null;
-  const latest = dirs[dirs.length - 1];
-  const messages = readRunMessages(taskDir, latest);
-  const hasStatus = messages.some((m) => m.role === "status");
-  return hasStatus ? null : latest;
-}
-
 /**
  * If the RPC handler already wrote "aborted" (via task.abort), respect that
  * instead of overwriting with the process's own outcome.
@@ -231,7 +219,7 @@ export async function runCommand(taskId: string): Promise<void> {
 
   const taskName = taskDisplayName(task.frontmatter);
 
-  const existingRunId = findLatestPendingRunId(taskDir);
+  const existingRunId = claimPendingRun(taskDir);
   const agentVersion = config.agents?.find((a) => a.key === task.frontmatter.agent)?.version;
   const runId = existingRunId ?? createRunDir(taskDir, taskName, Date.now(), task.frontmatter.agent, agentVersion);
   if (!existingRunId) {

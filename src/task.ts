@@ -185,6 +185,56 @@ export function createRunDir(
   return runId;
 }
 
+const PENDING_RUN_FILE = "pending-run";
+
+function isUnclaimedRun(taskDir: string, runId: string): boolean {
+  if (!/^\d+$/.test(runId) || !fs.existsSync(path.join(taskDir, runId, "TASKRUN.md"))) return false;
+  return !readRunMessages(taskDir, runId).some((m) => m.role === "status");
+}
+
+/** The run dir created for the next run process that it has not claimed yet, or null. */
+export function readPendingRun(taskDir: string): string | null {
+  let runId: string;
+  try {
+    runId = fs.readFileSync(path.join(taskDir, PENDING_RUN_FILE), "utf-8").trim();
+  } catch {
+    return null;
+  }
+  return isUnclaimedRun(taskDir, runId) ? runId : null;
+}
+
+/**
+ * Create a run dir (plus its history entry) for the run process about to be
+ * launched to claim. A previous pending run that was never claimed is discarded
+ * so it doesn't linger as an empty session.
+ */
+export function createPendingRun(
+  projectRoot: string,
+  taskDir: string,
+  taskId: string,
+  taskName: string,
+  agent?: string,
+  agentVersion?: string,
+): string {
+  const stale = readPendingRun(taskDir);
+  if (stale) deleteHistoryEntry(projectRoot, taskId, stale);
+  const runId = createRunDir(taskDir, taskName, Date.now(), agent, agentVersion);
+  appendHistory(projectRoot, { task_id: taskId, run_id: runId });
+  fs.writeFileSync(path.join(taskDir, PENDING_RUN_FILE), runId, "utf-8");
+  return runId;
+}
+
+/** Take ownership of the pending run; null if there is none or another process took it first. */
+export function claimPendingRun(taskDir: string): string | null {
+  const runId = readPendingRun(taskDir);
+  try {
+    fs.unlinkSync(path.join(taskDir, PENDING_RUN_FILE));
+  } catch {
+    return null;
+  }
+  return runId;
+}
+
 export function getRunDir(taskDir: string, runId: string): string {
   return path.join(taskDir, runId);
 }

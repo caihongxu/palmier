@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
-import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, appendHistory, createRunDir, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
+import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, createPendingRun, readPendingRun, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { onChildDone, resolveCommand, spawnCommand } from "./spawn-command.js";
@@ -150,6 +150,9 @@ async function generateName(
     return userPrompt;
   }
 }
+
+// Longer than the slowest observed launch (~5s on Windows) before the run process claims its run.
+const DUPLICATE_RUN_WINDOW_MS = 15_000;
 
 /** Active follow-up child processes, keyed by "taskId:runId". */
 const activeFollowups = new Map<string, ChildProcess>();
@@ -427,8 +430,7 @@ export function createRpcHandler(config: HostConfig) {
         // One-off run: do NOT append to tasks.jsonl.
 
         const oneoffAgentVersion = config.agents?.find((a) => a.key === params.agent)?.version;
-        const runId = createRunDir(taskDir, name, Date.now(), params.agent, oneoffAgentVersion);
-        appendHistory(config.projectRoot, { task_id: id, run_id: runId });
+        const runId = createPendingRun(config.projectRoot, taskDir, id, name, params.agent, oneoffAgentVersion);
 
         const platform = getPlatform();
         platform.installTaskTimer(config, task);
@@ -447,19 +449,26 @@ export function createRpcHandler(config: HostConfig) {
       case "task.run": {
         const params = request.params as { id: string };
         const runTaskDir = getTaskDir(config.projectRoot, params.id);
+
+        const launchingRunId = readPendingRun(runTaskDir);
+        if (launchingRunId && Date.now() - Number(launchingRunId) < DUPLICATE_RUN_WINDOW_MS) {
+          console.log(`[task.run] Task ${params.id} run ${launchingRunId} is still launching, ignoring duplicate request`);
+          return { ok: true, task_id: params.id, run_id: launchingRunId };
+        }
+
         let taskRunId: string | undefined;
         try {
           const platform = getPlatform();
+
+          // Must stay synchronous up to here so a concurrent duplicate sees the pending run.
+          const runTask = parseTaskFile(runTaskDir);
+          const taskRunAgentVersion = config.agents?.find((a) => a.key === runTask.frontmatter.agent)?.version;
+          taskRunId = createPendingRun(config.projectRoot, runTaskDir, params.id, taskDisplayName(runTask.frontmatter), runTask.frontmatter.agent, taskRunAgentVersion);
 
           if (platform.isTaskRunning(params.id)) {
             console.log(`[task.run] Task ${params.id} is already running, killing stale process`);
             await platform.stopTask(params.id);
           }
-
-          const runTask = parseTaskFile(runTaskDir);
-          const taskRunAgentVersion = config.agents?.find((a) => a.key === runTask.frontmatter.agent)?.version;
-          taskRunId = createRunDir(runTaskDir, taskDisplayName(runTask.frontmatter), Date.now(), runTask.frontmatter.agent, taskRunAgentVersion);
-          appendHistory(config.projectRoot, { task_id: params.id, run_id: taskRunId });
 
           await platform.startTask(params.id);
           return { ok: true, task_id: params.id, run_id: taskRunId };
