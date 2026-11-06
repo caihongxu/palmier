@@ -12,16 +12,6 @@ export async function startNatsTransport(
   console.log(`[nats] Subscribing to: ${subject}`);
   const sub = nc.subscribe(subject);
 
-  const shutdown = async () => {
-    console.log("[nats] Shutting down...");
-    sub.unsubscribe();
-    await nc.drain();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-
   async function processMessage(msg: Msg) {
     // Subject format: ...rpc.<method parts>
     const subjectTokens = msg.subject.split(".");

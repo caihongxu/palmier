@@ -21,6 +21,7 @@ import { startEnabledCommandRunners } from "../command-runners.js";
 import { currentVersion } from "../update-checker.js";
 
 const POLL_INTERVAL_MS = 30_000;
+const NATS_RECONNECT_DELAY_MS = 2_000;
 const DAEMON_PID_FILE = path.join(CONFIG_DIR, "daemon.pid");
 
 /**
@@ -123,11 +124,27 @@ export async function serveCommand(): Promise<void> {
   console.log(`Detected agents: ${agents.map((a) => a.key).join(", ") || "none"}`);
 
   let nc: NatsConnection | undefined;
+  let shuttingDown = false;
   const handleRpc = createRpcHandler(config);
+
+  const shutdown = async () => {
+    shuttingDown = true;
+    console.log("[nats] Shutting down...");
+    try { await nc?.drain(); } catch { /* already closed */ }
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
   function attachNats(conn: NatsConnection): void {
     nc = conn;
     console.log("[nats] Connected");
+    conn.closed().then((err) => {
+      if (nc === conn) nc = undefined;
+      if (shuttingDown) return;
+      console.warn(`[nats] Connection closed${err ? ` (${err.message})` : ""}, reconnecting`);
+      setTimeout(connectWithRetry, NATS_RECONNECT_DELAY_MS);
+    });
     (async () => {
       for await (const s of conn.status()) {
         if (s.type === "pingTimer") continue;
@@ -192,12 +209,15 @@ export async function serveCommand(): Promise<void> {
     })();
   }
 
-  // The client's own reconnect only covers a connection that was once up, so a
-  // daemon started while offline (e.g. at logon before Wi-Fi) must keep dialing.
+  // Each reconnect is a brand-new connection instead of the client's built-in
+  // reconnect: nats.js 2.x can leave a dead dial's socket attached after an
+  // outage, so a reconnect ends up with two live sockets feeding the same
+  // subscriptions and every RPC is handled twice.
   async function connectWithRetry(): Promise<void> {
     for (let delayMs = 5_000; ; delayMs = Math.min(delayMs * 2, 60_000)) {
+      if (shuttingDown) return;
       try {
-        attachNats(await connectNats(config));
+        attachNats(await connectNats(config, { reconnect: false }));
         return;
       } catch (err) {
         console.warn(`[nats] Connection failed, retrying in ${delayMs / 1000}s: ${err}`);
