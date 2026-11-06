@@ -29,7 +29,9 @@ Whenever a tool you are trying to use is denied or you lack the required permiss
 
 ## Browsers
 
-When launching a browser with the Playwright CLI `open` command, always pass `--headed` (never run headless) and `--persistent` (reuse a persistent profile so logins and cookies survive across runs).
+Whenever the task needs a browser, launch it with the Playwright CLI (`playwright-cli open`). Do not use any other browser tool, automation library, or launch method.
+
+When launching, always pass `--headed` (never run headless) and `--persistent` (reuse a persistent profile so logins and cookies survive across runs).
 
 When the task is finished, close any browser you opened with the Playwright CLI `close` command (pass the same `-s=<session>` if you used one) before printing the completion marker.
 
