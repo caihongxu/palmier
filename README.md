@@ -158,21 +158,7 @@ Revoking the linked device also clears the host's linked-device record; device c
 
 Palmier can store website passwords and PINs like a browser's password manager so agents can sign in to sites without ever seeing the credentials. When an agent driving a browser (via the `playwright-cli` skill) reaches a login or PIN field, it calls the `fill-password` tool with the page URL, the username, and the field's element ref. Palmier matches the saved secret by **origin**, fills it directly into the live browser session, and presses Enter to submit the form in the same step — so the plaintext secret sits on the page for as little time as possible and never enters the agent's context. If nothing is saved for that `(origin, username)`, Palmier prompts you in the app with a masked dialog. The dialog has a "Save for next time" checkbox (on by default): leave it checked to store the secret for reuse, or uncheck it to fill it just this once without saving. Either way it is filled into the page. The plaintext secret is never returned to the agent and is never written to task history.
 
-Saved passwords and PINs are encrypted at rest with AES-256-GCM under a host-local key, both stored in `~/.config/palmier/` (`passwords.enc` and `password-key`). Manage them from the app via **Manage saved passwords** in the side panel (lists origin and username only, with per-entry delete), or from the host CLI:
-
-```bash
-# List saved passwords (origin and username only — never the password)
-palmier passwords list
-
-# Delete a specific saved password
-palmier passwords delete https://example.com alice
-
-# Delete every saved password for an origin
-palmier passwords delete https://example.com
-
-# Delete all saved passwords
-palmier passwords clear
-```
+Saved passwords and PINs are encrypted at rest with AES-256-GCM under a host-local key, both stored in `~/.config/palmier/` (`passwords.enc` and `password-key`). Manage them from the app via **Manage saved passwords** in the side panel (lists origin and username only, with per-entry delete).
 
 ### The `init` Command
 
@@ -229,9 +215,6 @@ The default network interface is detected once during `palmier init` and saved t
 | `palmier clients list` | List active client tokens |
 | `palmier clients revoke <token>` | Revoke a specific client token |
 | `palmier clients revoke-all` | Revoke all client tokens |
-| `palmier passwords list` | List saved passwords (origin and username only) |
-| `palmier passwords delete <origin> [username]` | Delete a saved password (omit username to delete all for the origin) |
-| `palmier passwords clear` | Delete all saved passwords |
 | `palmier info` | Show host connection info (address, mode) |
 | `palmier serve` | Run the persistent RPC handler (default command) |
 | `palmier restart` | Restart the palmier serve daemon |

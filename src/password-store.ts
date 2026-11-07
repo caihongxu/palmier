@@ -95,19 +95,10 @@ export function listPasswords(): PasswordIdentity[] {
   return readFile().map(({ origin, username }) => ({ origin, username }));
 }
 
-/** Delete one (origin, username) entry, or every entry for an origin when username is omitted. */
-export function deletePassword(origin: string, username?: string): boolean {
+export function deletePassword(origin: string, username: string): boolean {
   const entries = readFile();
-  const remaining = entries.filter((e) =>
-    username === undefined ? e.origin !== origin : !(e.origin === origin && e.username === username)
-  );
+  const remaining = entries.filter((e) => !(e.origin === origin && e.username === username));
   if (remaining.length === entries.length) return false;
   writeFile(remaining);
   return true;
-}
-
-export function clearPasswords(): number {
-  const entries = readFile();
-  writeFile([]);
-  return entries.length;
 }
