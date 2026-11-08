@@ -271,7 +271,6 @@ export function createRpcHandler(config: HostConfig) {
           schedule_values?: string[];
           schedule_enabled?: boolean;
           requires_confirmation?: boolean;
-          yolo_mode?: boolean;
           foreground_mode?: boolean;
           command?: string;
         };
@@ -292,7 +291,6 @@ export function createRpcHandler(config: HostConfig) {
             requires_confirmation: params.requires_confirmation ?? true,
             ...(params.schedule_type ? { schedule_type: params.schedule_type } : {}),
             ...(params.schedule_values?.length ? { schedule_values: params.schedule_values } : {}),
-            ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
@@ -316,7 +314,6 @@ export function createRpcHandler(config: HostConfig) {
           schedule_values?: string[] | null;
           schedule_enabled?: boolean;
           requires_confirmation?: boolean;
-          yolo_mode?: boolean;
           foreground_mode?: boolean;
           command?: string;
         };
@@ -348,10 +345,6 @@ export function createRpcHandler(config: HostConfig) {
         if (params.schedule_enabled !== undefined) existing.frontmatter.schedule_enabled = params.schedule_enabled;
         if (params.requires_confirmation !== undefined)
           existing.frontmatter.requires_confirmation = params.requires_confirmation;
-        if (params.yolo_mode !== undefined) {
-          existing.frontmatter.yolo_mode = params.yolo_mode || undefined;
-          if (params.yolo_mode) delete existing.frontmatter.permissions;
-        }
         if (params.foreground_mode !== undefined) existing.frontmatter.foreground_mode = params.foreground_mode || undefined;
         if (params.command !== undefined) {
           if (params.command) {
@@ -403,7 +396,6 @@ export function createRpcHandler(config: HostConfig) {
           user_prompt: string;
           agent: string;
           requires_confirmation?: boolean;
-          yolo_mode?: boolean;
           foreground_mode?: boolean;
           command?: string;
         };
@@ -420,7 +412,6 @@ export function createRpcHandler(config: HostConfig) {
             schedule_enabled: false,
             requires_confirmation: params.requires_confirmation ?? false,
             one_off: true,
-            ...(params.yolo_mode ? { yolo_mode: true } : {}),
             ...(params.foreground_mode ? { foreground_mode: true } : {}),
             ...(params.command ? { command: params.command } : {}),
           },
@@ -514,9 +505,7 @@ export function createRpcHandler(config: HostConfig) {
         });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
-        const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(
-          followupTask, params.message, followupTask.frontmatter.yolo_mode ? "yolo" : followupTask.frontmatter.permissions,
-        );
+        const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(followupTask, params.message);
         const cmd = followupAgent.command;
         if (followupFiles) {
           for (const f of followupFiles) fs.writeFileSync(path.join(followupRunDir, f.path), f.content, "utf-8");

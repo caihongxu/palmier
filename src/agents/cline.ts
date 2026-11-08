@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -7,17 +7,12 @@ export const clineAgent: AgentTool = {
   command: "cline",
   promptArgs: ["--yolo", "-p"],
   probeArg: "--version",
-  supportsYolo: true,
   npmPackage: "cline",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
-    const args = [];
+    const args = ["--yolo"];
 
-    if (yolo) {
-      args.push("--yolo");
-    }
     args.push(prompt);
 
     return { args };

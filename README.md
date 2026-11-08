@@ -13,7 +13,7 @@ The control surface is bidirectional:
 * **Phone → agents:** start ad-hoc sessions, register schedule- or event-triggered tasks, inspect session output, and respond to agent input/confirmation requests.
 * **Agents → phone:** agents can read device state (location, calendar, contacts, notifications, SMS, battery) and trigger actions (push notifications, full-screen alarms, SMS, email, contact/calendar writes, ringer mode).
 
-Capability access is opt-in per device: each capability is gated behind an Android permission and a per-host toggle. An optional yolo mode auto-approves agent input/confirmation requests.
+Capability access is opt-in per device: each capability is gated behind an Android permission and a per-host toggle. Agents always run in yolo mode (all tool calls auto-approved) when their CLI supports it.
 
 ## Quick Start
 

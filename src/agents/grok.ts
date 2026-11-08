@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -8,18 +8,13 @@ export const grokAgent: AgentTool = {
   promptArgs: ["-p"],
   probeArg: "--version",
   authArgs: ["login"],
-  supportsYolo: true,
   npmPackage: "@xai-official/grok",
   freeUsage: "Free Tier",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
-    const args = [];
+    const args = ["--always-approve"];
 
-    if (yolo) {
-      args.push("--always-approve");
-    }
     if (followupPrompt) { args.push("-c"); }
     args.push("-p", prompt);
     return { args };

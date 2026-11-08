@@ -84,7 +84,6 @@ export async function pickAndInstallAgent(
     key: choice.key,
     label: choice.label,
     ...(tool.supportsPermissions ? { supportsPermissions: true } : {}),
-    ...(tool.supportsYolo ? { supportsYolo: true } : {}),
     npmPackage: choice.npmPackage,
     ...(version ? { version } : {}),
   };

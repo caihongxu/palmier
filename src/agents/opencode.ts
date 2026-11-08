@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -7,17 +7,12 @@ export const openCodeAgent: AgentTool = {
   command: "opencode",
   promptArgs: ["run"],
   probeArg: "--version",
-  supportsYolo: true,
   npmPackage: "opencode-ai",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
-    const args = ["run"];
+    const args = ["run", "--dangerously-skip-permissions"];
 
-    if (yolo) {
-      args.push("--dangerously-skip-permissions");
-    }
     if (followupPrompt) {args.push("--continue");}
     args.push(prompt);
 

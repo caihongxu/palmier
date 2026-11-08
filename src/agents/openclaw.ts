@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -9,7 +9,7 @@ export const openClawAgent: AgentTool = {
   probeArg: "--version",
   npmPackage: "openclaw",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
     // OpenClaw does not support stdin as prompt.
     const args = ["agent", "--local", "--session-id", task.frontmatter.id, "--message", prompt];

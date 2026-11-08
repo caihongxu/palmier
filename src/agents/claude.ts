@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -9,22 +9,12 @@ export const claudeAgent: AgentTool = {
   probeArg: "--version",
   authArgs: ["auth", "login"],
   supportsPermissions: true,
-  supportsYolo: true,
   npmPackage: "@anthropic-ai/claude-code",
   freeUsage: "Free with Claude Pro",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
-    const args = ["--permission-mode", yolo ? "bypassPermissions" : "acceptEdits", "-p"];
-
-    if (!yolo) {
-      args.push("--allowedTools", "WebFetch", "Skill(playwright-cli:*)", "Bash(curl:*)", "Bash(wget:*)", "Bash(playwright:*)", "Bash(playwright-cli:*)");
-      const allPerms = [...(task.frontmatter.permissions ?? []), ...(extraPermissions ?? [])];
-      for (const p of allPerms) {
-        args.push(p.name);
-      }
-    }
+    const args = ["--permission-mode", "bypassPermissions", "-p"];
 
     if (followupPrompt) {args.push("-c");}
     return {

@@ -102,9 +102,7 @@ async function invokeAgentWithRetries(
       }
     }
 
-    const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(
-      invokeTask, undefined, ctx.task.frontmatter.yolo_mode ? "yolo" : ctx.transientPermissions,
-    );
+    const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(invokeTask);
     const command = ctx.agent.command;
     const runDir = getRunDir(ctx.taskDir, ctx.runId);
     if (files) {

@@ -11,7 +11,6 @@ export interface HostConfig {
     key: string;
     label: string;
     supportsPermissions?: boolean;
-    supportsYolo?: boolean;
     npmPackage?: string;
     /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
     version?: string;
@@ -48,7 +47,6 @@ export interface TaskFrontmatter {
   schedule_values?: string[];
   schedule_enabled: boolean;
   requires_confirmation: boolean;
-  yolo_mode?: boolean;
   foreground_mode?: boolean;
   permissions?: RequiredPermission[];
   command?: string;

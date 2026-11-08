@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -7,19 +7,15 @@ export const kimiAgent: AgentTool = {
   command: "kimi",
   promptArgs: ["-p"],
   probeArg: "--version",
-  supportsYolo: false,
   suppressStdErr: true,
   npmPackage: "@moonshot-ai/kimi-code",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
     const args = [];
 
-    if (yolo) {
-      args.push("--yolo");
-    }
     if (followupPrompt) { args.push("--continue"); }
+    // Print mode (-p) already implies yolo.
     args.push("-p", prompt);
     return { args };
   },

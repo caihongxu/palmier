@@ -1,4 +1,4 @@
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import type { AgentTool, CommandLine } from "./agent.js";
 import { getAgentInstructions } from "./shared-prompt.js";
 
@@ -8,16 +8,14 @@ export const codexAgent: AgentTool = {
   promptArgs: ["exec", "--skip-git-repo-check"],
   probeArg: "--version",
   authArgs: ["login"],
-  supportsYolo: true,
   suppressStdErr: true,
   stderrModelPattern: /^model: (.+)$/m,
   npmPackage: "@openai/codex",
   freeUsage: "Free Tier",
 
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine {
-    const yolo = extraPermissions === "yolo";
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine {
     const prompt = followupPrompt ?? getAgentInstructions(task);
-    const args = ["exec", "--skip-git-repo-check", "--sandbox", yolo ? "danger-full-access" : "workspace-write"];
+    const args = ["exec", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
 
     if (followupPrompt) {args.push("resume", "--last");}
     args.push("-");

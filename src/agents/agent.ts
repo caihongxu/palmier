@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import type { ParsedTask, RequiredPermission } from "../types.js";
+import type { ParsedTask } from "../types.js";
 import { SHELL } from "../platform/index.js";
 import { claudeAgent } from "./claude.js";
 import { codexAgent } from "./codex.js";
@@ -52,9 +52,6 @@ export interface AgentTool {
    *  When falsy, the permissions section is omitted from agent instructions. */
   supportsPermissions?: boolean;
 
-  /** Whether this agent supports yolo mode (auto-approve all tools). */
-  supportsYolo?: boolean;
-
   /** When true, the run loop persists the agent's stderr output only if the invocation fails. */
   suppressStdErr?: boolean;
 
@@ -69,10 +66,8 @@ export interface AgentTool {
   freeUsage?: string;
 
   /** Return the command and args used to run a task. If followupPrompt is provided, use it instead of the task's prompt,
-   *  and treat it as a continuation of the original run (reuse the same session, etc).
-   *  extraPermissions: pass an array of RequiredPermission for transient permissions granted for this run only,
-   *  or pass `"yolo"` to enable yolo mode (auto-approve all tools, skip permission instructions). */
-  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string, extraPermissions?: RequiredPermission[] | "yolo"): CommandLine;
+   *  and treat it as a continuation of the original run (reuse the same session, etc). */
+  getTaskRunCommandLine(task: ParsedTask, followupPrompt?: string): CommandLine;
 }
 
 export function getPromptCommandLine(agent: AgentTool, prompt: string): CommandLine {
@@ -135,7 +130,6 @@ export interface DetectedAgent {
   key: string;
   label: string;
   supportsPermissions?: boolean;
-  supportsYolo?: boolean;
   npmPackage?: string;
   /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
   version?: string;
@@ -197,7 +191,6 @@ export async function detectAgents(
       key,
       label: agent.label,
       supportsPermissions: agent.supportsPermissions,
-      supportsYolo: agent.supportsYolo,
       ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),
       ...(version ? { version } : {}),
     });
