@@ -11,10 +11,8 @@ import { kimiAgent } from "./kimi.js";
 import { gooseAgent } from "./goose.js";
 import { openCodeAgent } from "./opencode.js";
 import { deepAgentsAgent } from "./deepagents.js";
-import { aiderAgent } from "./aider.js";
 import { cursorAgent } from "./cursor.js";
 import { kiroAgent } from "./kiro.js";
-import { clineAgent } from "./cline.js";
 import { qoderAgent } from "./qoder.js";
 import { hermesAgent } from "./hermes.js";
 import { grokAgent } from "./grok.js";
@@ -114,10 +112,8 @@ const agentRegistry: Record<string, AgentTool> = {
   goose: gooseAgent,
   opencode: openCodeAgent,
   deepagents: deepAgentsAgent,
-  aider: aiderAgent,
   cursor: cursorAgent,
   kiro: kiroAgent,
-  cline: clineAgent,
   openclaw: openClawAgent,
   hermes: hermesAgent,
 };
