@@ -1,9 +1,6 @@
-import type { RequiredPermission } from "./types.js";
-
 export interface PendingRequestMeta {
   /** The task the request belongs to. */
   session_id?: string;
-  /** Task name, set for permission requests. */
   session_name?: string;
   description?: string;
   input_questions?: string[];
@@ -12,10 +9,10 @@ export interface PendingRequestMeta {
 }
 
 export interface PendingRequest {
-  type: "confirmation" | "permission" | "input" | "choice";
+  type: "confirmation" | "input" | "choice";
   resolve: (value: string[]) => void;
-  /** Permission list (for 'permission'), input descriptions (for 'input'), or option labels (for 'choice'). */
-  params?: RequiredPermission[] | string[];
+  /** Input descriptions (for 'input') or option labels (for 'choice'). */
+  params?: string[];
   /** Display context for PWAs that connect while this request is already open. */
   meta?: PendingRequestMeta;
 }

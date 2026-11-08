@@ -62,31 +62,15 @@ const mockResources: ResourceDefinition[] = [
 ];
 
 /** Minimal replica of getAgentInstructions that doesn't need host.json */
-function buildInstructions(taskId: string, opts?: { skipPermissions?: boolean }): string {
-  let instructions = template
+function buildInstructions(taskId: string): string {
+  return template
     .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(7256, taskId, mockTools, mockResources))
     .replace(/\{\{TASK_DESCRIPTION\}\}/g, "Test task prompt");
-  if (opts?.skipPermissions) {
-    instructions = instructions.replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");
-  }
-  return instructions;
 }
 
 describe("getAgentInstructions", () => {
-  it("includes Permissions section by default", () => {
+  it("includes the standard sections", () => {
     const result = buildInstructions("test-task-id");
-    assert.match(result, /## Permissions/);
-    assert.match(result, /PALMIER_PERMISSION/);
-  });
-
-  it("strips Permissions section when skipPermissions is true", () => {
-    const result = buildInstructions("test-task-id", { skipPermissions: true });
-    assert.doesNotMatch(result, /## Permissions/);
-    assert.doesNotMatch(result, /PALMIER_PERMISSION/);
-  });
-
-  it("preserves other sections when Permissions is stripped", () => {
-    const result = buildInstructions("test-task-id", { skipPermissions: true });
     assert.match(result, /## Linking Files/);
     assert.match(result, /## Completion/);
     assert.match(result, /## HTTP Endpoints/);

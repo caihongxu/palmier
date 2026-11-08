@@ -167,36 +167,3 @@ describe("spliceUserMessage", () => {
     assert.equal(msgs[2].content, "Done.");
   });
 });
-
-describe("permission flow", () => {
-  beforeEach(setup);
-
-  it("records permission grant as user message", () => {
-    appendRunMessage(taskDir, runId, { role: "status", time: 1000, content: "", type: "started" });
-    appendRunMessage(taskDir, runId, { role: "user", time: 1001, content: "Do something" });
-    // Simulate agent output with permission request (via streaming)
-    const writer = beginStreamingMessage(taskDir, runId, 1002);
-    writer.write("I need permission.\n\n**Permissions requested:**\n- **Read** Read files\n");
-    writer.end();
-    // Permission granted
-    appendRunMessage(taskDir, runId, { role: "user", time: 1003, content: "Granted", type: "permission" });
-
-    const msgs = readRunMessages(taskDir, runId);
-    assert.equal(msgs.length, 4);
-    assert.equal(msgs[3].role, "user");
-    assert.equal(msgs[3].content, "Granted");
-    assert.equal(msgs[3].type, "permission");
-  });
-
-  it("records permission denial", () => {
-    appendRunMessage(taskDir, runId, { role: "user", time: 1001, content: "Do something" });
-    const writer = beginStreamingMessage(taskDir, runId, 1002);
-    writer.write("Need permission.");
-    writer.end();
-    appendRunMessage(taskDir, runId, { role: "user", time: 1003, content: "Denied", type: "permission" });
-
-    const msgs = readRunMessages(taskDir, runId);
-    assert.equal(msgs[2].content, "Denied");
-    assert.equal(msgs[2].type, "permission");
-  });
-});

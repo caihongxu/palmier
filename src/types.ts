@@ -10,7 +10,6 @@ export interface HostConfig {
   agents?: Array<{
     key: string;
     label: string;
-    supportsPermissions?: boolean;
     npmPackage?: string;
     /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
     version?: string;
@@ -48,7 +47,6 @@ export interface TaskFrontmatter {
   schedule_enabled: boolean;
   requires_confirmation: boolean;
   foreground_mode?: boolean;
-  permissions?: RequiredPermission[];
   command?: string;
   /** Set when the task was created via task.run_oneoff. Used so the run process
    * can tear down its OS scheduler unit when it finishes — one-off tasks aren't
@@ -63,7 +61,7 @@ export interface ParsedTask {
 /**
  * - `started`: task is actively running
  * - `finished`: agent completed successfully
- * - `aborted`: user declined confirmation, permission, or input
+ * - `aborted`: user declined confirmation or input
  * - `failed`: agent exited with an error
  */
 export type TaskRunningState = "started" | "finished" | "aborted" | "failed";
@@ -80,16 +78,11 @@ export interface HistoryEntry {
   run_id: string;
 }
 
-export interface RequiredPermission {
-  name: string;
-  description: string;
-}
-
 export interface ConversationMessage {
   role: "assistant" | "user" | "status";
   time: number;
   content: string;
-  type?: "input" | "permission" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error";
+  type?: "input" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error";
   /** Only present on runs recorded by older hosts; never written anymore. */
   attachments?: string[];
   /** For assistant messages, identifies which stream the agent CLI emitted this segment on.

@@ -48,10 +48,6 @@ export interface AgentTool {
    *  first run with no separate command. */
   authArgs?: string[];
 
-  /** Whether this agent supports permission overrides (e.g. --allowedTools).
-   *  When falsy, the permissions section is omitted from agent instructions. */
-  supportsPermissions?: boolean;
-
   /** When true, the run loop persists the agent's stderr output only if the invocation fails. */
   suppressStdErr?: boolean;
 
@@ -129,7 +125,6 @@ const agentRegistry: Record<string, AgentTool> = {
 export interface DetectedAgent {
   key: string;
   label: string;
-  supportsPermissions?: boolean;
   npmPackage?: string;
   /** Runtime marker for "managed by Palmier" — present iff Palmier installed/manages this agent. */
   version?: string;
@@ -190,7 +185,6 @@ export async function detectAgents(
     detected.push({
       key,
       label: agent.label,
-      supportsPermissions: agent.supportsPermissions,
       ...(agent.npmPackage ? { npmPackage: agent.npmPackage } : {}),
       ...(version ? { version } : {}),
     });

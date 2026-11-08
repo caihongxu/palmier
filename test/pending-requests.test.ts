@@ -69,7 +69,7 @@ describe("pending-requests", () => {
   it("removePending drops an entry without resolving its promise", async () => {
     const key = "session-remove";
     let resolved = false;
-    const promise = registerPending(key, "permission").then(() => {
+    const promise = registerPending(key, "input").then(() => {
       resolved = true;
     });
     removePending(key);
@@ -82,11 +82,11 @@ describe("pending-requests", () => {
 
   it("listPending omits the resolve callback and returns the right shape", () => {
     const key = "session-list";
-    const promise = registerPending(key, "permission", [], { session_name: "task-1" });
+    const promise = registerPending(key, "input", [], { session_name: "task-1" });
     const all = listPending();
     const entry = all.find((e) => e.key === key);
     assert.ok(entry, "expected our key to appear in listPending output");
-    assert.equal(entry!.type, "permission");
+    assert.equal(entry!.type, "input");
     assert.deepEqual(entry!.params, []);
     assert.equal(entry!.meta?.session_name, "task-1");
     // Spread should not leak `resolve` — the field must not appear.

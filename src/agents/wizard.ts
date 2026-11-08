@@ -83,7 +83,6 @@ export async function pickAndInstallAgent(
   const record: DetectedAgent = {
     key: choice.key,
     label: choice.label,
-    ...(tool.supportsPermissions ? { supportsPermissions: true } : {}),
     npmPackage: choice.npmPackage,
     ...(version ? { version } : {}),
   };

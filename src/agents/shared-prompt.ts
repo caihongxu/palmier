@@ -17,11 +17,9 @@ export function getAgentInstructions(task: ParsedTask): string {
   const taskDescription = task.frontmatter.user_prompt;
   return AGENT_INSTRUCTIONS_TEMPLATE
     .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(port, task.frontmatter.id))
-    .replace(/\{\{TASK_DESCRIPTION\}\}/g, taskDescription)
-    .replace(/## Permissions\r?\n[\s\S]*?(?=## |\r?\n---)/m, "");
+    .replace(/\{\{TASK_DESCRIPTION\}\}/g, taskDescription);
 }
 
 export const TASK_SUCCESS_MARKER = "[PALMIER_TASK_SUCCESS]";
 export const TASK_FAILURE_MARKER = "[PALMIER_TASK_FAILURE]";
-export const TASK_PERMISSION_PREFIX = "[PALMIER_PERMISSION]";
 export const AGENT_MODEL_PREFIX = "[PALMIER_AGENT_MODEL]";

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskOutcome, parsePermissions, parseAgentModel, createCliModelCapture } from "../src/commands/run.js";
+import { parseTaskOutcome, parseAgentModel, createCliModelCapture } from "../src/commands/run.js";
 import { codexAgent } from "../src/agents/codex.js";
 import { claudeAgent } from "../src/agents/claude.js";
 
@@ -24,32 +24,6 @@ describe("parseTaskOutcome", () => {
   it("only looks at last 500 chars", () => {
     const padding = "x".repeat(600);
     assert.equal(parseTaskOutcome("[PALMIER_TASK_FAILURE]" + padding), "finished");
-  });
-});
-
-describe("parsePermissions", () => {
-  it("extracts permissions with name and description", () => {
-    const output = "[PALMIER_PERMISSION] Read | Read file contents\n[PALMIER_PERMISSION] Bash(npm test) | Run tests";
-    const perms = parsePermissions(output);
-    assert.equal(perms.length, 2);
-    assert.deepEqual(perms[0], { name: "Read", description: "Read file contents" });
-    assert.deepEqual(perms[1], { name: "Bash(npm test)", description: "Run tests" });
-  });
-
-  it("handles permission without description", () => {
-    const perms = parsePermissions("[PALMIER_PERMISSION] Write");
-    assert.deepEqual(perms, [{ name: "Write", description: "" }]);
-  });
-
-  it("returns empty array when no permissions", () => {
-    assert.deepEqual(parsePermissions("no permissions"), []);
-  });
-
-  it("ignores placeholder examples from echoed prompt", () => {
-    const output = "[PALMIER_PERMISSION] <tool_name> | <description>\n[PALMIER_PERMISSION] Read | Read files";
-    const perms = parsePermissions(output);
-    assert.equal(perms.length, 1);
-    assert.deepEqual(perms[0], { name: "Read", description: "Read files" });
   });
 });
 

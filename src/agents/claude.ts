@@ -8,7 +8,6 @@ export const claudeAgent: AgentTool = {
   promptArgs: ["-p"],
   probeArg: "--version",
   authArgs: ["auth", "login"],
-  supportsPermissions: true,
   npmPackage: "@anthropic-ai/claude-code",
   freeUsage: "Free with Claude Pro",
 

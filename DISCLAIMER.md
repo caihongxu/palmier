@@ -10,7 +10,7 @@ Palmier spawns third-party AI agent CLIs (such as Claude Code, Codex CLI, GitHub
 - **Execute arbitrary shell commands** with your user permissions
 - **Make network requests** and interact with external services
 
-AI agents may produce unexpected, incorrect, or harmful outputs. **You are solely responsible for reviewing and approving all actions taken by AI agents on your system.** The authors of Palmier have no control over the behavior of third-party AI agents and accept no liability for their actions.
+AI agents may produce unexpected, incorrect, or harmful outputs. **You are solely responsible for all actions taken by AI agents on your system, including actions taken without per-action approval.** The authors of Palmier have no control over the behavior of third-party AI agents and accept no liability for their actions.
 
 ## Agent CLI Installation
 
@@ -20,10 +20,12 @@ Agent CLIs that Palmier installed (those carrying a Palmier-managed version stam
 
 ## Unattended and Scheduled Execution
 
+Palmier runs agents with tool approvals bypassed whenever the agent CLI supports it. Agents can act without asking first.
+
 Tasks can be configured to run on schedules (cron) or in response to events without active supervision. You should:
 
 - Use the **confirmation** feature for sensitive tasks
-- Restrict **permissions** granted to agents to the minimum necessary
+- Limit what the **host's user account** can access, for example by using a dedicated account, container or VM
 - Regularly review **task history and results**
 - Maintain **backups** of any important data in directories where agents operate
 

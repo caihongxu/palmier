@@ -5,7 +5,7 @@ import { type NatsConnection } from "@nats-io/transport-node";
 import { validateClient, addClient } from "../client-store.js";
 import { registerPending } from "../pending-requests.js";
 import * as fs from "node:fs";
-import type { HostConfig, RpcMessage, RequiredPermission } from "../types.js";
+import type { HostConfig, RpcMessage } from "../types.js";
 import { saveConfig } from "../config.js";
 import { detectDefaultInterface } from "../network.js";
 import { agentToolMap, agentResources, requestConfirmationTool, ToolError, type ToolContext } from "../agent-tools.js";
@@ -261,46 +261,6 @@ export async function startHttpTransport(
 
         sendJson(res, 200, result);
       } catch { sendJson(res, 400, { error: "Invalid JSON" }); }
-      return;
-    }
-
-    if (req.method === "POST" && pathname === "/request-permission") {
-      if (!isLocalhost(req)) { sendJson(res, 403, { error: "localhost only" }); return; }
-      try {
-        const body = await readBody(req);
-        const { taskId, taskName, permissions } = JSON.parse(body) as {
-          taskId: string; taskName?: string; permissions: RequiredPermission[];
-        };
-        if (!taskId || !permissions?.length) {
-          sendJson(res, 400, { error: "taskId and permissions are required" });
-          return;
-        }
-
-        const pendingPromise = registerPending(taskId, "permission", permissions, {
-          session_id: taskId,
-          session_name: taskName,
-        });
-
-        await publishEvent(taskId, {
-          event_type: "permission-request",
-          host_id: config.hostId,
-          required_permissions: permissions,
-          session_name: taskName,
-        });
-
-        const response = await pendingPromise;
-        const status = response[0] as "granted" | "granted_all" | "aborted";
-
-        await publishEvent(taskId, {
-          event_type: "permission-resolved",
-          host_id: config.hostId,
-          status,
-        });
-
-        sendJson(res, 200, { response: status });
-      } catch (err) {
-        sendJson(res, 500, { error: String(err) });
-      }
       return;
     }
 

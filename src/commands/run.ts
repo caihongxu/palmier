@@ -2,14 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
-import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskFile, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, claimPendingRun, appendRunMessage, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
+import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, claimPendingRun, appendRunMessage, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
-import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_PERMISSION_PREFIX, AGENT_MODEL_PREFIX } from "../agents/shared-prompt.js";
+import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, AGENT_MODEL_PREFIX } from "../agents/shared-prompt.js";
 import { extractFileLinks, resolveTaskFile } from "../task-files.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
-import type { HostConfig, ParsedTask, TaskRunningState, RequiredPermission } from "../types.js";
+import type { HostConfig, ParsedTask, TaskRunningState } from "../types.js";
 
 interface InvocationContext {
   agent: AgentTool;
@@ -19,8 +19,6 @@ interface InvocationContext {
   guiEnv: Record<string, string>;
   config: HostConfig;
   taskId: string;
-  /** Mutable — accumulates across invocations within a run. */
-  transientPermissions: RequiredPermission[];
 }
 
 interface InvocationResult {
@@ -28,163 +26,114 @@ interface InvocationResult {
 }
 
 /**
- * Invoke the agent CLI in a continuation loop to handle permission requests.
  * `invokeTask` is the ParsedTask whose prompt is passed to the agent (for
  * triggered tasks this is the per-trigger augmented task).
  */
-async function invokeAgentWithRetries(
+async function invokeAgent(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
 ): Promise<InvocationResult> {
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    let writer: StreamingMessageWriter | undefined;
-    let activeStream: "stdout" | "stderr" | undefined;
-    const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
-    let suppressedStderr = "";
-    let notifyPending = false;
-    let notifyTimer: ReturnType<typeof setTimeout> | undefined;
-    let agentModel: string | undefined;
-    let agentModelWritten = false;
-    const captureCliModel = createCliModelCapture(ctx.agent);
+  let writer: StreamingMessageWriter | undefined;
+  let activeStream: "stdout" | "stderr" | undefined;
+  const lineBufs: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
+  let suppressedStderr = "";
+  let notifyPending = false;
+  let notifyTimer: ReturnType<typeof setTimeout> | undefined;
+  let agentModel: string | undefined;
+  let agentModelWritten = false;
+  const captureCliModel = createCliModelCapture(ctx.agent);
 
-    function throttledNotify() {
-      if (notifyPending) return;
-      notifyPending = true;
-      notifyTimer = setTimeout(() => {
-        notifyPending = false;
-        publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
-      }, 500);
+  function throttledNotify() {
+    if (notifyPending) return;
+    notifyPending = true;
+    notifyTimer = setTimeout(() => {
+      notifyPending = false;
+      publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+    }, 500);
+  }
+
+  function ensureWriter(stream: "stdout" | "stderr"): StreamingMessageWriter {
+    if (writer && activeStream === stream) return writer;
+    if (writer) writer.end();
+    writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), stream);
+    activeStream = stream;
+    return writer;
+  }
+
+  function flushAgentModel(): void {
+    if (!agentModel || agentModelWritten || !writer) return;
+    writer.write(formatAgentModelComment(agentModel));
+    agentModelWritten = true;
+    throttledNotify();
+  }
+
+  function onStderr(chunk: string): void {
+    if (ctx.agent.suppressStdErr) suppressedStderr += chunk;
+    else emit("stderr", chunk);
+    const cliModel = captureCliModel(chunk);
+    if (cliModel && !agentModelWritten) agentModel = cliModel;
+    flushAgentModel();
+  }
+
+  function emit(stream: "stdout" | "stderr", chunk: string): void {
+    lineBufs[stream] += chunk;
+    const lines = lineBufs[stream].split("\n");
+    lineBufs[stream] = lines.pop() ?? "";
+    if (stream === "stdout" && !agentModel) {
+      agentModel = parseAgentModel(lines.join("\n"));
     }
-
-    function ensureWriter(stream: "stdout" | "stderr"): StreamingMessageWriter {
-      if (writer && activeStream === stream) return writer;
-      if (writer) writer.end();
-      writer = beginStreamingMessage(ctx.taskDir, ctx.runId, Date.now(), stream);
-      activeStream = stream;
-      return writer;
-    }
-
-    function flushAgentModel(): void {
-      if (!agentModel || agentModelWritten || !writer) return;
-      writer.write(formatAgentModelComment(agentModel));
-      agentModelWritten = true;
+    const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
+    if (filtered.length > 0) {
+      ensureWriter(stream).write(filtered.join("\n") + "\n");
       throttledNotify();
     }
-
-    function onStderr(chunk: string): void {
-      if (ctx.agent.suppressStdErr) suppressedStderr += chunk;
-      else emit("stderr", chunk);
-      const cliModel = captureCliModel(chunk);
-      if (cliModel && !agentModelWritten) agentModel = cliModel;
-      flushAgentModel();
-    }
-
-    function emit(stream: "stdout" | "stderr", chunk: string): void {
-      lineBufs[stream] += chunk;
-      const lines = lineBufs[stream].split("\n");
-      lineBufs[stream] = lines.pop() ?? "";
-      if (stream === "stdout" && !agentModel) {
-        agentModel = parseAgentModel(lines.join("\n"));
-      }
-      const filtered = lines.filter((l) => !l.startsWith("[PALMIER"));
-      if (filtered.length > 0) {
-        ensureWriter(stream).write(filtered.join("\n") + "\n");
-        throttledNotify();
-      }
-      flushAgentModel();
-    }
-
-    function flushTrailingLine(stream: "stdout" | "stderr"): void {
-      const trailing = lineBufs[stream];
-      if (trailing && !trailing.startsWith("[PALMIER")) {
-        ensureWriter(stream).write(trailing);
-      }
-    }
-
-    const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(invokeTask);
-    const command = ctx.agent.command;
-    const runDir = getRunDir(ctx.taskDir, ctx.runId);
-    if (files) {
-      for (const f of files) fs.writeFileSync(path.join(runDir, f.path), f.content, "utf-8");
-    }
-    const result = await spawnCommand(command, args, {
-      cwd: runDir,
-      env: { ...ctx.guiEnv, ...agentEnv, PALMIER_RUN_DIR: runDir, PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7256) },
-      echoStdout: true,
-      resolveOnFailure: true,
-      stdin,
-      onStdout: (chunk) => emit("stdout", chunk),
-      onStderr,
-    });
-
-    const outcome: TaskRunningState = result.exitCode !== 0 ? "failed" : parseTaskOutcome(result.output);
-    const linkedFiles = listLinkedTaskFiles(ctx.taskDir, ctx.runId, result.output);
-    const requiredPermissions = parsePermissions(result.output);
-
-    flushTrailingLine("stdout");
-    if (outcome === "failed") emit("stderr", suppressedStderr);
-    flushTrailingLine("stderr");
-
-    if (requiredPermissions.length > 0) {
-      const permLines = requiredPermissions.map((p) => `- **${p.name}** ${p.description}`).join("\n");
-      ensureWriter("stdout").write(`\n\n**Permissions requested:**\n${permLines}\n`);
-    }
-
-    if (notifyTimer) clearTimeout(notifyTimer);
-    writer?.end();
-    await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
-
-    if (linkedFiles.length > 0) {
-      await publishHostEvent(ctx.taskId, {
-        event_type: "report-generated",
-        run_id: ctx.runId,
-        name: taskDisplayName(ctx.task.frontmatter),
-        report_files: linkedFiles,
-      });
-    }
-
-    if (requiredPermissions.length > 0) {
-      const response = await requestPermission(ctx.config, ctx.task, ctx.taskDir, requiredPermissions);
-
-      if (response === "aborted") {
-        await appendAndNotify(ctx, {
-          role: "user",
-          time: Date.now(),
-          content: "Deny & Abort Task",
-          type: "permission",
-        });
-        return { outcome: "failed" };
-      }
-
-      const newPerms = requiredPermissions.filter(
-        (rp) => !ctx.task.frontmatter.permissions?.some((ep) => ep.name === rp.name)
-          && !ctx.transientPermissions.some((ep) => ep.name === rp.name),
-      );
-
-      await appendAndNotify(ctx, {
-        role: "user",
-        time: Date.now(),
-        content: response === "granted_all" ? "Allow Always" : "Allow Once",
-        type: "permission",
-      });
-
-      if (response === "granted_all") {
-        ctx.task.frontmatter.permissions = [...(ctx.task.frontmatter.permissions ?? []), ...newPerms];
-        invokeTask.frontmatter.permissions = ctx.task.frontmatter.permissions;
-        writeTaskFile(ctx.taskDir, ctx.task);
-      } else {
-        ctx.transientPermissions = [...ctx.transientPermissions, ...newPerms];
-      }
-
-      // Retry with the new permissions if the agent failed.
-      if (outcome === "failed") {
-        continue;
-      }
-    }
-
-    return { outcome };
+    flushAgentModel();
   }
+
+  function flushTrailingLine(stream: "stdout" | "stderr"): void {
+    const trailing = lineBufs[stream];
+    if (trailing && !trailing.startsWith("[PALMIER")) {
+      ensureWriter(stream).write(trailing);
+    }
+  }
+
+  const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(invokeTask);
+  const command = ctx.agent.command;
+  const runDir = getRunDir(ctx.taskDir, ctx.runId);
+  if (files) {
+    for (const f of files) fs.writeFileSync(path.join(runDir, f.path), f.content, "utf-8");
+  }
+  const result = await spawnCommand(command, args, {
+    cwd: runDir,
+    env: { ...ctx.guiEnv, ...agentEnv, PALMIER_RUN_DIR: runDir, PALMIER_HTTP_PORT: String(ctx.config.httpPort ?? 7256) },
+    echoStdout: true,
+    resolveOnFailure: true,
+    stdin,
+    onStdout: (chunk) => emit("stdout", chunk),
+    onStderr,
+  });
+
+  const outcome: TaskRunningState = result.exitCode !== 0 ? "failed" : parseTaskOutcome(result.output);
+  const linkedFiles = listLinkedTaskFiles(ctx.taskDir, ctx.runId, result.output);
+
+  flushTrailingLine("stdout");
+  if (outcome === "failed") emit("stderr", suppressedStderr);
+  flushTrailingLine("stderr");
+
+  if (notifyTimer) clearTimeout(notifyTimer);
+  writer?.end();
+  await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+
+  if (linkedFiles.length > 0) {
+    await publishHostEvent(ctx.taskId, {
+      event_type: "report-generated",
+      run_id: ctx.runId,
+      name: taskDisplayName(ctx.task.frontmatter),
+      report_files: linkedFiles,
+    });
+  }
+
+  return { outcome };
 }
 
 export function stripPalmierMarkers(output: string): string {
@@ -259,7 +208,6 @@ export async function runCommand(taskId: string): Promise<void> {
     const agent = getAgent(task.frontmatter.agent);
     const ctx: InvocationContext = {
       agent, task, taskDir, runId, guiEnv, config, taskId,
-      transientPermissions: [],
     };
 
     // Command-output and on_new_* tasks share the same trigger machinery: the
@@ -281,7 +229,7 @@ export async function runCommand(taskId: string): Promise<void> {
         content: task.frontmatter.user_prompt,
       });
 
-      const result = await invokeAgentWithRetries(ctx, task);
+      const result = await invokeAgent(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(taskDir, taskId, outcome, taskName, runId);
@@ -347,7 +295,7 @@ async function runEventTriggeredMode(
         frontmatter: { ...ctx.task.frontmatter, user_prompt: perEventPrompt },
       };
 
-      const result = await invokeAgentWithRetries(ctx, perEventTask);
+      const result = await invokeAgent(ctx, perEventTask);
       lastOutcome = result.outcome;
     }
   } catch (err) {
@@ -377,35 +325,6 @@ async function publishTaskEvent(
   if (taskName) payload.name = taskName;
   if (runId) payload.run_id = runId;
   await publishHostEvent(taskId, payload);
-}
-
-
-async function requestPermission(
-  config: HostConfig,
-  task: ParsedTask,
-  taskDir: string,
-  requiredPermissions: RequiredPermission[],
-): Promise<"granted" | "granted_all" | "aborted"> {
-  const port = config.httpPort ?? 7256;
-  const res = await fetch(`http://localhost:${port}/request-permission`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      taskId: task.frontmatter.id,
-      taskName: taskDisplayName(task.frontmatter),
-      permissions: requiredPermissions,
-    }),
-  });
-  const body = await res.json() as { response?: string; error?: string };
-  const response = body.response as "granted" | "granted_all" | "aborted" | undefined;
-  if (!response || !["granted", "granted_all", "aborted"].includes(response)) {
-    throw new Error(`Permission request failed: ${body.error ?? `unexpected response: ${JSON.stringify(body)}`}`);
-  }
-  writeTaskStatus(taskDir, {
-    running_state: response === "aborted" ? "aborted" : "started",
-    time_stamp: Date.now(),
-  });
-  return response;
 }
 
 
@@ -442,24 +361,6 @@ export function listLinkedTaskFiles(taskDir: string, runId: string, output: stri
       return false;
     }
   });
-}
-
-export function parsePermissions(output: string): RequiredPermission[] {
-  const regex = new RegExp(`^\\${TASK_PERMISSION_PREFIX}\\s+(.+)$`, "gm");
-  const perms: RequiredPermission[] = [];
-  let match;
-  while ((match = regex.exec(output)) !== null) {
-    const raw = match[1].trim();
-    // Skip placeholder examples echoed from the prompt (e.g. "<tool_name> | <description>").
-    if (raw.startsWith("<")) continue;
-    const sep = raw.indexOf("|");
-    if (sep !== -1) {
-      perms.push({ name: raw.slice(0, sep).trim(), description: raw.slice(sep + 1).trim() });
-    } else {
-      perms.push({ name: raw, description: "" });
-    }
-  }
-  return perms;
 }
 
 export function parseAgentModel(output: string): string | undefined {

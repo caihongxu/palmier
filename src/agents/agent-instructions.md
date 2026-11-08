@@ -22,11 +22,6 @@ On the line right before that marker, in the same final message, print the model
 
 Do this at the end of every response, including responses to follow-up messages.
 
-## Permissions
-
-Whenever a tool you are trying to use is denied or you lack the required permissions, print each required permission on its own line to stdout using this exact format:
-[PALMIER_PERMISSION] <tool_name> | <description>
-
 ## Browsers
 
 Whenever the task needs a browser, launch it with the Playwright CLI (`playwright-cli open`). Do not use any other browser tool, automation library, or launch method.
