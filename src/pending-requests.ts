@@ -3,15 +3,11 @@ export interface PendingRequestMeta {
   session_id?: string;
   session_name?: string;
   description?: string;
-  /** Render the input field(s) masked (password entry). */
-  secret?: boolean;
 }
 
 export interface PendingRequest {
-  type: "confirmation" | "input";
+  type: "confirmation" | "password";
   resolve: (value: string[]) => void;
-  /** Input descriptions (for 'input'). */
-  params?: string[];
   /** Display context for PWAs that connect while this request is already open. */
   meta?: PendingRequestMeta;
 }
@@ -25,7 +21,6 @@ const pending = new Map<string, PendingRequest>();
 export function registerPending(
   key: string,
   type: PendingRequest["type"],
-  params?: PendingRequest["params"],
   meta?: PendingRequestMeta,
 ): Promise<string[]> {
   if (pending.has(key)) {
@@ -33,7 +28,7 @@ export function registerPending(
   }
 
   return new Promise<string[]>((resolve) => {
-    pending.set(key, { type, resolve, params, meta });
+    pending.set(key, { type, resolve, meta });
   });
 }
 
@@ -57,13 +52,11 @@ export function removePending(key: string): void {
 export function listPending(): Array<{
   key: string;
   type: PendingRequest["type"];
-  params?: PendingRequest["params"];
   meta?: PendingRequestMeta;
 }> {
   return [...pending.entries()].map(([key, entry]) => ({
     key,
     type: entry.type,
-    params: entry.params,
     meta: entry.meta,
   }));
 }

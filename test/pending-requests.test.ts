@@ -37,29 +37,27 @@ describe("pending-requests", () => {
 
   it("resolvePending removes the entry — same key can be re-registered", async () => {
     const key = "session-reuse";
-    const first = registerPending(key, "input");
+    const first = registerPending(key, "password");
     resolvePending(key, ["a"]);
     await first;
     // After resolution the slot is free, so a new registration succeeds.
-    const second = registerPending(key, "input");
+    const second = registerPending(key, "password");
     resolvePending(key, ["b"]);
     assert.deepEqual(await second, ["b"]);
   });
 
-  it("getPending exposes the live entry's type/params/meta", () => {
+  it("getPending exposes the live entry's type/meta", () => {
     const key = "session-inspect";
     const promise = registerPending(
       key,
-      "input",
-      ["What is your name?"],
-      { session_name: "agent-x", description: "input prompt" },
+      "password",
+      { session_name: "agent-x", description: "password prompt" },
     );
     const entry = getPending(key);
     assert.ok(entry);
-    assert.equal(entry!.type, "input");
-    assert.deepEqual(entry!.params, ["What is your name?"]);
+    assert.equal(entry!.type, "password");
     assert.equal(entry!.meta?.session_name, "agent-x");
-    assert.equal(entry!.meta?.description, "input prompt");
+    assert.equal(entry!.meta?.description, "password prompt");
     resolvePending(key, ["done"]);
     return promise.then(() => {
       assert.equal(getPending(key), undefined);
@@ -69,7 +67,7 @@ describe("pending-requests", () => {
   it("removePending drops an entry without resolving its promise", async () => {
     const key = "session-remove";
     let resolved = false;
-    const promise = registerPending(key, "input").then(() => {
+    const promise = registerPending(key, "password").then(() => {
       resolved = true;
     });
     removePending(key);
@@ -82,12 +80,11 @@ describe("pending-requests", () => {
 
   it("listPending omits the resolve callback and returns the right shape", () => {
     const key = "session-list";
-    const promise = registerPending(key, "input", [], { session_name: "task-1" });
+    const promise = registerPending(key, "password", { session_name: "task-1" });
     const all = listPending();
     const entry = all.find((e) => e.key === key);
     assert.ok(entry, "expected our key to appear in listPending output");
-    assert.equal(entry!.type, "input");
-    assert.deepEqual(entry!.params, []);
+    assert.equal(entry!.type, "password");
     assert.equal(entry!.meta?.session_name, "task-1");
     // Spread should not leak `resolve` — the field must not appear.
     assert.equal((entry as Record<string, unknown>).resolve, undefined);

@@ -76,7 +76,7 @@ export const requestConfirmationTool: ToolDefinition = {
     const { description } = args as { description: string };
     if (!description) throw new ToolError("description is required", 400);
 
-    const pendingPromise = registerPending(ctx.taskId, "confirmation", undefined, {
+    const pendingPromise = registerPending(ctx.taskId, "confirmation", {
       session_id: ctx.taskId,
       description,
     });
@@ -131,28 +131,24 @@ const fillPasswordTool: ToolDefinition = {
     let password = lookupPassword(origin, username);
 
     if (password === undefined) {
-      const question = `Password or PIN for ${username} on ${origin}`;
       const description = `Enter the password or PIN to sign in as ${username} on ${origin}.`;
-      const pendingPromise = registerPending(ctx.taskId, "input", [question], {
+      const pendingPromise = registerPending(ctx.taskId, "password", {
         session_id: ctx.taskId,
         description,
-        secret: true,
       });
 
-      await ctx.publishEvent("_input", {
-        event_type: "input-request",
+      await ctx.publishEvent("_password", {
+        event_type: "password-request",
         host_id: ctx.config.hostId,
         session_id: ctx.taskId,
         description,
-        input_questions: [question],
-        secret: true,
       });
 
       const response = await pendingPromise;
       const aborted = response.length === 1 && response[0] === "aborted";
 
-      await ctx.publishEvent("_input", {
-        event_type: "input-resolved", host_id: ctx.config.hostId,
+      await ctx.publishEvent("_password", {
+        event_type: "password-resolved", host_id: ctx.config.hostId,
         session_id: ctx.taskId, status: aborted ? "aborted" : "provided",
       });
 
@@ -163,8 +159,7 @@ const fillPasswordTool: ToolDefinition = {
       }
 
       password = response[0];
-      // The PWA appends a "save"/"nosave" flag for password prompts; persist
-      // unless the user opted out via the dialog's checkbox.
+      // The PWA appends a "save"/"nosave" flag; persist unless the user opted out.
       if (response[1] !== "nosave") savePassword(origin, username, password);
     }
 
