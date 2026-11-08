@@ -136,7 +136,6 @@ const fillPasswordTool: ToolDefinition = {
       const pendingPromise = registerPending(ctx.taskId, "input", [question], {
         session_id: ctx.taskId,
         description,
-        input_questions: [question],
         secret: true,
       });
 
