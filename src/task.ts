@@ -322,29 +322,6 @@ export class StreamingMessageWriter {
   }
 }
 
-/**
- * Splice a user message into a running assistant stream: close the current
- * assistant block, write the user message, open a new assistant block. Direct
- * appends only, so an existing StreamingMessageWriter keeps working — its
- * subsequent chunks land in the new block.
- */
-export function spliceUserMessage(
-  taskDir: string,
-  runId: string,
-  userMsg: ConversationMessage,
-  /** Optional text to append to the current assistant block before ending it. */
-  assistantAppend?: string,
-): void {
-  const filePath = path.join(taskDir, runId, "TASKRUN.md");
-  if (assistantAppend) {
-    fs.appendFileSync(filePath, assistantAppend, "utf-8");
-  }
-  fs.appendFileSync(filePath, "\n\n", "utf-8");
-  appendRunMessage(taskDir, runId, userMsg);
-  const delimiter = `<!-- palmier:message role="assistant" time="${Date.now()}" stream="stdout" -->`;
-  fs.appendFileSync(filePath, `${delimiter}\n\n`, "utf-8");
-}
-
 export function readRunMessages(taskDir: string, runId: string): ConversationMessage[] {
   const raw = fs.readFileSync(path.join(taskDir, runId, "TASKRUN.md"), "utf-8");
   const fmMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);

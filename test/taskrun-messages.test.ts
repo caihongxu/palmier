@@ -8,7 +8,6 @@ import {
   appendRunMessage,
   readRunMessages,
   beginStreamingMessage,
-  spliceUserMessage,
 } from "../src/task.js";
 
 let taskDir: string;
@@ -121,49 +120,5 @@ describe("beginStreamingMessage", () => {
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0].role, "assistant");
     assert.equal(msgs[0].content, "Hello world");
-  });
-});
-
-describe("spliceUserMessage", () => {
-  beforeEach(setup);
-
-  it("splits assistant stream for user input", () => {
-    const writer = beginStreamingMessage(taskDir, runId, 2000);
-    writer.write("Working on it...");
-
-    spliceUserMessage(taskDir, runId, { role: "user", time: 2001, content: "my-api-key", type: "input" });
-
-    writer.write("Continuing with key.");
-    writer.end();
-
-    const msgs = readRunMessages(taskDir, runId);
-    assert.equal(msgs.length, 3);
-    assert.equal(msgs[0].role, "assistant");
-    assert.equal(msgs[0].content, "Working on it...");
-    assert.equal(msgs[1].role, "user");
-    assert.equal(msgs[1].content, "my-api-key");
-    assert.equal(msgs[1].type, "input");
-    assert.equal(msgs[2].role, "assistant");
-    assert.equal(msgs[2].content, "Continuing with key.");
-  });
-
-  it("appends assistant text before splicing", () => {
-    const writer = beginStreamingMessage(taskDir, runId, 2000);
-    writer.write("Processing");
-
-    spliceUserMessage(
-      taskDir, runId,
-      { role: "user", time: 2001, content: "answer1", type: "input" },
-      "\n\n**What is your key?**",
-    );
-
-    writer.write("Done.");
-    writer.end();
-
-    const msgs = readRunMessages(taskDir, runId);
-    assert.equal(msgs.length, 3);
-    assert.ok(msgs[0].content.includes("What is your key?"));
-    assert.equal(msgs[1].content, "answer1");
-    assert.equal(msgs[2].content, "Done.");
   });
 });

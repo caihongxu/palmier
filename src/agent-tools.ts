@@ -3,7 +3,6 @@ import { registerPending } from "./pending-requests.js";
 import { getLinkedDevice } from "./linked-device.js";
 import { getNotifications } from "./notification-store.js";
 import { getSmsMessages } from "./sms-store.js";
-import { getTaskDir, readHistory, spliceUserMessage } from "./task.js";
 import { lookupPassword, savePassword, normalizeOrigin } from "./password-store.js";
 import { fillPasswordInBrowser } from "./playwright-fill.js";
 import type { HostConfig } from "./types.js";
@@ -59,27 +58,6 @@ const notifyTool: ToolDefinition = {
   },
 };
 
-/** Splice the user's answer into the run file so history shows it even if the agent never echoes it. */
-function recordUserResponseToRun(ctx: ToolContext, content: string): void {
-  const taskId = ctx.taskId;
-  const taskDir = getTaskDir(ctx.config.projectRoot, taskId);
-  const { entries } = readHistory(ctx.config.projectRoot, { task_id: taskId, limit: 1 });
-  const runId = entries[0]?.run_id;
-  if (!runId) return;
-
-  try {
-    spliceUserMessage(taskDir, runId, {
-      role: "user",
-      time: Date.now(),
-      content,
-      type: "input",
-    });
-    void ctx.publishEvent(taskId, { event_type: "result-updated", run_id: runId });
-  } catch {
-    // Run file missing or unwritable — best-effort, do not fail the tool call.
-  }
-}
-
 export const requestConfirmationTool: ToolDefinition = {
   name: "request-confirmation",
   description: [
@@ -122,71 +100,6 @@ export const requestConfirmationTool: ToolDefinition = {
 
     if (!confirmed) await ctx.abortTask();
     return { confirmed };
-  },
-};
-
-const requestChoiceTool: ToolDefinition = {
-  name: "request-choice",
-  description: [
-    "Ask the user a question with a fixed set of answers and let them pick one.",
-    "The request blocks until the user picks an option or aborts the task.",
-    'Response: `{"choice": "<option>"}` with the selected option, or `{"aborted": true}` if the user aborts.',
-    "Use this whenever the possible answers are known in advance.",
-    "An abort option that ends the task is always shown, so to ask for confirmation before continuing, pass a single option naming the action (e.g. [\"Send email\"]). Add a decline option only if declining should let the task continue differently.",
-  ],
-  inputSchema: {
-    type: "object",
-    properties: {
-      question: { type: "string", description: "The question to ask" },
-      options: {
-        type: "array",
-        items: { type: "string" },
-        description: 'Unique option labels, in display order (e.g. ["Reply now", "Reply later"])',
-        minItems: 1,
-      },
-    },
-    required: ["question", "options"],
-  },
-  async handler(args, ctx) {
-    const { question, options } = args as { question: string; options: string[] };
-    if (!question) throw new ToolError("question is required", 400);
-    if (!Array.isArray(options) || options.length < 1 || options.some((o) => typeof o !== "string" || !o.trim())) {
-      throw new ToolError("options must contain at least 1 non-empty string", 400);
-    }
-    if (new Set(options).size !== options.length) throw new ToolError("options must be unique", 400);
-
-    const pendingPromise = registerPending(ctx.taskId, "choice", options, {
-      session_id: ctx.taskId,
-      description: question,
-    });
-
-    await ctx.publishEvent("_choice", {
-      event_type: "choice-request",
-      host_id: ctx.config.hostId,
-      session_id: ctx.taskId,
-      description: question,
-      options,
-    });
-
-    // Clients answer with the option index so no label can collide with the "aborted" sentinel.
-    const response = await pendingPromise;
-    const choice = /^\d+$/.test(response[0] ?? "") ? options[Number(response[0])] : undefined;
-    const aborted = choice === undefined;
-
-    recordUserResponseToRun(ctx, aborted ? "Aborted" : `**${question}**\n\n${choice}`);
-
-    await ctx.publishEvent("_choice", {
-      event_type: "choice-resolved",
-      host_id: ctx.config.hostId,
-      session_id: ctx.taskId,
-      status: aborted ? "aborted" : "chosen",
-    });
-
-    if (aborted) {
-      await ctx.abortTask();
-      return { aborted: true };
-    }
-    return { choice };
   },
 };
 
@@ -825,7 +738,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {

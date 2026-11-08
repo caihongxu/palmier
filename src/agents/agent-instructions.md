@@ -25,9 +25,9 @@ Do this at the end of every response, including responses to follow-up messages.
 
 ## Asking the User
 
-When you need information from the user (answers to questions, preferences, clarifications, etc.), do not guess or fail. Write your questions in full as your final message, then end it with `[PALMIER_TASK_NEED_INPUT]`. Your process will exit, and the user's reply will arrive as the next message in this same session. Anything you left running, such as a browser, stays open, so leave it as it is.
+When you need something from the user (answers to questions, preferences, confirmation before acting, clarifications, etc.), do not guess or fail. Write your questions in full as your final message, then end it with `[PALMIER_TASK_NEED_INPUT]`. Your process will exit, and the user's reply will arrive as the next message in this same session. Anything you left running, such as a browser, stays open, so leave it as it is.
 
-If the possible answers are known in advance, use the `request-choice` endpoint instead. For passwords and PINs, use `fill-password`.
+If the possible answers are known in advance, list them in your question. For passwords and PINs, use `fill-password` instead.
 
 ## Browsers
 

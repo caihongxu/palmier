@@ -9,9 +9,9 @@ export interface PendingRequestMeta {
 }
 
 export interface PendingRequest {
-  type: "confirmation" | "input" | "choice";
+  type: "confirmation" | "input";
   resolve: (value: string[]) => void;
-  /** Input descriptions (for 'input') or option labels (for 'choice'). */
+  /** Input descriptions (for 'input'). */
   params?: string[];
   /** Display context for PWAs that connect while this request is already open. */
   meta?: PendingRequestMeta;
