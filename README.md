@@ -53,7 +53,6 @@ Every task Palmier runs gets these capabilities automatically. Their usage is wr
 | Capability | Description |
 |------------|-------------|
 | `notify` | Send a push notification to the user's device |
-| `request-input` | Request input from the user (blocks until response; aborting the prompt aborts the task) |
 | `request-choice` | Ask the user a question with a fixed set of options and return the one picked; a single option serves as a confirmation (blocks until response; aborting aborts the task) |
 | `fill-password` | Fill a saved password or PIN into the active browser session and submit the form, prompting the user if unknown (the secret is never revealed to the agent) |
 | `device-geolocation` | Get GPS location of the user's mobile device |
@@ -74,6 +73,12 @@ Every task Palmier runs gets these capabilities automatically. Their usage is wr
 | Device SMS | Recent SMS messages from the user's Android device |
 
 All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link the host to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
+
+### Asking the User
+
+When an agent needs an answer it can't get from a fixed list, it writes its question as its final message and ends with the `[PALMIER_TASK_NEED_INPUT]` marker. The agent CLI then exits and the run moves to a "needs input" state, with a push notification that opens the run. The user answers in the run view's message box, or aborts from there.
+
+`palmier run` stays alive during the wait, so anything the agent left running, such as its browser, stays open. Palmier polls for the reply and resumes the same agent session with it, repeating until the agent reports success or failure. An unanswered question fails the run after 24 hours. The reply is handed over through a file in the run directory, so a daemon restart doesn't lose the wait.
 
 ### Files in Agent Output
 

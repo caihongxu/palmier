@@ -2,12 +2,13 @@ import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { type ChildProcess } from "child_process";
-import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, createPendingRun, readPendingRun, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
+import { listTasks, parseTaskFile, taskDisplayName, writeTaskFile, getTaskDir, readTaskStatus, writeTaskStatus, readHistory, deleteHistoryEntry, appendTaskList, removeFromTaskList, isTaskInList, createPendingRun, readPendingRun, appendRunMessage, getRunDir, writeFollowupStatus, readFollowupStatus, deleteFollowupStatus, writeUserReply, isRunStarred, setRunStarred, formatAgentModelComment, extractAgentModelComment } from "./task.js";
 import { resolvePending, getPending, listPending } from "./pending-requests.js";
 import { getPlatform } from "./platform/index.js";
 import { onChildDone, resolveCommand, spawnCommand } from "./spawn-command.js";
 import crossSpawn from "cross-spawn";
 import { getAgent, getPromptCommandLine, getNpmInstalledVersion } from "./agents/agent.js";
+import { getResumePrompt } from "./agents/shared-prompt.js";
 import { validateClient, revokeClient } from "./client-store.js";
 import { publishHostEvent } from "./events.js";
 import { getLinkedDevice, setLinkedDevice, clearLinkedDevice, clearLinkedDeviceIfMatches } from "./linked-device.js";
@@ -484,6 +485,18 @@ export function createRpcHandler(config: HostConfig) {
         const followupTask = parseTaskFile(followupTaskDir);
         const followupRunDir = getRunDir(followupTaskDir, params.run_id);
 
+        const followupPrevStatus = readTaskStatus(followupTaskDir);
+        if (
+          followupPrevStatus?.running_state === "needs_input"
+          && followupPrevStatus.run_id === params.run_id
+          && getPlatform().isTaskRunning(params.id)
+        ) {
+          if (!writeUserReply(followupRunDir, params.message)) {
+            return { error: "A reply is already being delivered for this run" };
+          }
+          return { ok: true, task_id: params.id, run_id: params.run_id };
+        }
+
         appendRunMessage(followupTaskDir, params.run_id, {
           role: "user",
           time: Date.now(),
@@ -503,7 +516,7 @@ export function createRpcHandler(config: HostConfig) {
         });
 
         const followupAgent = getAgent(followupTask.frontmatter.agent);
-        const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(followupTask, params.message);
+        const { args: cmdArgs, stdin, env: followupAgentEnv, files: followupFiles } = followupAgent.getTaskRunCommandLine(followupTask, getResumePrompt(params.message));
         const cmd = followupAgent.command;
         if (followupFiles) {
           for (const f of followupFiles) fs.writeFileSync(path.join(followupRunDir, f.path), f.content, "utf-8");

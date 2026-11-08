@@ -63,14 +63,17 @@ export interface ParsedTask {
  * - `finished`: agent completed successfully
  * - `aborted`: user declined confirmation or input
  * - `failed`: agent exited with an error
+ * - `needs_input`: agent stopped to ask the user something and will resume on their reply
  */
-export type TaskRunningState = "started" | "finished" | "aborted" | "failed";
+export type TaskRunningState = "started" | "finished" | "aborted" | "failed" | "needs_input";
 
 export interface TaskStatus {
   running_state: TaskRunningState;
   time_stamp: number;
   /** PID of the palmier run process (used on Windows to kill the process tree). */
   pid?: number;
+  /** The run a live `palmier run` process is holding open for the user's reply. */
+  run_id?: string;
 }
 
 export interface HistoryEntry {
@@ -82,7 +85,7 @@ export interface ConversationMessage {
   role: "assistant" | "user" | "status";
   time: number;
   content: string;
-  type?: "input" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error";
+  type?: "input" | "confirmation" | "started" | "finished" | "failed" | "aborted" | "stopped" | "error" | "needs_input";
   /** Only present on runs recorded by older hosts; never written anymore. */
   attachments?: string[];
   /** For assistant messages, identifies which stream the agent CLI emitted this segment on.

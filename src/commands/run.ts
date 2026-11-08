@@ -2,10 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnCommand } from "../spawn-command.js";
 import { loadConfig } from "../config.js";
-import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, claimPendingRun, appendRunMessage, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment } from "../task.js";
+import { parseTaskFile, taskDisplayName, getTaskDir, writeTaskStatus, readTaskStatus, appendHistory, createRunDir, claimPendingRun, appendRunMessage, getRunDir, beginStreamingMessage, StreamingMessageWriter, formatAgentModelComment, takeUserReply } from "../task.js";
 import { getAgent } from "../agents/agent.js";
 import { getPlatform } from "../platform/index.js";
-import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, AGENT_MODEL_PREFIX } from "../agents/shared-prompt.js";
+import { TASK_SUCCESS_MARKER, TASK_FAILURE_MARKER, TASK_NEED_INPUT_MARKER, AGENT_MODEL_PREFIX, getResumePrompt } from "../agents/shared-prompt.js";
 import { extractFileLinks, resolveTaskFile } from "../task-files.js";
 import type { AgentTool } from "../agents/agent.js";
 import { publishHostEvent } from "../events.js";
@@ -32,6 +32,7 @@ interface InvocationResult {
 async function invokeAgent(
   ctx: InvocationContext,
   invokeTask: ParsedTask,
+  followupPrompt?: string,
 ): Promise<InvocationResult> {
   let writer: StreamingMessageWriter | undefined;
   let activeStream: "stdout" | "stderr" | undefined;
@@ -97,7 +98,7 @@ async function invokeAgent(
     }
   }
 
-  const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(invokeTask);
+  const { args, stdin, env: agentEnv, files } = ctx.agent.getTaskRunCommandLine(invokeTask, followupPrompt);
   const command = ctx.agent.command;
   const runDir = getRunDir(ctx.taskDir, ctx.runId);
   if (files) {
@@ -156,6 +157,56 @@ function resolveOutcome(taskDir: string, outcome: TaskRunningState): TaskRunning
   const current = readTaskStatus(taskDir);
   if (current?.running_state === "aborted") return "aborted";
   return outcome;
+}
+
+const USER_REPLY_POLL_MS = 500;
+// A recurring task can't fire again while this run is waiting, so an unanswered question can't hold it forever.
+const USER_REPLY_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
+async function waitForUserReply(runDir: string): Promise<string | undefined> {
+  const deadline = Date.now() + USER_REPLY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const reply = takeUserReply(runDir);
+    if (reply) return reply;
+    await new Promise((resolve) => setTimeout(resolve, USER_REPLY_POLL_MS));
+  }
+  return undefined;
+}
+
+/**
+ * Only the agent CLI exits while the user answers. This process stays alive because
+ * the OS scheduler would otherwise clean up what the agent left running, like its browser.
+ */
+async function invokeAgentUntilDone(
+  ctx: InvocationContext,
+  invokeTask: ParsedTask,
+): Promise<InvocationResult> {
+  const taskName = taskDisplayName(ctx.task.frontmatter);
+  const runDir = getRunDir(ctx.taskDir, ctx.runId);
+
+  let result = await invokeAgent(ctx, invokeTask);
+  while (resolveOutcome(ctx.taskDir, result.outcome) === "needs_input") {
+    appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "needs_input" });
+    await publishTaskEvent(ctx.taskDir, ctx.taskId, "needs_input", taskName, ctx.runId);
+
+    const reply = await waitForUserReply(runDir);
+    if (!reply) {
+      await appendAndNotify(ctx, {
+        role: "assistant",
+        time: Date.now(),
+        content: "The task stopped because no reply arrived within 24 hours.",
+      });
+      return { outcome: "failed" };
+    }
+
+    appendRunMessage(ctx.taskDir, ctx.runId, { role: "user", time: Date.now(), content: reply, type: "input" });
+    appendRunMessage(ctx.taskDir, ctx.runId, { role: "status", time: Date.now(), content: "", type: "started" });
+    await publishTaskEvent(ctx.taskDir, ctx.taskId, "started", taskName, ctx.runId);
+    await publishHostEvent(ctx.taskId, { event_type: "result-updated", run_id: ctx.runId });
+
+    result = await invokeAgent(ctx, invokeTask, getResumePrompt(reply));
+  }
+  return result;
 }
 
 export async function runCommand(taskId: string): Promise<void> {
@@ -229,7 +280,7 @@ export async function runCommand(taskId: string): Promise<void> {
         content: task.frontmatter.user_prompt,
       });
 
-      const result = await invokeAgent(ctx, task);
+      const result = await invokeAgentUntilDone(ctx, task);
       const outcome = resolveOutcome(taskDir, result.outcome);
       appendRunMessage(taskDir, runId, { role: "status", time: Date.now(), content: "", type: outcome });
       await publishTaskEvent(taskDir, taskId, outcome, taskName, runId);
@@ -295,7 +346,7 @@ async function runEventTriggeredMode(
         frontmatter: { ...ctx.task.frontmatter, user_prompt: perEventPrompt },
       };
 
-      const result = await invokeAgent(ctx, perEventTask);
+      const result = await invokeAgentUntilDone(ctx, perEventTask);
       lastOutcome = result.outcome;
     }
   } catch (err) {
@@ -318,7 +369,8 @@ async function publishTaskEvent(
   writeTaskStatus(taskDir, {
     running_state: eventType,
     time_stamp: Date.now(),
-    ...(eventType === "started" ? { pid: process.pid } : {}),
+    ...(eventType === "started" || eventType === "needs_input" ? { pid: process.pid } : {}),
+    ...(eventType === "needs_input" ? { run_id: runId } : {}),
   });
 
   const payload: Record<string, unknown> = { event_type: "running-state", running_state: eventType };
@@ -395,16 +447,17 @@ function sanitizeAgentModel(raw: string): string | undefined {
   return model;
 }
 
-/** Falls back to "finished" if no success/failure marker is found. */
+/** Falls back to "finished" if no outcome marker is found. */
 export function parseTaskOutcome(output: string): TaskRunningState {
   const lastChunk = output.slice(-500);
-  const regex = new RegExp(`^\\${TASK_FAILURE_MARKER}$|^\\${TASK_SUCCESS_MARKER}$`, "gm");
+  const regex = new RegExp(`^\\${TASK_FAILURE_MARKER}$|^\\${TASK_SUCCESS_MARKER}$|^\\${TASK_NEED_INPUT_MARKER}$`, "gm");
   let last: string | null = null;
   let match;
   while ((match = regex.exec(lastChunk)) !== null) {
     last = match[0];
   }
   if (last === TASK_FAILURE_MARKER) return "failed";
+  if (last === TASK_NEED_INPUT_MARKER) return "needs_input";
   if (last === TASK_SUCCESS_MARKER) return "finished";
   return "finished";
 }

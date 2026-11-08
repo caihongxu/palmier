@@ -154,6 +154,34 @@ export function deleteFollowupStatus(runDir: string): void {
   try { fs.unlinkSync(path.join(runDir, "followup.json")); } catch { /* ignore */ }
 }
 
+// A file rather than a daemon request, so a run waiting on the user survives a daemon restart.
+const USER_REPLY_FILE = ".user-reply";
+
+/** Returns false if an earlier reply hasn't been picked up yet. */
+export function writeUserReply(runDir: string, message: string): boolean {
+  try {
+    fs.writeFileSync(path.join(runDir, USER_REPLY_FILE), message, { encoding: "utf-8", flag: "wx" });
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw err;
+  }
+}
+
+export function takeUserReply(runDir: string): string | undefined {
+  const filePath = path.join(runDir, USER_REPLY_FILE);
+  let reply: string;
+  try {
+    reply = fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return undefined;
+  }
+  // Empty means the writer has created the file but not filled it yet.
+  if (!reply) return undefined;
+  fs.unlinkSync(filePath);
+  return reply;
+}
+
 // A marker file rather than TASKRUN.md frontmatter, which a running agent process appends to concurrently.
 const STARRED_MARKER = ".starred";
 

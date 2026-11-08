@@ -47,7 +47,10 @@ async function checkStaleTasks(
     let task;
     try { task = parseTaskFile(taskDir); } catch { continue; }
 
-    if (status.running_state === "started" && !platform.isTaskRunning(taskId)) {
+    // Follow-up turns also end in needs_input, but no process is held open for them.
+    const isWaitingRun = status.running_state === "needs_input" && status.pid !== undefined;
+
+    if ((status.running_state === "started" || isWaitingRun) && !platform.isTaskRunning(taskId)) {
       console.log(`[monitor] Task ${taskId} process exited unexpectedly, marking as failed.`);
       const endTime = Date.now();
       writeTaskStatus(taskDir, { running_state: "failed", time_stamp: endTime });
@@ -73,7 +76,7 @@ async function checkStaleTasks(
       });
     }
 
-    if (task.frontmatter.one_off && status.running_state !== "started") {
+    if (task.frontmatter.one_off && status.running_state !== "started" && !isWaitingRun) {
       try { platform.removeTaskTimer(taskId); } catch { /* best-effort */ }
     }
 

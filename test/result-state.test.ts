@@ -65,6 +65,28 @@ describe("parseResultFrontmatter — standard states", () => {
   });
 });
 
+describe("parseResultFrontmatter — waiting for input", () => {
+  beforeEach(setup);
+
+  it("returns 'needs_input' with no end time while waiting", () => {
+    appendRunMessage(taskDir, runId, { role: "status", time: 1000, content: "", type: "started" });
+    appendRunMessage(taskDir, runId, { role: "status", time: 1001, content: "", type: "needs_input" });
+
+    const result = parseResultFrontmatter(readRaw());
+    assert.equal(result.running_state, "needs_input");
+    assert.equal(result.end_time, undefined);
+  });
+
+  it("returns 'started', not 'followup', once the reply resumes the run", () => {
+    appendRunMessage(taskDir, runId, { role: "status", time: 1000, content: "", type: "started" });
+    appendRunMessage(taskDir, runId, { role: "status", time: 1001, content: "", type: "needs_input" });
+    appendRunMessage(taskDir, runId, { role: "status", time: 1002, content: "", type: "started" });
+
+    const result = parseResultFrontmatter(readRaw());
+    assert.equal(result.running_state, "started");
+  });
+});
+
 describe("parseResultFrontmatter — agent model", () => {
   beforeEach(setup);
 

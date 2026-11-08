@@ -59,69 +59,6 @@ const notifyTool: ToolDefinition = {
   },
 };
 
-const requestInputTool: ToolDefinition = {
-  name: "request-input",
-  description: [
-    "Request input from the user.",
-    "The request blocks until the user responds.",
-    'Response: `{"values": ["answer1", "answer2"]}` on success, or `{"aborted": true}` if the user declines.',
-    "When you need information from the user (credentials, answers to questions, preferences, clarifications, etc.), do not guess, fail, or prompt via stdout, even in a non-interactive environment — use this instead.",
-  ],
-  inputSchema: {
-    type: "object",
-    properties: {
-      description: { type: "string", description: "Context or heading for the input request" },
-      questions: {
-        type: "array",
-        items: { type: "string" },
-        description: "Questions to present to the user",
-        minItems: 1,
-      },
-    },
-    required: ["questions"],
-  },
-  async handler(args, ctx) {
-    const { description, questions } = args as { description?: string; questions: string[] };
-    if (!questions?.length) throw new ToolError("questions is required", 400);
-
-    const pendingPromise = registerPending(ctx.taskId, "input", questions, {
-      session_id: ctx.taskId,
-      description,
-      input_questions: questions,
-    });
-
-    await ctx.publishEvent("_input", {
-      event_type: "input-request",
-      host_id: ctx.config.hostId,
-      session_id: ctx.taskId,
-      description,
-      input_questions: questions,
-    });
-
-    const response = await pendingPromise;
-    const aborted = response.length === 1 && response[0] === "aborted";
-
-    recordUserResponseToRun(ctx, aborted
-      ? "Aborted"
-      : questions.map((q, i) => `**${q}**\n\n${response[i] ?? ""}`).join("\n\n"));
-
-    if (aborted) {
-      await ctx.publishEvent("_input", {
-        event_type: "input-resolved", host_id: ctx.config.hostId,
-        session_id: ctx.taskId, status: "aborted",
-      });
-      await ctx.abortTask();
-      return { aborted: true };
-    }
-
-    await ctx.publishEvent("_input", {
-      event_type: "input-resolved", host_id: ctx.config.hostId,
-      session_id: ctx.taskId, status: "provided",
-    });
-    return { values: response };
-  },
-};
-
 /** Splice the user's answer into the run file so history shows it even if the agent never echoes it. */
 function recordUserResponseToRun(ctx: ToolContext, content: string): void {
   const taskId = ctx.taskId;
@@ -194,7 +131,7 @@ const requestChoiceTool: ToolDefinition = {
     "Ask the user a question with a fixed set of answers and let them pick one.",
     "The request blocks until the user picks an option or aborts the task.",
     'Response: `{"choice": "<option>"}` with the selected option, or `{"aborted": true}` if the user aborts.',
-    "Use this instead of request-input whenever the possible answers are known in advance.",
+    "Use this whenever the possible answers are known in advance.",
     "An abort option that ends the task is always shown, so to ask for confirmation before continuing, pass a single option naming the action (e.g. [\"Send email\"]). Add a decline option only if declining should let the task continue differently.",
   ],
   inputSchema: {
@@ -307,7 +244,7 @@ const fillPasswordTool: ToolDefinition = {
         session_id: ctx.taskId, status: aborted ? "aborted" : "provided",
       });
 
-      // Never record the secret to the task run file (unlike request-input).
+      // Never record the secret to the task run file.
       if (aborted) {
         await ctx.abortTask();
         return { aborted: true };
@@ -888,7 +825,7 @@ const sendEmailTool: ToolDefinition = {
   },
 };
 
-export const agentTools: ToolDefinition[] = [notifyTool, requestInputTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
+export const agentTools: ToolDefinition[] = [notifyTool, requestChoiceTool, fillPasswordTool, deviceGeolocationTool, readContactsTool, createContactTool, readCalendarTool, createCalendarEventTool, sendSmsTool, sendEmailTool, sendAlarmTool, readBatteryTool, setRingerModeTool];
 export const agentToolMap = new Map<string, ToolDefinition>(agentTools.map((t) => [t.name, t]));
 
 export interface ResourceDefinition {

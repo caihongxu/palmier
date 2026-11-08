@@ -13,6 +13,10 @@ describe("parseTaskOutcome", () => {
     assert.equal(parseTaskOutcome("some output\n[PALMIER_TASK_FAILURE]"), "failed");
   });
 
+  it("returns 'needs_input' for need-input marker", () => {
+    assert.equal(parseTaskOutcome("What colour?\n[PALMIER_TASK_NEED_INPUT]"), "needs_input");
+  });
+
   it("returns 'finished' when no marker is present", () => {
     assert.equal(parseTaskOutcome("just some regular output"), "finished");
   });

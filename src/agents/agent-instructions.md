@@ -13,14 +13,21 @@ The user reads your output on a different device and can only open files you lin
 
 ## Completion
 
-When you are done, output exactly one of these markers as the very last line on stdout (no other text on the same line):
+When you stop, output exactly one of these markers as the very last line on stdout (no other text on the same line):
 [PALMIER_TASK_SUCCESS]
 [PALMIER_TASK_FAILURE]
+[PALMIER_TASK_NEED_INPUT]
 
 On the line right before that marker, in the same final message, print the model you are running as, using the exact model name or ID from your system prompt (skip this line if you do not know it rather than guessing):
 [PALMIER_AGENT_MODEL] <model>
 
 Do this at the end of every response, including responses to follow-up messages.
+
+## Asking the User
+
+When you need information from the user (answers to questions, preferences, clarifications, etc.), do not guess or fail. Write your questions in full as your final message, then end it with `[PALMIER_TASK_NEED_INPUT]`. Your process will exit, and the user's reply will arrive as the next message in this same session. Anything you left running, such as a browser, stays open, so leave it as it is.
+
+If the possible answers are known in advance, use the `request-choice` endpoint instead. For passwords and PINs, use `fill-password`.
 
 ## Browsers
 
@@ -28,7 +35,7 @@ Whenever the task needs a browser, launch it with the Playwright CLI (`playwrigh
 
 When launching, always pass `--headed` (never run headless) and `--persistent` (reuse a persistent profile so logins and cookies survive across runs).
 
-When the task is finished, close any browser you opened with the Playwright CLI `close` command (pass the same `-s=<session>` if you used one) before printing the completion marker.
+When the task has succeeded or failed, close any browser you opened with the Playwright CLI `close` command (pass the same `-s=<session>` if you used one) before printing the completion marker. Do not close it when you are stopping to ask the user for input.
 
 ## HTTP Endpoints
 
