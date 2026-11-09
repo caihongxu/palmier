@@ -12,12 +12,30 @@ const AGENT_INSTRUCTIONS_TEMPLATE = fs.readFileSync(
   "utf-8",
 );
 
+export function renderAgentInstructions(values: {
+  endpointDocs: string;
+  userPrompt?: string;
+  taskDescription: string;
+}): string {
+  const slots: Record<string, string> = {
+    ENDPOINT_DOCS: values.endpointDocs,
+    USER_PROMPT: values.userPrompt ? `## Standing Instructions From the User\n\n${values.userPrompt}\n\n` : "",
+    TASK_DESCRIPTION: values.taskDescription,
+  };
+  // A single pass with a replacer, so user text is never rescanned for slots or read as `$&` patterns.
+  return AGENT_INSTRUCTIONS_TEMPLATE.replace(
+    /\{\{(ENDPOINT_DOCS|USER_PROMPT|TASK_DESCRIPTION)\}\}/g,
+    (_, slot: string) => slots[slot],
+  );
+}
+
 export function getAgentInstructions(task: ParsedTask): string {
-  const port = loadConfig().httpPort ?? 7256;
-  const taskDescription = task.frontmatter.user_prompt;
-  return AGENT_INSTRUCTIONS_TEMPLATE
-    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(port, task.frontmatter.id))
-    .replace(/\{\{TASK_DESCRIPTION\}\}/g, taskDescription);
+  const config = loadConfig();
+  return renderAgentInstructions({
+    endpointDocs: generateEndpointDocs(config.httpPort ?? 7256, task.frontmatter.id),
+    userPrompt: config.userPrompt,
+    taskDescription: task.frontmatter.user_prompt,
+  });
 }
 
 export const TASK_SUCCESS_MARKER = "[PALMIER_TASK_SUCCESS]";

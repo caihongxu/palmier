@@ -157,6 +157,7 @@ export async function initCommand(): Promise<void> {
       ...(playwrightCliVersion ? { playwrightCliVersion } : {}),
       httpPort,
       defaultInterface,
+      ...(previousConfig?.userPrompt ? { userPrompt: previousConfig.userPrompt } : {}),
     };
 
     saveConfig(config);

@@ -1,13 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
 import { generateEndpointDocs, type ToolDefinition, type ResourceDefinition } from "../src/agent-tools.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const templatePath = path.join(__dirname, "..", "src", "agents", "agent-instructions.md");
-const template = fs.readFileSync(templatePath, "utf-8");
+import { renderAgentInstructions } from "../src/agents/shared-prompt.js";
 
 /** Mock tools with a known, stable shape for testing */
 const mockTools: ToolDefinition[] = [
@@ -61,11 +55,12 @@ const mockResources: ResourceDefinition[] = [
   },
 ];
 
-/** Minimal replica of getAgentInstructions that doesn't need host.json */
-function buildInstructions(taskId: string): string {
-  return template
-    .replace(/\{\{ENDPOINT_DOCS\}\}/g, generateEndpointDocs(7256, taskId, mockTools, mockResources))
-    .replace(/\{\{TASK_DESCRIPTION\}\}/g, "Test task prompt");
+function buildInstructions(taskId: string, userPrompt?: string, taskDescription = "Test task prompt"): string {
+  return renderAgentInstructions({
+    endpointDocs: generateEndpointDocs(7256, taskId, mockTools, mockResources),
+    userPrompt,
+    taskDescription,
+  });
 }
 
 describe("getAgentInstructions", () => {
@@ -80,6 +75,25 @@ describe("getAgentInstructions", () => {
     const result = buildInstructions("my-task-123");
     assert.doesNotMatch(result, /\{\{ENDPOINT_DOCS\}\}/);
     assert.doesNotMatch(result, /\{\{TASK_DESCRIPTION\}\}/);
+    assert.doesNotMatch(result, /\{\{USER_PROMPT\}\}/);
+  });
+
+  it("places the user prompt after the endpoints and before the task description", () => {
+    const result = buildInstructions("test", "Always reply in French.");
+    const endpoints = result.indexOf("## HTTP Endpoints");
+    const userPrompt = result.indexOf("Always reply in French.");
+    const task = result.indexOf("Test task prompt");
+    assert.ok(endpoints < userPrompt && userPrompt < task);
+  });
+
+  it("adds no user prompt section when none is set", () => {
+    assert.doesNotMatch(buildInstructions("test"), /Standing Instructions/);
+  });
+
+  it("keeps replacement patterns and slot names in user text literal", () => {
+    const result = buildInstructions("test", "Cost is $& and {{TASK_DESCRIPTION}}", "Pay $1 for {{ENDPOINT_DOCS}}");
+    assert.ok(result.includes("Cost is $& and {{TASK_DESCRIPTION}}"));
+    assert.ok(result.includes("Pay $1 for {{ENDPOINT_DOCS}}"));
   });
 
   it("includes task ID in endpoint examples", () => {

@@ -25,6 +25,9 @@ export interface HostConfig {
    * most recent `palmier pair`. Used to resolve the host's LAN URL live for
    * `host.info` so the client can track IP changes (laptop roaming, DHCP). */
   defaultInterface?: string;
+
+  /** Added to the instructions of every task run on this host, ahead of the task description. */
+  userPrompt?: string;
 }
 
 export interface TaskFrontmatter {

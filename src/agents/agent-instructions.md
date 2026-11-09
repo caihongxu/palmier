@@ -41,7 +41,7 @@ When the task has succeeded or failed, close any browser you opened with the Pla
 
 {{ENDPOINT_DOCS}}
 
-The task to execute follows below:
+{{USER_PROMPT}}The task to execute follows below:
 
 ---
 

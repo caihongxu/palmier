@@ -245,7 +245,18 @@ export function createRpcHandler(config: HostConfig) {
           playwright_cli: config.playwrightCliVersion
             ? { label: PLAYWRIGHT_CLI_LABEL, npmPackage: PLAYWRIGHT_CLI_PACKAGE, version: config.playwrightCliVersion }
             : null,
+          user_prompt: config.userPrompt ?? "",
         };
+      }
+
+      case "host.setUserPrompt": {
+        const params = request.params as { user_prompt?: unknown };
+        if (typeof params?.user_prompt !== "string") return { error: "user_prompt is required" };
+        const userPrompt = params.user_prompt.trim();
+        if (userPrompt) config.userPrompt = userPrompt;
+        else delete config.userPrompt;
+        saveConfig(config);
+        return { ok: true, user_prompt: userPrompt };
       }
 
       case "task.list": {

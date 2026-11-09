@@ -73,6 +73,10 @@ Every task Palmier runs gets these capabilities automatically. Their usage is wr
 
 All device tools work while the Palmier Android app is in the background — they communicate via FCM data messages which wake the app's service even when it's not in the foreground. Each host has one **linked device**: the phone the host uses for SMS, contacts, location, and other device capabilities. Choose it at pair time (the "Link the host to this device" checkbox) or later from the drawer. Each capability must be enabled and its Android permission granted via toggles in the linked device's drawer.
 
+### Instructions for All Tasks
+
+Each host can have one standing prompt, set from **Instructions** in the app's side panel. It's stored in `host.json` and added to the agent's instructions at launch, ahead of the task description, so it applies to every run on that host, including scheduled and event-triggered ones. Edits take effect on the next run; a follow-up continues a session that already has the earlier text.
+
 ### Asking the User
 
 When an agent needs something from the user, it writes its question as its final message and ends with the `[PALMIER_TASK_NEED_INPUT]` marker. The agent CLI then exits and the run moves to a "needs input" state, with a push notification that opens the run. The user answers in the run view's message box, or aborts from there.
