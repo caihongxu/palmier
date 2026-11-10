@@ -31,9 +31,7 @@ If the possible answers are known in advance, list them in your question. For pa
 
 ## Browsers
 
-Whenever the task needs a browser, launch it with the Playwright CLI (`playwright-cli open`). Do not use any other browser tool, automation library, or launch method.
-
-When launching, always pass `--headed` (never run headless) and `--persistent` (reuse a persistent profile so logins and cookies survive across runs).
+Whenever the task needs a browser, launch Chrome with `playwright-cli open --browser=chrome --headed --persistent <url>` (the persistent profile keeps logins across runs). Do not use any other browser, tool, automation library, or launch method.
 
 When the task has succeeded or failed, close any browser you opened with the Playwright CLI `close` command (pass the same `-s=<session>` if you used one) before printing the completion marker. Do not close it when you are stopping to ask the user for input.
 
